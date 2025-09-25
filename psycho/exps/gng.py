@@ -1,9 +1,8 @@
 import random
 
 from psychopy import core, event, visual
-from pylsl import StreamInfo, StreamOutlet
 
-from psycho.utils import init_lsl, send_marker
+from psycho.utils import check_exit, init_lsl, send_marker
 
 # ====== 参数设置 ======
 n_blocks = 4  # block 数量
@@ -17,9 +16,7 @@ lsl_outlet = None
 
 # 实验部分
 def pre_block(block_index):
-    msg = visual.TextStim(
-        win, text=f"准备进入第 {block_index + 1} 个区块\n按任意键开始", color="white"
-    )
+    msg = visual.TextStim(win, text=f"准备进入第 {block_index + 1} 个区块\n按任意键开始", color="white")
     msg.draw()
     win.flip()
     event.waitKeys()
@@ -29,8 +26,11 @@ def pre_block(block_index):
 
 def block(block_index: int):
     for trial_index in range(n_trials_per_block):
+        check_exit()
         pre_trial(trial_index)
+        check_exit()
         trial(trial_index)
+        check_exit()
         post_trial(trial_index)
     send_marker(lsl_outlet, f"BLOCK_END_{block_index}")
 
@@ -66,9 +66,7 @@ def trial(trial_index):
     send_marker(lsl_outlet, f"TRIAL_START_{trial_index}")
     send_marker(lsl_outlet, "STIM_GO" if is_go else "STIM_NOGO")
     # 反应
-    keys = event.waitKeys(
-        maxWait=stim_duration, keyList=resp_keys, timeStamped=core.Clock()
-    )
+    keys = event.waitKeys(maxWait=stim_duration, keyList=resp_keys, timeStamped=core.Clock())
     win.flip()
     # 反应 marker
     if keys:
@@ -105,15 +103,16 @@ def post_trial(trial_index):
 
 def entry():
     global win, lsl_outlet
-    win = visual.Window(
-        size=(800, 600), pos=(0, 0), fullscr=True, color="grey", units="pix"
-    )
+    win = visual.Window(size=(800, 600), pos=(0, 0), fullscr=True, color="grey", units="pix")
 
     lsl_outlet = init_lsl("GoNogoMarkers")  # 初始化 LSL
 
     for block_index in range(n_blocks):
+        check_exit()
         pre_block(block_index)
+        check_exit()
         block(block_index)
+        check_exit()
         post_block(block_index)
 
     # 实验结束

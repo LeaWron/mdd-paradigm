@@ -44,17 +44,18 @@ psycho/                 # 项目根目录
 ```python
 from psycho.utils import init_lsl, send_marker
 
-def pre_trial():
-
-def trial():
-
-def post_trial():
 
 def pre_block():
 
 def block():
 
 def post_block():
+
+def pre_trial():
+
+def trial():
+
+def post_trial():
 
 def entry():
 

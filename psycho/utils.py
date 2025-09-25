@@ -1,15 +1,15 @@
-from psychopy import event
+from psychopy import core, event
 from pylsl import StreamInfo, StreamOutlet
 
 
-def check_exit(exit_flag: list[bool]):
+def check_exit():
     # 实时监听键盘
     keys = event.getKeys(modifiers=True)
     for key, mods in keys:
         # 如果检测到 Esc 且 Ctrl 被按着
         if key == "escape" and mods.get("shift", False):
             print("检测到 Shift+Esc，实验退出")
-            exit_flag[0] = True
+            core.quit()
             return True
     return False
 

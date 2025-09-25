@@ -2,16 +2,15 @@ import random
 
 from psychopy import core, event, visual
 
-from psycho.utils import init_lsl, send_marker
+from psycho.utils import check_exit, init_lsl, send_marker
 
-# ========== 全局参数 ==========
+# ========== 参数设置 ==========
 n_back = 2
 n_blocks = 4
 n_trials_per_block = 30
 stim_pool = list(range(0, 4))
 stim_duration = 1.0
-isi = 0.5
-resp_key = "space"
+resp_keys = ["space"]
 
 # PsychoPy 全局对象
 win = None
@@ -27,17 +26,27 @@ lsl_outlet = None
 # ========== 生命周期函数 ==========
 
 
-def pre_block():
+def pre_block(block_index: int):
     """block 开始前"""
     global stim_sequence
     stim_sequence = [random.choice(stim_pool) for _ in range(n_trials_per_block)]
+    # 区块开始前的提示
+    msg = visual.TextStim(win, text=f"准备进入第 {block_index + 1} 个区块\n按任意键开始", color="white", height=30)
+    msg.draw()
+    win.flip()
+    event.waitKeys()
+
+    send_marker(lsl_outlet, f"BLOCK_START_{block_index}")
 
 
 def block(block_index: int):
     """执行一个 block"""
     for trial_index in range(n_trials_per_block):
+        check_exit()
         pre_trial(trial_index)
+        check_exit()
         trial(trial_index)
+        check_exit()
         post_trial(trial_index)
     send_marker(lsl_outlet, f"BLOCK_END_{block_index}")
 
@@ -72,7 +81,7 @@ def trial(t):
     stim_onset = core.getTime()
 
     # 等待刺激期间响应
-    keys = event.waitKeys(maxWait=stim_duration, keyList=[resp_key], timeStamped=True)
+    keys = event.waitKeys(maxWait=stim_duration, keyList=resp_keys, timeStamped=True)
 
     # 判定 target
     is_target = False
@@ -110,16 +119,17 @@ def post_trial(t):
 def entry():
     """实验入口"""
     global win, stim_text, lsl_outlet
-    win = visual.Window(
-        size=(800, 600), pos=(0, 0), fullscr=True, color="grey", units="pix"
-    )
+    win = visual.Window(size=(800, 600), pos=(0, 0), fullscr=True, color="grey", units="pix")
     stim_text = visual.TextStim(win, text="wha", color="white", height=60)
 
     lsl_outlet = init_lsl("NBackMarkers")  # 初始化 LSL
 
     for block_index in range(n_blocks):
+        check_exit()
         pre_block(block_index)
+        check_exit()
         block(block_index)
+        check_exit()
         post_block(block_index)
 
     # 实验结束

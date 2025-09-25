@@ -5,8 +5,8 @@ from psychopy import core, event, visual
 from psycho.utils import check_exit, init_lsl, send_marker
 
 # ====== 参数设置 ======
-n_blocks = 4  # block 数量
-n_trials_per_block = 10  # 每个 block 的 trial 数
+n_blocks = 1  # block 数量
+n_trials_per_block = 1  # 每个 block 的 trial 数
 go_prob = 0.7  # Go trial 的概率
 stim_duration = 1.0  # 刺激呈现时间
 resp_keys = ["space"]  # 受试者按键

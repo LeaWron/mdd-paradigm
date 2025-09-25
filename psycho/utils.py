@@ -14,6 +14,16 @@ def check_exit():
     return False
 
 
+def skip_experiment():
+    """跳过当前实验"""
+    print("跳过当前实验")
+    keys = event.getKeys(modifiers=True)
+    if "s" in keys and "shift" in keys:
+        return True
+    core.wait(1)
+    return True
+
+
 def init_lsl(
     name,
     stream_info_type: str = "Markers",

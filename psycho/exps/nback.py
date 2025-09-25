@@ -6,8 +6,8 @@ from psycho.utils import check_exit, init_lsl, send_marker
 
 # ========== 参数设置 ==========
 n_back = 2
-n_blocks = 4
-n_trials_per_block = 30
+n_blocks = 1
+n_trials_per_block = 1
 stim_pool = list(range(0, 4))
 stim_duration = 1.0
 resp_keys = ["space"]
@@ -139,13 +139,11 @@ def entry():
     event.waitKeys()
     win.close()
 
-    send_marker("EXPERIMENT_END")
-    core.quit()
+    send_marker(lsl_outlet, "EXPERIMENT_END")
 
 
 def main():
     entry()
 
 
-if __name__ == "__main__":
-    main()
+main()

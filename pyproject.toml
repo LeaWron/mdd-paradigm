@@ -1,0 +1,22 @@
+[project]
+name = "psycho"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "commitizen>=4.9.1",
+    "psychopy",
+    "pylsl>=1.17.6",
+]
+
+[tool.uv.sources]
+psychopy = { path = "libs/psychopy-2025.2.0-py3-none-any.whl" }
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "$version"
+version_scheme = "pep440"
+version_provider = "uv"
+update_changelog_on_bump = true
+major_version_zero = true

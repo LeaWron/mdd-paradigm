@@ -67,6 +67,17 @@ if __name__ == "__main__":
 
 但不强制
 
+### Git Commit
+
+建议使用统一提交方式(commitizen)
+
+- uv add commitizen
+  - 也可以 uv tool install commitizen, 这种方式需要更新 PATH
+- cz init 后一路 enter 确认
+- 之后使用 cz commit 代替 git commit
+
+但是也不强制
+
 ## 运行
 
 `python main.py` 进入一个 session

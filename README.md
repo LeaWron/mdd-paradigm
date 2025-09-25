@@ -62,8 +62,8 @@ def entry():
 def main():
     entry()
 
-if __name__ == "__main__":
-    main()
+# session.start 需要直接调用
+main()
 ```
 
 但不强制
@@ -81,7 +81,7 @@ if __name__ == "__main__":
 
 ## 运行
 
-`python main.py` 进入一个 session
+`python -m psycho.main` 进入一个 session
 
 如果想单独运行一个实验，需要通过 ``python -m psycho.exps.<paradigm> # 没有.py``
 

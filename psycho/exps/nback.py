@@ -31,7 +31,12 @@ def pre_block(block_index: int):
     global stim_sequence
     stim_sequence = [random.choice(stim_pool) for _ in range(n_trials_per_block)]
     # 区块开始前的提示
-    msg = visual.TextStim(win, text=f"准备进入第 {block_index + 1} 个区块\n按任意键开始", color="white", height=30)
+    msg = visual.TextStim(
+        win,
+        text=f"准备进入第 {block_index + 1} 个区块\n按任意键开始",
+        color="white",
+        height=30,
+    )
     msg.draw()
     win.flip()
     event.waitKeys()
@@ -119,7 +124,9 @@ def post_trial(t):
 def entry():
     """实验入口"""
     global win, stim_text, lsl_outlet
-    win = visual.Window(size=(800, 600), pos=(0, 0), fullscr=True, color="grey", units="pix")
+    win = visual.Window(
+        size=(800, 600), pos=(0, 0), fullscr=True, color="grey", units="pix"
+    )
     stim_text = visual.TextStim(win, text="wha", color="white", height=60)
 
     lsl_outlet = init_lsl("NBackMarkers")  # 初始化 LSL

@@ -81,9 +81,9 @@ main()
 
 ## 运行
 
-`python -m psycho.main` 进入一个 session
+`uv run -m psycho.main` 进入一个 session
 
-如果想单独运行一个实验，需要通过 ``python -m psycho.exps.<paradigm> # 没有.py``
+如果想单独运行一个实验，需要通过 ``uv run -m psycho.exps.<paradigm> # 没有.py``
 
 ## TODO
 

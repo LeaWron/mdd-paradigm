@@ -1,27 +1,5 @@
-from psychopy import core, event
+from psychopy import core, event, visual
 from pylsl import StreamInfo, StreamOutlet
-
-
-def check_exit():
-    # 实时监听键盘
-    keys = event.getKeys(modifiers=True)
-    for key, mods in keys:
-        # 如果检测到 Esc 且 Ctrl 被按着
-        if key == "escape" and mods.get("shift", False):
-            print("检测到 Shift+Esc，实验退出")
-            core.quit()
-            return True
-    return False
-
-
-def skip_experiment():
-    """跳过当前实验"""
-    print("跳过当前实验")
-    keys = event.getKeys(modifiers=True)
-    if "s" in keys and "shift" in keys:
-        return True
-    core.wait(1)
-    return True
 
 
 def init_lsl(
@@ -43,10 +21,24 @@ def init_lsl(
     return lsl_outlet
 
 
-def send_marker(lsl_outlet: StreamOutlet, marker: str):
+def send_marker(lsl_outlet: StreamOutlet, marker: str, timestamp: float | None = None):
     """向 LSL 发送 marker"""
     if lsl_outlet is not None:
-        lsl_outlet.push_sample([marker])
+        lsl_outlet.push_sample([marker], timestamp)
+
+
+def switch_keyboard_layout(layout: str = "en-US"):
+    """切换到指定的键盘布局"""
+    import ctypes
+
+    # 加载 user32.dll
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+
+    # HKL 对应输入法标识符：0x04090409 = en-US 键盘布局
+    HKL_NEXT = 0x04090409
+
+    # 切换输入法
+    user32.ActivateKeyboardLayout(HKL_NEXT, 0)
 
 
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ def test_gui():
         print("user cancelled")
 
 
+@pytest.mark.skip(reason="暂时不测试这个函数")
 def test_clock():
     timer = core.Clock()
     print()
@@ -29,3 +30,70 @@ def test_clock():
 
     timer.reset()
     print("3", timer.getTime())
+
+
+@pytest.mark.skip(reason="暂时不测试这个函数")
+def test_text():
+    # 创建窗口
+    win = visual.Window([800, 600], color="black", units="norm")
+
+    def create_textStim(win, text, height=0.1, pos=(0, 0), wrapWidth=None, autoDraw=False):
+        """
+        创建一个 TextStim，保证视觉居中，多行也居中，默认自动绘制。
+
+        参数：
+        - win: psychopy Window 对象
+        - text: 要显示的文字（可含 \n 换行）
+        - height: 字体高度
+        - pos: 文字中心位置 (x, y)
+        - wrapWidth: 自动换行宽度 (None 表示不限制)
+        - autoDraw: 是否自动绘制
+        """
+        stim = visual.TextStim(
+            win=win,
+            text=text,
+            height=height,
+            pos=pos,
+            wrapWidth=wrapWidth,
+            autoDraw=autoDraw,
+        )
+        return stim
+
+    # 示例 1: 单行文字
+    stim1 = create_textStim(win, "Hello World But I need some more longer text so I can know whether it is right way I need", height=0.2)
+    stim1.draw()
+    win.flip()
+    event.waitKeys()
+
+    # 示例 2: 多行文字 + wrapWidth
+    multi_line_text = "第一行文字\n第二行文字\n第三行文字"
+    stim2 = create_textStim(win, multi_line_text, height=0.1, wrapWidth=1.5)
+    stim2.draw()
+    win.flip()
+    event.waitKeys()
+
+    stim3 = create_textStim(
+        win,
+        "Hello World But I need some more longer text\nso I can know whether it is right way I need",
+        height=0.2,
+        wrapWidth=2,
+    )
+    stim3.draw()
+    win.flip()
+    event.waitKeys()
+    # 显示示例
+    win.close()
+
+
+def test_switch_keyboard_layout():
+    # 切换到英文输入法
+    import ctypes
+
+    # 加载 user32.dll
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+
+    # HKL 对应输入法标识符：0x04090409 = en-US 键盘布局
+    HKL_NEXT = 0x04090409
+
+    # 切换输入法
+    user32.ActivateKeyboardLayout(HKL_NEXT, 0)

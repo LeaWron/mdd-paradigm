@@ -8,6 +8,7 @@ dependencies = [
     "commitizen>=4.9.1",
     "psychopy",
     "pylsl>=1.17.6",
+    "pytest>=8.4.2",
 ]
 
 [tool.uv.sources]

@@ -57,13 +57,14 @@ def trial():
 
 def post_trial():
 
-def entry():
+# win 和 clock 都是从 session 中传递进来的, 如果想方便使用可以在用这两个参数对本地的全局变量赋值
+def entry(win, clock): 
 
 def main():
     entry()
 
-# session.start 需要直接调用
-main()
+if __name__ == "__main__":
+    main()
 ```
 
 但不强制

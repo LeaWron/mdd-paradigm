@@ -19,8 +19,12 @@ class Session:
 
         self.continue_keys = ["space"]
         self.lsl_proc = None
-        event.globalKeys.add(key="escape", modifiers=["shift"], func=self.stop, name="quit")
-        event.globalKeys.add(key="p", modifiers=["shift"], func=self.pause, name="pause")
+        event.globalKeys.add(
+            key="escape", modifiers=["shift"], func=self.stop, name="quit"
+        )
+        event.globalKeys.add(
+            key="p", modifiers=["shift"], func=self.pause, name="pause"
+        )
 
     def discover_experiments(self):
         files = list(self.exps_dir.glob("*.py"))
@@ -44,7 +48,9 @@ class Session:
 
     def start(self, with_lsl=False):
         self.running = True
-        self.win = visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")  # 全局窗口
+        self.win = visual.Window(
+            pos=(0, 0), fullscr=True, color="grey", units="norm"
+        )  # 全局窗口
         if with_lsl:
             self.lsl_proc = multiprocessing.Process(target=self._lsl_recv)
             self.lsl_proc.start()
@@ -53,14 +59,26 @@ class Session:
             for exp in self.experiments:
                 if not self.running:
                     break
-                start_msg = visual.TextStim(self.win, text="准备进入实验, 按空格键继续", color="white", height=0.05, wrapWidth=2)
+                start_msg = visual.TextStim(
+                    self.win,
+                    text="准备进入实验, 按空格键继续",
+                    color="white",
+                    height=0.05,
+                    wrapWidth=2,
+                )
                 start_msg.draw()
                 self.win.flip()
                 event.waitKeys(keyList=self.continue_keys)
 
                 exp.entry(self.win, self.trialClock)
 
-                end_msg = visual.TextStim(self.win, text="该实验结束, 按空格键继续", color="white", height=0.05, wrapWidth=2)
+                end_msg = visual.TextStim(
+                    self.win,
+                    text="该实验结束, 按空格键继续",
+                    color="white",
+                    height=0.05,
+                    wrapWidth=2,
+                )
                 end_msg.draw()
                 self.win.flip()
                 event.waitKeys(keyList=self.continue_keys)
@@ -82,7 +100,9 @@ class Session:
         # core.quit()
 
     def pause(self):
-        pause_msg = visual.TextStim(self.win, text="暂停中，按 r 恢复", height=0.20, wrapWidth=2)
+        pause_msg = visual.TextStim(
+            self.win, text="暂停中，按 r 恢复", height=0.20, wrapWidth=2
+        )
         pause_start = self.trialClock.getTime()  # 记录暂停开始时间（系统时间）
 
         # 只用管理 win 和 clock 即可

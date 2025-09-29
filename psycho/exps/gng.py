@@ -95,7 +95,9 @@ def trial(trial_index):
     keys = event.waitKeys(maxWait=stim_duration, keyList=resp_keys, timeStamped=True)
     # 反应 marker
     if keys:
-        send_marker(lsl_outlet, f"RESPONSE_{keys[0][0]}_{keys[0][1]:.3f}", clock.getTime())
+        send_marker(
+            lsl_outlet, f"RESPONSE_{keys[0][0]}_{keys[0][1]:.3f}", clock.getTime()
+        )
     else:
         send_marker(lsl_outlet, "NO_RESPONSE", clock.getTime())
 
@@ -114,7 +116,9 @@ def post_trial(trial_index):
     core.wait(0.5)
 
 
-def entry(win_session: visual.Window | None = None, clock_session: core.Clock | None = None):
+def entry(
+    win_session: visual.Window | None = None, clock_session: core.Clock | None = None
+):
     global win, clock, lsl_outlet
     # win = visual.Window(size=(800, 600), pos=(0, 0), fullscr=True, color="grey", units="pix")
     win = win_session

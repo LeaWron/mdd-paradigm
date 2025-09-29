@@ -164,7 +164,9 @@ def post_trial(t):
     core.wait(0.5)
 
 
-def entry(win_session: visual.Window | None = None, clock_session: core.Clock | None = None):
+def entry(
+    win_session: visual.Window | None = None, clock_session: core.Clock | None = None
+):
     """实验入口"""
     global stim_text, lsl_outlet, win, clock
     win = win_session

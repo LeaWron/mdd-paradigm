@@ -37,7 +37,9 @@ def test_text():
     # 创建窗口
     win = visual.Window([800, 600], color="black", units="norm")
 
-    def create_textStim(win, text, height=0.1, pos=(0, 0), wrapWidth=None, autoDraw=False):
+    def create_textStim(
+        win, text, height=0.1, pos=(0, 0), wrapWidth=None, autoDraw=False
+    ):
         """
         创建一个 TextStim，保证视觉居中，多行也居中，默认自动绘制。
 

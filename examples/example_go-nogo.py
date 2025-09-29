@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 """
 This experiment was created using PsychoPy3 Experiment Builder (v2023.2.3),
     on Wed Dec 13 20:58:49 2023
@@ -490,10 +490,14 @@ def run(expInfo, thisExp, win, inputs, globalClock=None, thisSession=None):
     if ioServer is not None:
         ioServer.syncClock(globalClock)
     logging.setDefaultClock(globalClock)
-    routineTimer = core.Clock()  # to track time remaining of each (possibly non-slip) routine
+    routineTimer = (
+        core.Clock()
+    )  # to track time remaining of each (possibly non-slip) routine
     win.flip()  # flip window to reset last flip timer
     # store the exact time the global clock started
-    expInfo["expStart"] = data.getDateStr(format="%Y-%m-%d %Hh%M.%S.%f %z", fractionalSecondDigits=6)
+    expInfo["expStart"] = data.getDateStr(
+        format="%Y-%m-%d %Hh%M.%S.%f %z", fractionalSecondDigits=6
+    )
 
     # --- Prepare to start Routine "intro" ---
     continueRoutine = True
@@ -564,12 +568,18 @@ def run(expInfo, thisExp, win, inputs, globalClock=None, thisSession=None):
             # keyboard checking is just starting
             waitOnFlip = True
             win.callOnFlip(start_resp.clock.reset)  # t=0 on next screen flip
-            win.callOnFlip(start_resp.clearEvents, eventType="keyboard")  # clear events on next screen flip
+            win.callOnFlip(
+                start_resp.clearEvents, eventType="keyboard"
+            )  # clear events on next screen flip
         if start_resp.status == STARTED and not waitOnFlip:
-            theseKeys = start_resp.getKeys(keyList=["s"], ignoreKeys=["escape"], waitRelease=False)
+            theseKeys = start_resp.getKeys(
+                keyList=["s"], ignoreKeys=["escape"], waitRelease=False
+            )
             _start_resp_allKeys.extend(theseKeys)
             if len(_start_resp_allKeys):
-                start_resp.keys = _start_resp_allKeys[-1].name  # just the last key pressed
+                start_resp.keys = _start_resp_allKeys[
+                    -1
+                ].name  # just the last key pressed
                 start_resp.rt = _start_resp_allKeys[-1].rt
                 start_resp.duration = _start_resp_allKeys[-1].duration
                 # a response ends the routine
@@ -626,14 +636,18 @@ def run(expInfo, thisExp, win, inputs, globalClock=None, thisSession=None):
         if not continueRoutine:  # a component has requested a forced-end of Routine
             routineForceEnded = True
             break
-        continueRoutine = False  # will revert to True if at least one component still running
+        continueRoutine = (
+            False  # will revert to True if at least one component still running
+        )
         for thisComponent in introComponents:
             if hasattr(thisComponent, "status") and thisComponent.status != FINISHED:
                 continueRoutine = True
                 break  # at least one component has not yet finished
 
         # refresh the screen
-        if continueRoutine:  # don't flip if this routine is over or we'll get a blank screen
+        if (
+            continueRoutine
+        ):  # don't flip if this routine is over or we'll get a blank screen
             win.flip()
 
     # --- Ending Routine "intro" ---
@@ -768,7 +782,9 @@ def run(expInfo, thisExp, win, inputs, globalClock=None, thisSession=None):
                 # keyboard checking is just starting
                 waitOnFlip = True
                 win.callOnFlip(key_resp.clock.reset)  # t=0 on next screen flip
-                win.callOnFlip(key_resp.clearEvents, eventType="keyboard")  # clear events on next screen flip
+                win.callOnFlip(
+                    key_resp.clearEvents, eventType="keyboard"
+                )  # clear events on next screen flip
 
             # if key_resp is stopping this frame...
             if key_resp.status == STARTED:
@@ -783,10 +799,14 @@ def run(expInfo, thisExp, win, inputs, globalClock=None, thisSession=None):
                     key_resp.status = FINISHED
                     key_resp.status = FINISHED
             if key_resp.status == STARTED and not waitOnFlip:
-                theseKeys = key_resp.getKeys(keyList=["space"], ignoreKeys=["escape"], waitRelease=False)
+                theseKeys = key_resp.getKeys(
+                    keyList=["space"], ignoreKeys=["escape"], waitRelease=False
+                )
                 _key_resp_allKeys.extend(theseKeys)
                 if len(_key_resp_allKeys):
-                    key_resp.keys = _key_resp_allKeys[-1].name  # just the last key pressed
+                    key_resp.keys = _key_resp_allKeys[
+                        -1
+                    ].name  # just the last key pressed
                     key_resp.rt = _key_resp_allKeys[-1].rt
                     key_resp.duration = _key_resp_allKeys[-1].duration
                     # was this correct?
@@ -808,14 +828,21 @@ def run(expInfo, thisExp, win, inputs, globalClock=None, thisSession=None):
             if not continueRoutine:  # a component has requested a forced-end of Routine
                 routineForceEnded = True
                 break
-            continueRoutine = False  # will revert to True if at least one component still running
+            continueRoutine = (
+                False  # will revert to True if at least one component still running
+            )
             for thisComponent in trialComponents:
-                if hasattr(thisComponent, "status") and thisComponent.status != FINISHED:
+                if (
+                    hasattr(thisComponent, "status")
+                    and thisComponent.status != FINISHED
+                ):
                     continueRoutine = True
                     break  # at least one component has not yet finished
 
             # refresh the screen
-            if continueRoutine:  # don't flip if this routine is over or we'll get a blank screen
+            if (
+                continueRoutine
+            ):  # don't flip if this routine is over or we'll get a blank screen
                 win.flip()
 
         # --- Ending Routine "trial" ---
@@ -924,14 +951,21 @@ def run(expInfo, thisExp, win, inputs, globalClock=None, thisSession=None):
             if not continueRoutine:  # a component has requested a forced-end of Routine
                 routineForceEnded = True
                 break
-            continueRoutine = False  # will revert to True if at least one component still running
+            continueRoutine = (
+                False  # will revert to True if at least one component still running
+            )
             for thisComponent in feedbackComponents:
-                if hasattr(thisComponent, "status") and thisComponent.status != FINISHED:
+                if (
+                    hasattr(thisComponent, "status")
+                    and thisComponent.status != FINISHED
+                ):
                     continueRoutine = True
                     break  # at least one component has not yet finished
 
             # refresh the screen
-            if continueRoutine:  # don't flip if this routine is over or we'll get a blank screen
+            if (
+                continueRoutine
+            ):  # don't flip if this routine is over or we'll get a blank screen
                 win.flip()
 
         # --- Ending Routine "feedback" ---
@@ -1014,14 +1048,18 @@ def run(expInfo, thisExp, win, inputs, globalClock=None, thisSession=None):
         if not continueRoutine:  # a component has requested a forced-end of Routine
             routineForceEnded = True
             break
-        continueRoutine = False  # will revert to True if at least one component still running
+        continueRoutine = (
+            False  # will revert to True if at least one component still running
+        )
         for thisComponent in endComponents:
             if hasattr(thisComponent, "status") and thisComponent.status != FINISHED:
                 continueRoutine = True
                 break  # at least one component has not yet finished
 
         # refresh the screen
-        if continueRoutine:  # don't flip if this routine is over or we'll get a blank screen
+        if (
+            continueRoutine
+        ):  # don't flip if this routine is over or we'll get a blank screen
             win.flip()
 
     # --- Ending Routine "end" ---

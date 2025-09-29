@@ -2,7 +2,7 @@ import random
 
 from psychopy import core, event, visual
 
-from psycho.utils import init_lsl, send_marker
+from psycho.utils import init_lsl, orbitary_keys, send_marker
 
 # ====== 参数设置 ======
 n_blocks = 1  # block 数量
@@ -29,7 +29,7 @@ def pre_block(block_index):
     )
     msg.draw()
     win.flip()
-    event.waitKeys()
+    event.waitKeys(keyList=orbitary_keys)
 
     send_marker(lsl_outlet, f"BLOCK_START_{block_index}", clock.getTime())
 
@@ -52,7 +52,7 @@ def post_block(block_index):
     )
     msg.draw()
     win.flip()
-    event.waitKeys()
+    event.waitKeys(keyList=orbitary_keys)
 
 
 def pre_trial(trial_index):
@@ -68,6 +68,8 @@ def trial(trial_index):
     is_go = random.random() < go_prob
 
     # TODO: 先显示一段时间的空白
+    win.flip()
+    core.wait(0.5)
 
     # TODO: 是否选择结合图形, 颜色设置等
     # ellipse = visual.Circle(win, radius=0.5, edges=128, size=(0.8, 0.4), lineColor="black")

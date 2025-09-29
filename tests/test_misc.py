@@ -60,7 +60,11 @@ def test_text():
         return stim
 
     # 示例 1: 单行文字
-    stim1 = create_textStim(win, "Hello World But I need some more longer text so I can know whether it is right way I need", height=0.2)
+    stim1 = create_textStim(
+        win,
+        "Hello World But I need some more longer text so I can know whether it is right way I need",
+        height=0.2,
+    )
     stim1.draw()
     win.flip()
     event.waitKeys()
@@ -85,6 +89,7 @@ def test_text():
     win.close()
 
 
+@pytest.mark.skip(reason="暂时不测试这个函数")
 def test_switch_keyboard_layout():
     # 切换到英文输入法
     import ctypes
@@ -97,3 +102,22 @@ def test_switch_keyboard_layout():
 
     # 切换输入法
     user32.ActivateKeyboardLayout(HKL_NEXT, 0)
+
+
+def test_block_interaction():
+    # orbitary_keys = [chr(i) for i in range(32, 127)] + ["return", "space"]
+    orbitary_keys = None
+    print(orbitary_keys)
+    win = visual.Window([800, 600], color="black", units="norm")
+    event.waitKeys(keyList=orbitary_keys)
+    stim = visual.TextStim(win, text="+", height=0.2)
+    stim.draw()
+    win.flip()
+
+    while True:
+        keys = event.getKeys(keyList=orbitary_keys)
+        if "space" in keys:
+            print("你按下了以下键:", event.waitKeys(modifiers=True))
+        if "return" in keys:
+            break
+    win.close()

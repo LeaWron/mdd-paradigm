@@ -1,6 +1,13 @@
 from psychopy import core, event, visual
 from pylsl import StreamInfo, StreamOutlet
 
+orbitary_keys = (
+    [chr(i) for i in range(32, 127)]
+    + ["return", "space"]
+    + ["num0", "num1", "num2", "num3", "num4", "num5", "num6", "num7", "num8", "num9"]
+    + ["comma", "period", "slash", "semicolon", "apostrophe", "bracketleft", "bracketright", "backslash"]
+)
+
 
 def init_lsl(
     name,

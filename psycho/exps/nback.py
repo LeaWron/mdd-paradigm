@@ -2,7 +2,7 @@ import random
 
 from psychopy import core, event, visual
 
-from psycho.utils import init_lsl, send_marker
+from psycho.utils import init_lsl, orbitary_keys, send_marker
 
 # ========== 参数设置 ==========
 n_back = 2
@@ -41,7 +41,7 @@ def pre_block(block_index: int):
     )
     msg.draw()
     win.flip()
-    event.waitKeys()
+    event.waitKeys(keyList=orbitary_keys)
 
     send_marker(lsl_outlet, f"BLOCK_START_{block_index}", clock.getTime())
 
@@ -65,10 +65,10 @@ def post_block(block_index):
     )
     msg.draw()
     win.flip()
-    event.waitKeys()
+    event.waitKeys(keyList=orbitary_keys)
 
 
-def pre_trial(t):
+def pre_trial(trial_index: int):
     """trial 开始前"""
     fixation = visual.TextStim(win, text="+", color="white", height=0.4, wrapWidth=2)
     fixation.draw()
@@ -85,10 +85,24 @@ def trial(t):
     stim_text.draw()
 
     # 上横线
-    line_top = visual.Line(win, start=(-0.15, 0.2), end=(0.15, 0.2), lineColor="white", lineWidth=10, units="norm")
+    line_top = visual.Line(
+        win,
+        start=(-0.15, 0.2),
+        end=(0.15, 0.2),
+        lineColor="white",
+        lineWidth=10,
+        units="norm",
+    )
 
     # 下横线
-    line_bottom = visual.Line(win, start=(-0.15, -0.2), end=(0.15, -0.2), lineColor="white", lineWidth=10, units="norm")
+    line_bottom = visual.Line(
+        win,
+        start=(-0.15, -0.2),
+        end=(0.15, -0.2),
+        lineColor="white",
+        lineWidth=10,
+        units="norm",
+    )
 
     line_top.draw()
     line_bottom.draw()

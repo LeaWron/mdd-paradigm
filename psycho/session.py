@@ -19,12 +19,8 @@ class Session:
 
         self.continue_keys = ["space"]
         self.lsl_proc = None
-        event.globalKeys.add(
-            key="escape", modifiers=["shift"], func=self.stop, name="quit"
-        )
-        event.globalKeys.add(
-            key="p", modifiers=["shift"], func=self.pause, name="pause"
-        )
+        event.globalKeys.add(key="escape", modifiers=["shift"], func=self.stop, name="quit")
+        event.globalKeys.add(key="p", modifiers=["shift"], func=self.pause, name="pause")
 
     def discover_experiments(self):
         files = list(self.exps_dir.glob("*.py"))
@@ -46,11 +42,18 @@ class Session:
             mod = importlib.import_module(f"psycho.exps.{name}")
             self.experiments.append(mod)
 
+    def select_test_mode(self):
+        dlg = gui.Dlg(title="Test Mode")
+        dlg.addField(key="mode", label="Run as Test Mode", initial=False)
+        ok = dlg.show()
+        if not dlg.OK:
+            core.quit()
+        self.test_mode = ok["mode"]
+
     def start(self, with_lsl=False):
         self.running = True
-        self.win = visual.Window(
-            pos=(0, 0), fullscr=True, color="grey", units="norm"
-        )  # 全局窗口
+        self.select_test_mode()
+        self.win = visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")  # 全局窗口
         if with_lsl:
             self.lsl_proc = multiprocessing.Process(target=self._lsl_recv)
             self.lsl_proc.start()
@@ -69,8 +72,10 @@ class Session:
                 start_msg.draw()
                 self.win.flip()
                 event.waitKeys(keyList=self.continue_keys)
+                core.wait(0.3)
+                self.win.flip()
 
-                exp.entry(self.win, self.trialClock)
+                exp.entry(self.win, self.trialClock, self.test_mode)
 
                 end_msg = visual.TextStim(
                     self.win,
@@ -82,6 +87,8 @@ class Session:
                 end_msg.draw()
                 self.win.flip()
                 event.waitKeys(keyList=self.continue_keys)
+                core.wait(0.3)
+                self.win.flip()
 
         finally:
             self.stop()
@@ -100,9 +107,7 @@ class Session:
         # core.quit()
 
     def pause(self):
-        pause_msg = visual.TextStim(
-            self.win, text="暂停中，按 r 恢复", height=0.20, wrapWidth=2
-        )
+        pause_msg = visual.TextStim(self.win, text="暂停中，按 r 恢复", height=0.20, wrapWidth=2)
         pause_start = self.trialClock.getTime()  # 记录暂停开始时间（系统时间）
 
         # 只用管理 win 和 clock 即可

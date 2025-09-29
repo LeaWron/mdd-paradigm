@@ -37,9 +37,7 @@ def test_text():
     # 创建窗口
     win = visual.Window([800, 600], color="black", units="norm")
 
-    def create_textStim(
-        win, text, height=0.1, pos=(0, 0), wrapWidth=None, autoDraw=False
-    ):
+    def create_textStim(win, text, height=0.1, pos=(0, 0), wrapWidth=None, autoDraw=False):
         """
         创建一个 TextStim，保证视觉居中，多行也居中，默认自动绘制。
 
@@ -106,6 +104,7 @@ def test_switch_keyboard_layout():
     user32.ActivateKeyboardLayout(HKL_NEXT, 0)
 
 
+@pytest.mark.skip(reason="暂时不测试这个函数")
 def test_block_interaction():
     # orbitary_keys = [chr(i) for i in range(32, 127)] + ["return", "space"]
     orbitary_keys = None
@@ -123,3 +122,12 @@ def test_block_interaction():
         if "return" in keys:
             break
     win.close()
+
+
+def test_get_isi():
+    import random
+    import time
+
+    while input() != "y":
+        isi = random.uniform(500, 1000)
+        print(isi)

@@ -7,16 +7,18 @@ from psycho.utils import init_lsl, orbitary_keys, send_marker
 # ========== 参数设置 ==========
 n_back = 2
 n_blocks = 1
-n_trials_per_block = 1
+n_trials_per_block = 10
 stim_pool = list(range(0, 4))
 stim_duration = 1.0
 resp_keys = ["space"]
+rest_duration = 30  # 每个 block 休息时间
 
 # PsychoPy 全局对象
 win = None
 stim_text = None
 clock = None
 
+correct_count = 0  # 正确响应次数
 # 存储
 stim_sequence = []
 results = []
@@ -27,21 +29,30 @@ lsl_outlet = None
 # ========== 生命周期函数 ==========
 
 
-def pre_block(block_index: int):
+def pre_block(block_index: int, test_mode: bool = False):
     """block 开始前"""
-    global stim_sequence
+    global stim_sequence, correct_count
     stim_sequence = [random.choice(stim_pool) for _ in range(n_trials_per_block)]
     # 区块开始前的提示
+    if test_mode:
+        text = f"准备进入第 {block_index + 1} 个区块\n按任意键开始"
+    else:
+        text = f"准备进入第 {block_index + 1} 个区块\n你有{rest_duration}秒休息时间"
+
     msg = visual.TextStim(
         win,
-        text=f"准备进入第 {block_index + 1} 个区块\n按任意键开始",
+        text=text,
         color="white",
         height=0.1,
         wrapWidth=2,
     )
     msg.draw()
     win.flip()
-    event.waitKeys(keyList=orbitary_keys)
+    if test_mode:
+        event.waitKeys(keyList=orbitary_keys)
+    else:
+        core.wait(rest_duration)
+    correct_count = 0
 
     send_marker(lsl_outlet, f"BLOCK_START_{block_index}", clock.getTime())
 
@@ -55,17 +66,28 @@ def block(block_index: int):
     send_marker(lsl_outlet, f"BLOCK_END_{block_index}", clock.getTime())
 
 
-def post_block(block_index):
+def post_block(block_index: int, test_mode: bool = False):
+    """block 结束后"""
+    # 区块结束后的提示
+    correct_rate = correct_count / n_trials_per_block
+    if test_mode:
+        text = f"第 {block_index + 1} 个区块结束\n你共响应了 {correct_count} 次正确响应\n正确率为 {correct_rate * 100:.2f}%\n按任意键继续"
+    else:
+        text = f"第 {block_index + 1} 个区块结束\n你共响应了 {correct_count} 次正确响应\n正确率为 {correct_rate * 100:.2f}%\n按任意键继续"
+
     msg = visual.TextStim(
         win,
-        text=f"第 {block_index + 1} 个区块结束\n休息一下\n按任意键继续",
+        text=text,
         color="white",
         height=0.1,
         wrapWidth=2,
     )
     msg.draw()
     win.flip()
-    event.waitKeys(keyList=orbitary_keys)
+    if test_mode:
+        event.waitKeys(keyList=orbitary_keys)
+    else:
+        event.waitKeys(keyList=orbitary_keys)
 
 
 def pre_trial(trial_index: int):
@@ -78,7 +100,7 @@ def pre_trial(trial_index: int):
 
 def trial(t):
     """单个 trial 的逻辑"""
-    global results
+    global results, correct_count
 
     stim = stim_sequence[t]
     stim_text.text = stim
@@ -130,8 +152,10 @@ def trial(t):
     # 正确与否
     if is_target and responded:
         correct = True
+        correct_count += 1
     elif (not is_target) and (not responded):
         correct = True
+        correct_count += 1
     else:
         correct = False
 
@@ -146,7 +170,8 @@ def trial(t):
     line_bottom.draw()
     stim_text.draw()
     win.flip()
-    core.wait(0.5)
+    stim_left = stim_duration - (clock.getTime() - stim_onset)
+    core.wait(stim_left)
 
     if is_target:
         send_marker(lsl_outlet, f"TARGET_{rt}", stim_onset)
@@ -164,23 +189,27 @@ def post_trial(t):
     core.wait(0.5)
 
 
-def entry(
-    win_session: visual.Window | None = None, clock_session: core.Clock | None = None
-):
+def entry(win_session: visual.Window | None = None, clock_session: core.Clock | None = None, test_mode: bool = False):
     """实验入口"""
     global stim_text, lsl_outlet, win, clock
-    win = win_session
-    clock = clock_session
+    if win_session is None:
+        win = visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
+    else:
+        win = win_session
 
+    if clock_session is None:
+        clock = core.Clock()
+    else:
+        clock = clock_session
     # win = visual.Window(size=(800, 600), pos=(0, 0), fullscr=True, color="grey", units="pix")
     stim_text = visual.TextStim(win, text="", color="white", height=0.3, wrapWidth=2)
 
     lsl_outlet = init_lsl("NBackMarkers")  # 初始化 LSL
 
     for block_index in range(n_blocks):
-        pre_block(block_index)
+        pre_block(block_index, test_mode)
         block(block_index)
-        post_block(block_index)
+        post_block(block_index, test_mode)
 
     # 实验结束
 
@@ -188,7 +217,7 @@ def entry(
 
 
 def main():
-    entry()
+    entry(test_mode=True)
 
 
 if __name__ == "__main__":

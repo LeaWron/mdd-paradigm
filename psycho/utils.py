@@ -1,3 +1,5 @@
+import random
+
 from psychopy import core, event, visual
 from pylsl import StreamInfo, StreamOutlet
 
@@ -55,6 +57,20 @@ def switch_keyboard_layout(layout: str = "en-US"):
 
     # 切换输入法
     user32.ActivateKeyboardLayout(HKL_NEXT, 0)
+
+
+def get_isi(lower_bound: float = 0.5, upper_bound: float = 1.0) -> float:
+    """
+    获取随机的 ISI 间隔, 单位为秒
+
+    Args:
+        lower_bound (float, optional): 下限, 单位为秒. Defaults to 0.5.
+        upper_bound (float, optional): 上限, 单位为秒. Defaults to 1.0.
+
+    Returns:
+        float: 随机的 ISI 间隔, 单位为秒
+    """
+    return random.uniform(lower_bound * 1000, upper_bound * 1000) / 1000
 
 
 if __name__ == "__main__":

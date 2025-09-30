@@ -37,8 +37,30 @@ class Session:
         selected = [exp for exp, choice in zip(exps, ok.values()) if choice]
         return selected
 
-    def sort_experiments(self, exp_names):
-        exp_names.sort(key=lambda x: x.lower())
+    def sort_experiments(self, exp_list: list[str]):
+        num_exps = len(exp_list)
+        default_order = ["gng", "nback", "d-iat"]
+
+        while True:
+            dlg = gui.Dlg(title="选择实验顺序")
+            dlg.addText("请确保每个实验只出现一次，如果退出则会使用默认顺序")
+            for i in range(0, num_exps):
+                dlg.addField(f"第 {i + 1} 个实验", choices=default_order[i : i + 1] + default_order[:i] + default_order[i + 1 :])
+
+            ok_data = dlg.show()
+            if not dlg.OK:
+                break
+
+            # 检查互斥
+            if len(set(ok_data.values())) == num_exps:
+                break
+            else:
+                gui.infoDlg("错误", "实验选择重复！请确保每个实验只出现一次。")
+
+        # ok_data 顺序即为最终实验顺序
+        order = list(ok_data.values()) if ok_data else default_order
+        exp_list.sort(key=lambda x: order.index(x.lower()) if x.lower() in order else num_exps)
+        return exp_list
 
     def add_experiments(self, exp_names):
         for name in exp_names:
@@ -133,7 +155,8 @@ def run_session():
     session = Session()
     exps = session.discover_experiments()
     selected = session.select_experiments_gui(exps)
-    session.add_experiments(selected)
+    sort = session.sort_experiments(selected)
+    session.add_experiments(sort)
     session.start(with_lsl=False)
 
 

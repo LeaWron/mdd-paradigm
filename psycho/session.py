@@ -37,22 +37,16 @@ class Session:
         selected = [exp for exp, choice in zip(exps, ok.values()) if choice]
         return selected
 
+    def sort_experiments(self, exp_names):
+        exp_names.sort(key=lambda x: x.lower())
+
     def add_experiments(self, exp_names):
         for name in exp_names:
             mod = importlib.import_module(f"psycho.exps.{name}")
             self.experiments.append(mod)
 
-    def select_test_mode(self):
-        dlg = gui.Dlg(title="Test Mode")
-        dlg.addField(key="mode", label="Run as Test Mode", initial=False)
-        ok = dlg.show()
-        if not dlg.OK:
-            core.quit()
-        self.test_mode = ok["mode"]
-
     def start(self, with_lsl=False):
         self.running = True
-        self.select_test_mode()
         self.win = visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")  # 全局窗口
         if with_lsl:
             self.lsl_proc = multiprocessing.Process(target=self._lsl_recv)
@@ -75,7 +69,7 @@ class Session:
                 core.wait(0.3)
                 self.win.flip()
 
-                exp.entry(self.win, self.trialClock, self.test_mode)
+                exp.entry(self.win, self.trialClock)
 
                 end_msg = visual.TextStim(
                     self.win,

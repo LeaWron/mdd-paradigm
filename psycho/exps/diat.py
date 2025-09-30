@@ -262,7 +262,7 @@ def trial(trial_index: int):
         """显示刺激"""
         left_kinds: list[str] = blocks_info[block_index]["left_kinds"]
         right_kinds: list[str] = blocks_info[block_index]["right_kinds"]
-        color = "#00c9a7"
+        color = "#00ff00"
         color_space = "hex"
         # 左
         left_stim = visual.TextStim(

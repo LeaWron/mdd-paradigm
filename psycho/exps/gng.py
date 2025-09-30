@@ -19,11 +19,8 @@ lsl_outlet = None
 
 
 # 实验部分
-def pre_block(block_index, test_mode: bool = False):
-    if test_mode:
-        text = f"准备进入第 {block_index + 1} 个区块\n按任意键开始"
-    else:
-        text = f"准备进入第 {block_index + 1} 个区块\n你有{rest_duration}秒休息时间"
+def pre_block(block_index):
+    text = f"准备进入第 {block_index + 1} 个区块, 你有{rest_duration}秒休息时间\n或者可以按任意键开始"
 
     msg = visual.TextStim(
         win,
@@ -36,11 +33,7 @@ def pre_block(block_index, test_mode: bool = False):
     )
     msg.draw()
     win.flip()
-    if test_mode:
-        # TODO：这里可以结合，即设最大时限，但是也可以按任意键开始
-        event.waitKeys(keyList=orbitary_keys)
-    else:
-        core.wait(rest_duration)
+    event.waitKeys(rest_duration, keyList=orbitary_keys)
 
     send_marker(lsl_outlet, f"BLOCK_START_{block_index}", clock.getTime())
 
@@ -53,18 +46,17 @@ def block(block_index: int):
     send_marker(lsl_outlet, f"BLOCK_END_{block_index}", clock.getTime())
 
 
-def post_block(block_index: int, test_mode: bool = False):
-    if test_mode:
-        msg = visual.TextStim(
-            win,
-            text=f"第 {block_index + 1} 个区块结束\n休息一下\n按任意键继续",
-            color="white",
-            height=0.1,
-            wrapWidth=2,
-        )
-        msg.draw()
-        win.flip()
-        event.waitKeys(keyList=orbitary_keys)
+def post_block(block_index: int):
+    msg = visual.TextStim(
+        win,
+        text=f"第 {block_index + 1} 个区块结束\n休息一下\n按任意键继续",
+        color="white",
+        height=0.1,
+        wrapWidth=2,
+    )
+    msg.draw()
+    win.flip()
+    event.waitKeys(1.0, keyList=orbitary_keys)
 
 
 def pre_trial(trial_index):
@@ -123,7 +115,7 @@ def post_trial(trial_index):
     core.wait(0.5)
 
 
-def entry(win_session: visual.Window | None = None, clock_session: core.Clock | None = None, test_mode: bool = False):
+def entry(win_session: visual.Window | None = None, clock_session: core.Clock | None = None):
     global win, clock, lsl_outlet
     if win_session is None:
         win = visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
@@ -138,16 +130,16 @@ def entry(win_session: visual.Window | None = None, clock_session: core.Clock | 
     lsl_outlet = init_lsl("GoNogoMarkers")  # 初始化 LSL
 
     for block_index in range(n_blocks):
-        pre_block(block_index, test_mode)
+        pre_block(block_index)
         block(block_index)
-        post_block(block_index, test_mode)
+        post_block(block_index)
 
     # 实验结束
     send_marker(lsl_outlet, "EXPERIMENT_END", clock.getTime())
 
 
 def main():
-    entry(test_mode=True)
+    entry()
 
 
 if __name__ == "__main__":

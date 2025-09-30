@@ -29,15 +29,12 @@ lsl_outlet = None
 # ========== 生命周期函数 ==========
 
 
-def pre_block(block_index: int, test_mode: bool = False):
+def pre_block(block_index: int):
     """block 开始前"""
     global stim_sequence, correct_count
     stim_sequence = [random.choice(stim_pool) for _ in range(n_trials_per_block)]
     # 区块开始前的提示
-    if test_mode:
-        text = f"准备进入第 {block_index + 1} 个区块\n按任意键开始"
-    else:
-        text = f"准备进入第 {block_index + 1} 个区块\n你有{rest_duration}秒休息时间"
+    text = f"准备进入第 {block_index + 1} 个区块\n你有{rest_duration}秒响应时间\n或者可以按空格键直接开始"
 
     msg = visual.TextStim(
         win,
@@ -48,10 +45,7 @@ def pre_block(block_index: int, test_mode: bool = False):
     )
     msg.draw()
     win.flip()
-    if test_mode:
-        event.waitKeys(keyList=orbitary_keys)
-    else:
-        core.wait(rest_duration)
+    event.waitKeys(rest_duration, keyList=orbitary_keys)
     correct_count = 0
 
     send_marker(lsl_outlet, f"BLOCK_START_{block_index}", clock.getTime())
@@ -66,14 +60,12 @@ def block(block_index: int):
     send_marker(lsl_outlet, f"BLOCK_END_{block_index}", clock.getTime())
 
 
-def post_block(block_index: int, test_mode: bool = False):
+def post_block(block_index: int):
     """block 结束后"""
     # 区块结束后的提示
     correct_rate = correct_count / n_trials_per_block
-    if test_mode:
-        text = f"第 {block_index + 1} 个区块结束\n你共响应了 {correct_count} 次正确响应\n正确率为 {correct_rate * 100:.2f}%\n按任意键继续"
-    else:
-        text = f"第 {block_index + 1} 个区块结束\n你共响应了 {correct_count} 次正确响应\n正确率为 {correct_rate * 100:.2f}%\n按任意键继续"
+
+    text = f"第 {block_index + 1} 个区块结束\n你共响应了 {correct_count} 次正确响应\n正确率为 {correct_rate * 100:.2f}%\n按任意键继续"
 
     msg = visual.TextStim(
         win,
@@ -84,11 +76,8 @@ def post_block(block_index: int, test_mode: bool = False):
     )
     msg.draw()
     win.flip()
-    if test_mode:
-        # TODO：这里可以结合，即设最大时限，但是也可以按任意键开始
-        event.waitKeys(keyList=orbitary_keys)
-    else:
-        event.waitKeys(keyList=orbitary_keys)
+
+    event.waitKeys(keyList=orbitary_keys)
 
 
 def pre_trial(trial_index: int):
@@ -190,7 +179,7 @@ def post_trial(t):
     core.wait(0.5)
 
 
-def entry(win_session: visual.Window | None = None, clock_session: core.Clock | None = None, test_mode: bool = False):
+def entry(win_session: visual.Window | None = None, clock_session: core.Clock | None = None):
     """实验入口"""
     global stim_text, lsl_outlet, win, clock
     if win_session is None:
@@ -208,9 +197,9 @@ def entry(win_session: visual.Window | None = None, clock_session: core.Clock | 
     lsl_outlet = init_lsl("NBackMarkers")  # 初始化 LSL
 
     for block_index in range(n_blocks):
-        pre_block(block_index, test_mode)
+        pre_block(block_index)
         block(block_index)
-        post_block(block_index, test_mode)
+        post_block(block_index)
 
     # 实验结束
 
@@ -218,7 +207,7 @@ def entry(win_session: visual.Window | None = None, clock_session: core.Clock | 
 
 
 def main():
-    entry(test_mode=True)
+    entry()
 
 
 if __name__ == "__main__":

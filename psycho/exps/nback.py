@@ -85,6 +85,7 @@ def post_block(block_index: int, test_mode: bool = False):
     msg.draw()
     win.flip()
     if test_mode:
+        # TODO：这里可以结合，即设最大时限，但是也可以按任意键开始
         event.waitKeys(keyList=orbitary_keys)
     else:
         event.waitKeys(keyList=orbitary_keys)

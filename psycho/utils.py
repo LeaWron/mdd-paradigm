@@ -1,4 +1,5 @@
 import random
+from pathlib import Path
 
 from psychopy import core, event, visual
 from pylsl import StreamInfo, StreamOutlet
@@ -71,6 +72,16 @@ def get_isi(lower_bound: float = 0.5, upper_bound: float = 1.0) -> float:
         float: 随机的 ISI 间隔, 单位为秒
     """
     return random.uniform(lower_bound * 1000, upper_bound * 1000) / 1000
+
+
+def parse_stim_path(stim: str) -> Path:
+    """解析刺激字符串"""
+    stim = stim.strip()
+    stim_dir = Path(__file__).parent / "stims"
+    stim_path = stim_dir / stim
+    if not stim_path.exists():
+        raise FileNotFoundError(f"刺激文件 {stim_path} 不存在")
+    return stim_path
 
 
 if __name__ == "__main__":

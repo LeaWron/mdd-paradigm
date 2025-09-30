@@ -124,6 +124,7 @@ def test_block_interaction():
     win.close()
 
 
+@pytest.mark.skip(reason="暂时不测试这个函数")
 def test_get_isi():
     import random
     import time
@@ -131,3 +132,25 @@ def test_get_isi():
     while input() != "y":
         isi = random.uniform(500, 1000)
         print(isi)
+
+
+def test_prev_frame():
+    win = visual.Window(size=(600, 400), color="white")
+
+    win.flip()
+    text1 = visual.TextStim(win, text="我想保留的内容", pos=(0, 0.2), color="black")
+
+    text2 = visual.TextStim(win, text="叠加的新内容", pos=(0, -0.2), color="blue")
+
+    # 关键：在你要保留的那一帧就传入 clearBuffer=False
+    text1.draw()
+    win.flip(clearBuffer=False)  # <-- 把 False 放在这里，text1 的像素会留在 back buffer
+
+    event.waitKeys()
+
+    # 现在再画新的内容并 flip，会在保留的像素上叠加
+    text2.draw()
+    win.flip()
+
+    event.waitKeys()
+    win.close()

@@ -32,6 +32,7 @@ psycho/                 # 项目根目录
 
 使用 mamba(conda) + uv 进行管理
 
+- 如果已经在全局有 uv, 则可以忽略 mamba，直接通过 uv 管理项目
 - 通过 mamba 管理环境
   - mamba create -n <your_environment> uv python=<python_version>
 - 通过 uv 管理项目
@@ -40,6 +41,7 @@ psycho/                 # 项目根目录
     - 如果通过本地文件 (.whl) 添加，则将文件放入 libs 文件夹中，并 `uv add ./libs/<local_file>.whl`
   - uv remove 删除依赖
   - uv format 格式化代码
+- 项目中会出现 .venv 等隐藏目录，这是正常的
 
 所有范式都放在 psycho/exps/ 下，一般情况下使用如下框架:
 

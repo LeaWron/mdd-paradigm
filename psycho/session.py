@@ -39,7 +39,7 @@ class Session:
 
     def sort_experiments(self, exp_list: list[str]):
         num_exps = len(exp_list)
-        default_order_all = ["gng", "nback", "diat", "emotion_stim"]
+        default_order_all = ["gng", "nback", "diat", "emotion_stim", "emotion_face", "prt"]
         default_order = [exp for exp in default_order_all if exp in exp_list]
 
         while True:
@@ -71,6 +71,7 @@ class Session:
     def start(self, with_lsl=False):
         self.running = True
         self.win = visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")  # 全局窗口
+        self.win.callOnFlip(event.clearEvents)
         if with_lsl:
             self.lsl_proc = multiprocessing.Process(target=self._lsl_recv)
             self.lsl_proc.start()
@@ -121,7 +122,6 @@ class Session:
             self.lsl_proc.terminate()
         if self.win:
             self.win.close()
-        # core.quit()
 
     def pause(self):
         pause_msg = visual.TextStim(self.win, text="暂停中，按 r 恢复", height=0.20, wrapWidth=2)

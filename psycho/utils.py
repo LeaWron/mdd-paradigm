@@ -1,6 +1,7 @@
 import random
 from pathlib import Path
 
+from PIL import Image
 from psychopy import core, event, visual
 from pylsl import StreamInfo, StreamOutlet
 
@@ -82,6 +83,28 @@ def parse_stim_path(stim: str) -> Path:
     if not stim_path.exists():
         raise FileNotFoundError(f"刺激文件 {stim_path} 不存在")
     return stim_path
+
+
+def adapt_image_stim_size(stim_path: Path, max_height: float = 2.0):
+    """
+    调整图像刺激大小, 使图像在保持宽高比的前提下, 能被屏幕正好容纳下
+    Args:
+        stim_path (Path): 图像刺激路径
+        max_height (float, optional): 最大高度, 单位为屏幕高度. Defaults to 2.0.
+
+    Returns:
+        tuple: (stim_height, aspect_ratio), 图像刺激高度, 宽高比
+    """
+    img = Image.open(stim_path)
+    width, height = img.size
+
+    aspect_ratio = width / height
+
+    if width < height:
+        stim_height = max_height
+    else:
+        stim_height = max_height / aspect_ratio
+    return stim_height, aspect_ratio
 
 
 if __name__ == "__main__":

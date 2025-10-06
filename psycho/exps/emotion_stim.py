@@ -5,7 +5,7 @@ from pathlib import Path
 from PIL import Image
 from psychopy import core, event, visual
 
-from psycho.utils import init_lsl, parse_stim_path, send_marker
+from psycho.utils import adapt_image_stim_size, init_lsl, parse_stim_path, send_marker
 
 # === 参数设置 ===
 n_blocks = 1
@@ -47,10 +47,10 @@ def pre_block():
 def block():
     global trial_index
     for local_trial_index in range(n_trials_per_block):
+        trial_index = local_trial_index
         pre_trial()
         trial()
         post_trial()
-        trial_index = local_trial_index
 
 
 def post_block():
@@ -134,15 +134,8 @@ def trial():
                 if len(stim_set) == stim_threshold:
                     stim_set.remove(stim_deque.popleft())
                 break
-        img = Image.open(stim_item)
-        width, height = img.size
 
-        aspect_ratio = width / height
-
-        if width < height:
-            stim_height = 2
-        else:
-            stim_height = 2 / aspect_ratio
+        stim_height, aspect_ratio = adapt_image_stim_size(stim_item)
         stim = visual.ImageStim(
             win,
             image=stim_item,
@@ -211,10 +204,10 @@ def entry(
     lsl_outlet = init_lsl("EmotionStim")
 
     for local_block_index in range(n_blocks):
+        block_index = local_block_index
         pre_block()
         block()
         post_block()
-        block_index = local_block_index
 
     send_marker(
         lsl_outlet,

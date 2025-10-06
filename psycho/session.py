@@ -39,7 +39,8 @@ class Session:
 
     def sort_experiments(self, exp_list: list[str]):
         num_exps = len(exp_list)
-        default_order = ["gng", "nback", "d-iat"]
+        default_order_all = ["gng", "nback", "diat", "emotion_stim"]
+        default_order = [exp for exp in default_order_all if exp in exp_list]
 
         while True:
             dlg = gui.Dlg(title="选择实验顺序")

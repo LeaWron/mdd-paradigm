@@ -174,6 +174,7 @@ def post_trial():
 
         keys = event.getKeys()
         if "space" in keys:
+            # TODO: 是否要用按钮来确认
             valence = valence_slider.getRating()
             arousal = arousal_slider.getRating()
             print(f"Valence: {valence}, Arousal: {arousal}")

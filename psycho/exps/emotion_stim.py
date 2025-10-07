@@ -212,7 +212,6 @@ def entry(
     send_marker(
         lsl_outlet,
         "EXPERIMENT_END",
-        clock.getTime(),
     )
 
 

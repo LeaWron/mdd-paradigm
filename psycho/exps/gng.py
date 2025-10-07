@@ -35,7 +35,7 @@ def pre_block(block_index):
     win.flip()
     event.waitKeys(rest_duration, keyList=orbitary_keys)
 
-    send_marker(lsl_outlet, f"BLOCK_START_{block_index}", clock.getTime())
+    send_marker(lsl_outlet, f"BLOCK_START_{block_index}")
 
 
 def block(block_index: int):
@@ -43,7 +43,7 @@ def block(block_index: int):
         pre_trial(trial_index)
         trial(trial_index)
         post_trial(trial_index)
-    send_marker(lsl_outlet, f"BLOCK_END_{block_index}", clock.getTime())
+    send_marker(lsl_outlet, f"BLOCK_END_{block_index}")
 
 
 def post_block(block_index: int):
@@ -93,20 +93,20 @@ def trial(trial_index):
     win.flip()
 
     # trial 开始 marker
-    send_marker(lsl_outlet, f"TRIAL_START_{trial_index}", clock.getTime())
-    send_marker(lsl_outlet, "STIM_GO" if is_go else "STIM_NOGO", clock.getTime())
+    send_marker(lsl_outlet, f"TRIAL_START_{trial_index}")
+    send_marker(lsl_outlet, "STIM_GO" if is_go else "STIM_NOGO")
     # 反应
     keys = event.waitKeys(maxWait=total_trial_duration - blank_duration, keyList=resp_keys, timeStamped=True)
     # 反应 marker
     if keys:
-        send_marker(lsl_outlet, f"RESPONSE_{keys[0][0]}_{keys[0][1]:.3f}", clock.getTime())
+        send_marker(lsl_outlet, f"RESPONSE_{keys[0][0]}_{keys[0][1]:.3f}")
     else:
-        send_marker(lsl_outlet, "NO_RESPONSE", clock.getTime())
+        send_marker(lsl_outlet, "NO_RESPONSE")
 
     # TODO: 是否需要显示反馈
     # win.flip()
     # trial 结束 marker
-    send_marker(lsl_outlet, f"TRIAL_END_{trial_index}", clock.getTime())
+    send_marker(lsl_outlet, f"TRIAL_END_{trial_index}")
 
 
 def post_trial(trial_index):
@@ -135,7 +135,7 @@ def entry(win_session: visual.Window | None = None, clock_session: core.Clock | 
         post_block(block_index)
 
     # 实验结束
-    send_marker(lsl_outlet, "EXPERIMENT_END", clock.getTime())
+    send_marker(lsl_outlet, "EXPERIMENT_END")
 
 
 def main():

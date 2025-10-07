@@ -90,8 +90,7 @@ def trial():
         correct = resp_emotion == label
         send_marker(
             lsl_outlet,
-            f"{label}_{resp_emotion}_{correct}",
-            rt,
+            f"{label}_{resp_emotion}_{correct}_{rt}",
         )
 
 
@@ -119,7 +118,6 @@ def entry(
     send_marker(
         lsl_outlet,
         "EXPERIMENT_END",
-        clock.getTime(),
     )
 
 

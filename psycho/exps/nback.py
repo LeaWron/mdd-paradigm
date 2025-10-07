@@ -48,7 +48,7 @@ def pre_block(block_index: int):
     event.waitKeys(rest_duration, keyList=orbitary_keys)
     correct_count = 0
 
-    send_marker(lsl_outlet, f"BLOCK_START_{block_index}", clock.getTime())
+    send_marker(lsl_outlet, f"BLOCK_START_{block_index}")
 
 
 def block(block_index: int):
@@ -57,7 +57,7 @@ def block(block_index: int):
         pre_trial(trial_index)
         trial(trial_index)
         post_trial(trial_index)
-    send_marker(lsl_outlet, f"BLOCK_END_{block_index}", clock.getTime())
+    send_marker(lsl_outlet, f"BLOCK_END_{block_index}")
 
 
 def post_block(block_index: int):
@@ -164,9 +164,9 @@ def trial(t):
     core.wait(stim_left)
 
     if is_target:
-        send_marker(lsl_outlet, f"TARGET_{rt}", stim_onset)
+        send_marker(lsl_outlet, f"TARGET_{rt}")
     else:
-        send_marker(lsl_outlet, "NONTARGET", stim_onset)
+        send_marker(lsl_outlet, "NONTARGET")
 
     results.append([t, stim, is_target, responded, rt, correct])
 
@@ -203,7 +203,7 @@ def entry(win_session: visual.Window | None = None, clock_session: core.Clock | 
 
     # 实验结束
 
-    send_marker(lsl_outlet, "EXPERIMENT_END", clock.getTime())
+    send_marker(lsl_outlet, "EXPERIMENT_END")
 
 
 def main():

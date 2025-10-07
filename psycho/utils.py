@@ -3,7 +3,7 @@ from pathlib import Path
 
 from PIL import Image
 from psychopy import core, event, visual
-from pylsl import StreamInfo, StreamOutlet
+from pylsl import StreamInfo, StreamOutlet, local_clock
 
 orbitary_keys = (
     [chr(i) for i in range(32, 127)]
@@ -44,7 +44,7 @@ def init_lsl(
 def send_marker(lsl_outlet: StreamOutlet, marker: str, timestamp: float | None = None):
     """向 LSL 发送 marker"""
     if lsl_outlet is not None:
-        lsl_outlet.push_sample([marker], timestamp)
+        lsl_outlet.push_sample([marker], timestamp if timestamp is not None else local_clock())
 
 
 def switch_keyboard_layout(layout: str = "en-US"):

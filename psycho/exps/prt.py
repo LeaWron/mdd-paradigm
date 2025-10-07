@@ -77,7 +77,7 @@ def pre_block():
     win.flip()
     event.waitKeys(5, keyList=continue_keys)
 
-    send_marker(lsl_outlet, f"BLOCK_START_{block_index}", clock.getTime())
+    send_marker(lsl_outlet, f"BLOCK_START_{block_index}")
 
 
 def block():
@@ -146,7 +146,7 @@ def trial():
     # reversal check
     if choice in ["left", "right"]:
         check_reversal()
-    send_marker(lsl_outlet, f"REWARD_{reward}_{rt}", clock.getTime())
+    send_marker(lsl_outlet, f"REWARD_{reward}_{rt}")
 
 
 def post_trial():
@@ -171,7 +171,7 @@ def entry(
         block()
         post_block()
 
-    send_marker(lsl_outlet, "EXPERIMENT_END", clock.getTime())
+    send_marker(lsl_outlet, "EXPERIMENT_END")
 
 
 def main():

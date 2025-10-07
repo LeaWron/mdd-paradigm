@@ -214,7 +214,7 @@ def pre_block(block_index: int, test_mode: bool = False):
 
     win.flip()
     event.waitKeys(keyList=continue_key)
-    send_marker(lsl_outlet, f"BLOCK_START_{block_index}", clock.getTime())
+    send_marker(lsl_outlet, f"BLOCK_START_{block_index}")
 
 
 def block(block_index: int):
@@ -225,7 +225,7 @@ def block(block_index: int):
         trial(trial_index)
         post_trial(trial_index)
 
-    send_marker(lsl_outlet, f"BLOCK_END_{block_index}", clock.getTime())
+    send_marker(lsl_outlet, f"BLOCK_END_{block_index}")
 
 
 def post_block(block_index: int, test_mode: bool = False):
@@ -322,7 +322,7 @@ def trial(trial_index: int):
     resp = event.waitKeys(maxWait=max_wait_respond, keyList=resp_keys, timeStamped=True)
     correct = False
     if resp is None:
-        send_marker(lsl_outlet, f"TRIAL_{trial_index}_NO_RESPONSE", clock.getTime())
+        send_marker(lsl_outlet, f"TRIAL_{trial_index}_NO_RESPONSE")
     elif resp[0][0] == stim_correct_resp:
         correct = True
 
@@ -340,7 +340,7 @@ def trial(trial_index: int):
         win.flip()
         event.waitKeys(keyList=[stim_correct_resp])
 
-    send_marker(lsl_outlet, f"TRIAL_{trial_index}_{resp}", clock.getTime())
+    send_marker(lsl_outlet, f"TRIAL_{trial_index}_{resp}")
     pass
 
 
@@ -364,7 +364,7 @@ def entry(win_session: visual.Window | None = None, clock_session: core.Clock | 
         block(block_index)
         post_block(block_index, test_mode)
 
-    send_marker(lsl_outlet, "EXPERIMENT_END", clock.getTime())
+    send_marker(lsl_outlet, "EXPERIMENT_END")
 
 
 def main():

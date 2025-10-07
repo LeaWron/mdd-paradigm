@@ -1,4 +1,5 @@
 import random
+from typing import Any
 
 from psychopy import core, event, visual
 
@@ -29,6 +30,7 @@ rest_duration = 30
 # === 全局变量 ===
 win = None
 clock = None
+port = None
 block_index = 0
 trial_index = 0
 
@@ -158,10 +160,12 @@ def post_trial():
 def entry(
     win_session: visual.Window | None = None,
     clock_session: core.Clock | None = None,
+    port_session: Any | None = None,
 ):
-    global win, clock, lsl_outlet, block_index
+    global win, clock, lsl_outlet, block_index, port
     win = win_session or visual.Window(fullscr=True, color=(0, 0, 0), units="height")
     clock = clock_session or core.Clock()
+    port = port_session
 
     lsl_outlet = init_lsl("PRT")
 
@@ -171,7 +175,7 @@ def entry(
         block()
         post_block()
 
-    send_marker(lsl_outlet, "EXPERIMENT_END")
+    send_marker(lsl_outlet, "EXPERIMENT_END", port=port)
 
 
 def main():

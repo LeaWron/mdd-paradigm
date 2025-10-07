@@ -3,19 +3,20 @@ import importlib
 import multiprocessing
 from pathlib import Path
 
-from psychopy import core, event, gui, visual
+from psychopy import core, event, gui, parallel, visual
 
 from psycho.utils import switch_keyboard_layout
 
 
 class Session:
-    def __init__(self, exps_dir="./psycho/exps"):
+    def __init__(self, exps_dir="./psycho/exps", port: int | None = None):
         self.exps_dir = Path(exps_dir)
         self.experiments = []
         self.running = False
         self.win = None
         self.globalClock = core.Clock()
         self.trialClock = core.Clock()
+        self.port = parallel.ParallelPort(address=port) if port is not None else None
 
         self.continue_keys = ["space"]
         self.lsl_proc = None
@@ -93,7 +94,7 @@ class Session:
                 core.wait(0.3)
                 self.win.flip()
 
-                exp.entry(self.win, self.trialClock)
+                exp.entry(self.win, self.trialClock, self.port)
 
                 end_msg = visual.TextStim(
                     self.win,
@@ -153,7 +154,7 @@ def run_session():
     # 切换到英文输入法
     switch_keyboard_layout()
 
-    session = Session()
+    session = Session(port=0x03F8)
     exps = session.discover_experiments()
     selected = session.select_experiments_gui(exps)
     sort = session.sort_experiments(selected)

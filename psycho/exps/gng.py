@@ -2,9 +2,12 @@ import random
 
 from psychopy import core, event, visual
 
+from pylsl import StreamOutlet
+
 from psycho.utils import get_isi, init_lsl, orbitary_keys, send_marker
 
-# ====== 参数设置 ======
+
+# === 参数设置 ===
 n_blocks = 1  # block 数量
 n_trials_per_block = 10  # 每个 block 的 trial 数
 go_prob = 0.7  # Go trial 的概率
@@ -12,14 +15,15 @@ resp_keys = ["space"]  # 受试者按键
 total_trial_duration = 2.5  # 每个 trial 的总时间
 rest_duration = 30  # 每个 block 休息时间
 
-
+# === 全局变量 ===
+block_index = 0
 win = None  # 全局窗口对象
 clock = None  # 全局时钟对象
 lsl_outlet = None
 
 
 # 实验部分
-def pre_block(block_index):
+def pre_block():
     text = f"准备进入第 {block_index + 1} 个区块, 你有{rest_duration}秒休息时间\n或者可以按任意键开始"
 
     msg = visual.TextStim(
@@ -35,18 +39,18 @@ def pre_block(block_index):
     win.flip()
     event.waitKeys(rest_duration, keyList=orbitary_keys)
 
-    send_marker(lsl_outlet, f"BLOCK_START_{block_index}")
+    # send_marker(lsl_outlet, f"BLOCK_START_{block_index}")
 
 
-def block(block_index: int):
+def block():
     for trial_index in range(n_trials_per_block):
         pre_trial(trial_index)
         trial(trial_index)
         post_trial(trial_index)
-    send_marker(lsl_outlet, f"BLOCK_END_{block_index}")
+    # send_marker(lsl_outlet, f"BLOCK_END_{block_index}")
 
 
-def post_block(block_index: int):
+def post_block():
     msg = visual.TextStim(
         win,
         text=f"第 {block_index + 1} 个区块结束\n休息一下\n按任意键继续",
@@ -93,20 +97,24 @@ def trial(trial_index):
     win.flip()
 
     # trial 开始 marker
-    send_marker(lsl_outlet, f"TRIAL_START_{trial_index}")
-    send_marker(lsl_outlet, "STIM_GO" if is_go else "STIM_NOGO")
+    # send_marker(lsl_outlet, f"TRIAL_START_{trial_index}")
+    # send_marker(lsl_outlet, "STIM_GO" if is_go else "STIM_NOGO")
     # 反应
-    keys = event.waitKeys(maxWait=total_trial_duration - blank_duration, keyList=resp_keys, timeStamped=True)
+    keys = event.waitKeys(
+        maxWait=total_trial_duration - blank_duration,
+        keyList=resp_keys,
+        timeStamped=True,
+    )
     # 反应 marker
     if keys:
-        send_marker(lsl_outlet, f"RESPONSE_{keys[0][0]}_{keys[0][1]:.3f}")
+        send_marker(lsl_outlet, f"GO_RESPONSE_{keys[0][0]}_{keys[0][1]:.3f}")
     else:
-        send_marker(lsl_outlet, "NO_RESPONSE")
+        send_marker(lsl_outlet, "NOGO_NO_RESPONSE")
 
     # TODO: 是否需要显示反馈
     # win.flip()
     # trial 结束 marker
-    send_marker(lsl_outlet, f"TRIAL_END_{trial_index}")
+    # send_marker(lsl_outlet, f"TRIAL_END_{trial_index}")
 
 
 def post_trial(trial_index):
@@ -115,24 +123,30 @@ def post_trial(trial_index):
     core.wait(0.5)
 
 
-def entry(win_session: visual.Window | None = None, clock_session: core.Clock | None = None):
-    global win, clock, lsl_outlet
-    if win_session is None:
-        win = visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
-    else:
-        win = win_session
+def entry(
+    win_session: visual.Window | None = None,
+    clock_session: core.Clock | None = None,
+    lsl_outlet_session: StreamOutlet | None = None,
+):
+    global win, clock, lsl_outlet, block_index
+    win = (
+        win_session
+        if win_session
+        else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
+    )
 
-    if clock_session is None:
-        clock = core.Clock()
-    else:
-        clock = clock_session
+    clock = clock_session if clock_session else core.Clock()
 
-    lsl_outlet = init_lsl("GoNogoMarkers")  # 初始化 LSL
+    lsl_outlet = (
+        lsl_outlet_session if lsl_outlet_session else init_lsl("GoNogoMarker")
+    )  # 初始化 LSL
 
-    for block_index in range(n_blocks):
-        pre_block(block_index)
-        block(block_index)
-        post_block(block_index)
+    send_marker(lsl_outlet, "EXPERIMENT_GONOGO_START")
+    for local_block_index in range(n_blocks):
+        block_index = local_block_index
+        pre_block()
+        block()
+        post_block()
 
     # 实验结束
     send_marker(lsl_outlet, "EXPERIMENT_END")

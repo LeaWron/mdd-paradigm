@@ -1,6 +1,7 @@
 import random
 
 from psychopy import core, event, visual
+from pylsl import StreamOutlet
 
 from psycho.utils import adapt_image_stim_size, init_lsl, parse_stim_path, send_marker
 
@@ -24,6 +25,7 @@ win = None
 clock = None
 lsl_outlet = None
 block_index = 0
+port = None
 
 
 def pre_block():
@@ -81,7 +83,9 @@ def trial():
 
     core.wait(stim_duration)
 
-    keys = event.waitKeys(maxWait=max_response_time, keyList=list(response_map.keys()), timeStamped=True)
+    keys = event.waitKeys(
+        maxWait=max_response_time, keyList=list(response_map.keys()), timeStamped=True
+    )
 
     if keys:
         key, rt = keys[0]
@@ -103,18 +107,27 @@ def post_trial():
 def entry(
     win_session: visual.Window | None = None,
     clock_session: core.Clock | None = None,
+    lsl_outlet_session: StreamOutlet = None,
 ):
     global win, clock, lsl_outlet, block_index
-    win = win_session if win_session else visual.Window(fullscr=True, color="grey", units="norm")
+    win = (
+        win_session
+        if win_session
+        else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
+    )
+
     clock = clock_session if clock_session else core.Clock()
 
-    lsl_outlet = init_lsl("emotion_face")
+    lsl_outlet = (
+        lsl_outlet_session if lsl_outlet_session else init_lsl("EmotionFaceMarker")
+    )  # 初始化 LSL
 
     for local_block_index in range(n_blocks):
         block_index = local_block_index
         pre_block()
         block()
         post_block()
+
     send_marker(
         lsl_outlet,
         "EXPERIMENT_END",

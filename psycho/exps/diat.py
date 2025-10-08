@@ -1,6 +1,7 @@
 import random
 
 from psychopy import core, event, visual
+from pylsl import StreamOutlet
 
 from psycho.utils import init_lsl, parse_stim_path, send_marker
 
@@ -107,6 +108,7 @@ lsl_outlet = None
 correct_count = 0
 block_index = 0  # 当前区块索引
 
+
 # === 刺激设置 ===
 stim_kind = ["自我", "他人", "生命", "死亡"]
 stim_texts = {
@@ -199,7 +201,7 @@ stim_texts = {
 }
 
 
-def pre_block(block_index: int, test_mode: bool = False):
+def pre_block():
     """block 开始前"""
     if block_index == 0:
         show_prompt()
@@ -217,7 +219,7 @@ def pre_block(block_index: int, test_mode: bool = False):
     send_marker(lsl_outlet, f"BLOCK_START_{block_index}")
 
 
-def block(block_index: int):
+def block():
     """block 运行中"""
     n_trials = blocks_info[block_index]["n_trials"]
     for trial_index in range(n_trials):
@@ -228,7 +230,7 @@ def block(block_index: int):
     send_marker(lsl_outlet, f"BLOCK_END_{block_index}")
 
 
-def post_block(block_index: int, test_mode: bool = False):
+def post_block():
     """block 结束后"""
     global correct_count
     win.flip()
@@ -350,19 +352,27 @@ def post_trial(trial_index: int):
     pass
 
 
-def entry(win_session: visual.Window | None = None, clock_session: core.Clock | None = None, test_mode: bool = False):
+def entry(
+    win_session: visual.Window | None = None,
+    clock_session: core.Clock | None = None,
+    lsl_outlet_session: StreamOutlet | None = None,
+):
     """实验入口"""
     global win, clock, lsl_outlet, block_index
-    win = win_session if win_session is not None else visual.Window(fullscr=True, units="norm")
+    win = (
+        win_session
+        if win_session is not None
+        else visual.Window(fullscr=True, units="norm")
+    )
     clock = clock_session if clock_session is not None else core.Clock()
-    lsl_outlet = init_lsl("Diat")
+    lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("D-IATMarker")
 
     n_blocks = len(blocks_info)
-    for bi in range(n_blocks):
-        block_index = bi
-        pre_block(block_index, test_mode)
-        block(block_index)
-        post_block(block_index, test_mode)
+    for local_block_index in range(n_blocks):
+        block_index = local_block_index
+        pre_block()
+        block()
+        post_block()
 
     send_marker(lsl_outlet, "EXPERIMENT_END")
 

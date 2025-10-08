@@ -64,7 +64,9 @@ def send_marker(
     """
     if lsl_outlet is None:
         return
-    lsl_outlet.push_sample([marker], timestamp if timestamp is not None else local_clock())
+    lsl_outlet.push_sample(
+        [marker], timestamp if timestamp is not None else local_clock()
+    )
     if port is not None:
         port.setData(ttl_code)
         core.wait(pulse_ms / 1000)
@@ -129,6 +131,17 @@ def adapt_image_stim_size(stim_path: Path, max_height: float = 2.0):
     else:
         stim_height = max_height / aspect_ratio
     return stim_height, aspect_ratio
+
+
+def parse_xdf():
+    import pyxdf
+
+    xdf_path = input("输入 xdf 文件路径")
+    streams, fileheader = pyxdf.load_xdf(xdf_path)
+
+    print(streams)
+    print("#" + "=" * 20 + "#")
+    print(fileheader)
 
 
 if __name__ == "__main__":

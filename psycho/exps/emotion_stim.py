@@ -2,8 +2,8 @@ import random
 from collections import deque
 from pathlib import Path
 
-from PIL import Image
 from psychopy import core, event, visual
+from pylsl import StreamOutlet
 
 from psycho.utils import adapt_image_stim_size, init_lsl, parse_stim_path, send_marker
 
@@ -16,8 +16,10 @@ fixation_duration = 2
 
 stim_folder = parse_stim_path("emotion-stim")  # 刺激文件夹
 stim_items = list(stim_folder.glob("*"))
-stim_threshold = min(4, len(stim_items) - 1)  # 每个刺激出现的间隔的最小次数, 即距离它上次出现至少隔着几个不同的刺激
-stim_duration = 5
+stim_threshold = min(
+    4, len(stim_items) - 1
+)  # 每个刺激出现的间隔的最小次数, 即距离它上次出现至少隔着几个不同的刺激
+stim_duration = 7.5
 
 mathematic_trials_per_block = 10
 
@@ -25,6 +27,7 @@ mathematic_trials_per_block = 10
 win = None
 clock = None
 lsl_outlet = None
+port = None
 block_index = 0
 trial_index = 0
 
@@ -81,7 +84,9 @@ def post_block():
 
         question_text = visual.TextStim(win, text=question, color="white", pos=(0, 0))
         answer_text = visual.TextStim(win, text="?", color="yellow", pos=(0.2, 0))
-        prompt_text = visual.TextStim(win, text="请输入答案并按空格键确认", color="white", pos=(0, -0.3))
+        prompt_text = visual.TextStim(
+            win, text="请输入答案并按空格键确认", color="white", pos=(0, -0.3)
+        )
 
         response = ""
         while True:
@@ -100,7 +105,9 @@ def post_block():
                         ans = int(response)
                     except ValueError:
                         ans = None
-                    feedback = "正确！" if ans == correct else f"错误！正确答案是 {correct}"
+                    feedback = (
+                        "正确！" if ans == correct else f"错误！正确答案是 {correct}"
+                    )
                     fb = visual.TextStim(win, text=feedback, color="white")
                     fb.draw()
                     win.flip()
@@ -152,10 +159,14 @@ def trial():
 def post_trial():
     # rating + resting
     # Valence rating
-    valence_question, valence_slider = rating_slider("请评价愉快程度 (1=非常消极, 9=非常积极)", up=True)
+    valence_question, valence_slider = rating_slider(
+        "请评价愉快程度 (1=非常消极, 9=非常积极)", up=True
+    )
 
     # Arousal rating
-    arousal_question, arousal_slider = rating_slider("请评价唤醒度 (1=非常平静, 9=非常激动)", up=False)
+    arousal_question, arousal_slider = rating_slider(
+        "请评价唤醒度 (1=非常平静, 9=非常激动)", up=False
+    )
     confirm_text = visual.TextStim(win, text="按空格确认", color="white", pos=(0, -0.6))
     while True:
         valence_question.draw()
@@ -178,7 +189,9 @@ def post_trial():
 # ========== rating 界面 ==========
 def rating_slider(prompt, labels=None, up=True):
     pos_sign = 1 if up else -1
-    question = visual.TextStim(win, text=prompt, color="white", pos=(0, pos_sign * 0.4), wrapWidth=2)
+    question = visual.TextStim(
+        win, text=prompt, color="white", pos=(0, pos_sign * 0.4), wrapWidth=2
+    )
     labels = labels or [1, 2, 3, 4, 5, 6, 7, 8, 9]
     slider = visual.Slider(
         win,
@@ -197,11 +210,20 @@ def rating_slider(prompt, labels=None, up=True):
 def entry(
     win_session: visual.Window | None = None,
     clock_session: core.Clock | None = None,
+    lsl_outlet_session: StreamOutlet | None = None,
 ):
     global win, clock, lsl_outlet, block_index
-    win = visual.Window(fullscr=True, color="grey", units="norm") if win_session is None else win_session
-    clock = core.Clock() if clock_session is None else clock_session
-    lsl_outlet = init_lsl("EmotionStim")
+    win = (
+        win_session
+        if win_session
+        else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
+    )
+
+    clock = clock_session if clock_session else core.Clock()
+
+    lsl_outlet = (
+        lsl_outlet_session if lsl_outlet_session else init_lsl("EmotionStimMarker")
+    )  # 初始化 LSL
 
     for local_block_index in range(n_blocks):
         block_index = local_block_index

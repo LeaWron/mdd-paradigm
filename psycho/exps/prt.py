@@ -1,13 +1,13 @@
 import random
-from typing import Any
 
 from psychopy import core, event, visual
+from pylsl import StreamOutlet
 
 from psycho.utils import init_lsl, send_marker
 
 # === 参数设置 ===
 n_blocks = 1
-n_trials_per_block = 100
+n_trials_per_block = 10
 
 fixation_dur = 0.5
 
@@ -30,7 +30,7 @@ rest_duration = 30
 # === 全局变量 ===
 win = None
 clock = None
-port = None
+lsl_outlet = None
 block_index = 0
 trial_index = 0
 
@@ -114,14 +114,20 @@ def pre_trial():
 
 def trial():
     def show_stim():
-        left_stim = visual.Rect(win, width=0.2, height=0.2, pos=(-0.3, 0), color="steelblue")
+        left_stim = visual.Rect(
+            win, width=0.2, height=0.2, pos=(-0.3, 0), color="steelblue"
+        )
         left_stim.draw()
-        right_stim = visual.Rect(win, width=0.2, height=0.2, pos=(0.3, 0), color="orange")
+        right_stim = visual.Rect(
+            win, width=0.2, height=0.2, pos=(0.3, 0), color="orange"
+        )
         right_stim.draw()
 
     show_stim()
     win.flip()
-    keys = event.waitKeys(maxWait=response_duration, keyList=response_keys, timeStamped=True)
+    keys = event.waitKeys(
+        maxWait=response_duration, keyList=response_keys, timeStamped=True
+    )
 
     choice = "no_response"
     rt = None
@@ -136,8 +142,12 @@ def trial():
         reward = give_reward(choice, high_side)
 
     # feedback
-    feedback_reward = visual.TextStim(win, text="correct!\nYou won 10 points", height=0.08, color="yellow")
-    feedback_no = visual.TextStim(win, text="sorry, you got only 1 point", height=0.08, color="white")
+    feedback_reward = visual.TextStim(
+        win, text="correct!\nYou won 10 points", height=0.08, color="yellow"
+    )
+    feedback_no = visual.TextStim(
+        win, text="sorry, you got only 1 point", height=0.08, color="white"
+    )
     if reward:
         feedback_reward.draw()
     else:
@@ -160,14 +170,20 @@ def post_trial():
 def entry(
     win_session: visual.Window | None = None,
     clock_session: core.Clock | None = None,
-    port_session: Any | None = None,
+    lsl_outlet_session: StreamOutlet | None = None,
 ):
     global win, clock, lsl_outlet, block_index, port
-    win = win_session or visual.Window(fullscr=True, color=(0, 0, 0), units="height")
-    clock = clock_session or core.Clock()
-    port = port_session
+    win = (
+        win_session
+        if win_session
+        else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
+    )
 
-    lsl_outlet = init_lsl("PRT")
+    clock = clock_session if clock_session else core.Clock()
+
+    lsl_outlet = (
+        lsl_outlet_session if lsl_outlet_session else init_lsl("PRTMarker")
+    )  # 初始化 LSL
 
     for local_block_index in range(n_blocks):
         block_index = local_block_index

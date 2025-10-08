@@ -1,6 +1,7 @@
 import random
 
 from psychopy import core, event, visual
+from pylsl import StreamOutlet
 
 from psycho.utils import init_lsl, orbitary_keys, send_marker
 
@@ -17,6 +18,8 @@ rest_duration = 30  # 每个 block 休息时间
 win = None
 stim_text = None
 clock = None
+block_index = 0
+lsl_outlet = None
 
 correct_count = 0  # 正确响应次数
 # 存储
@@ -29,7 +32,7 @@ lsl_outlet = None
 # ========== 生命周期函数 ==========
 
 
-def pre_block(block_index: int):
+def pre_block():
     """block 开始前"""
     global stim_sequence, correct_count
     stim_sequence = [random.choice(stim_pool) for _ in range(n_trials_per_block)]
@@ -51,7 +54,7 @@ def pre_block(block_index: int):
     send_marker(lsl_outlet, f"BLOCK_START_{block_index}")
 
 
-def block(block_index: int):
+def block():
     """执行一个 block"""
     for trial_index in range(n_trials_per_block):
         pre_trial(trial_index)
@@ -60,7 +63,7 @@ def block(block_index: int):
     send_marker(lsl_outlet, f"BLOCK_END_{block_index}")
 
 
-def post_block(block_index: int):
+def post_block():
     """block 结束后"""
     # 区块结束后的提示
     correct_rate = correct_count / n_trials_per_block
@@ -179,27 +182,31 @@ def post_trial(t):
     core.wait(0.5)
 
 
-def entry(win_session: visual.Window | None = None, clock_session: core.Clock | None = None):
+def entry(
+    win_session: visual.Window | None = None,
+    clock_session: core.Clock | None = None,
+    lsl_outlet_session: StreamOutlet | None = None,
+):
     """实验入口"""
-    global stim_text, lsl_outlet, win, clock
-    if win_session is None:
-        win = visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
-    else:
-        win = win_session
+    global stim_text, lsl_outlet, win, clock, block_index
+    win = (
+        win_session
+        if win_session
+        else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
+    )
 
-    if clock_session is None:
-        clock = core.Clock()
-    else:
-        clock = clock_session
-    # win = visual.Window(size=(800, 600), pos=(0, 0), fullscr=True, color="grey", units="pix")
+    clock = clock_session if clock_session else core.Clock()
+
+    lsl_outlet = (
+        lsl_outlet_session if lsl_outlet_session else init_lsl("NBackMarker")
+    )  # 初始化 LSL
     stim_text = visual.TextStim(win, text="", color="white", height=0.3, wrapWidth=2)
 
-    lsl_outlet = init_lsl("NBackMarkers")  # 初始化 LSL
-
-    for block_index in range(n_blocks):
-        pre_block(block_index)
-        block(block_index)
-        post_block(block_index)
+    for local_block_index in range(n_blocks):
+        block_index = local_block_index
+        pre_block()
+        block()
+        post_block()
 
     # 实验结束
 

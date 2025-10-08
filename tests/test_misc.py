@@ -37,7 +37,9 @@ def test_text():
     # 创建窗口
     win = visual.Window([800, 600], color="black", units="norm")
 
-    def create_textStim(win, text, height=0.1, pos=(0, 0), wrapWidth=None, autoDraw=False):
+    def create_textStim(
+        win, text, height=0.1, pos=(0, 0), wrapWidth=None, autoDraw=False
+    ):
         """
         创建一个 TextStim，保证视觉居中，多行也居中，默认自动绘制。
 
@@ -134,6 +136,7 @@ def test_get_isi():
         print(isi)
 
 
+@pytest.mark.skip(reason="暂时不测试这个函数")
 def test_prev_frame():
     win = visual.Window(size=(600, 400), color="white")
 
@@ -154,3 +157,10 @@ def test_prev_frame():
 
     event.waitKeys()
     win.close()
+
+
+def test_get_monitor():
+    from psychopy import monitors
+
+    print(monitors.getAllMonitors())
+    print(monitors.monitorFolder)

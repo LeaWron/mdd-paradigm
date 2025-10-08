@@ -9,10 +9,15 @@ dependencies = [
     "psychopy",
     "pylsl>=1.17.6",
     "pytest>=8.4.2",
+    "pyxdf>=1.17.0",
 ]
 
 [tool.uv.sources]
 psychopy = { path = "libs/psychopy-2025.2.0-py3-none-any.whl" }
+
+[[tool.uv.index]]
+url = "https://pypi.tuna.tsinghua.edu.cn/simple"
+default = true
 
 [tool.commitizen]
 name = "cz_conventional_commits"

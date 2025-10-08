@@ -3,25 +3,31 @@ import importlib
 import multiprocessing
 from pathlib import Path
 
-from psychopy import core, event, gui, parallel, visual
+from psychopy import core, event, gui, visual
 
-from psycho.utils import switch_keyboard_layout
+from psycho.utils import switch_keyboard_layout, init_lsl
 
+# TODO: skip one experiment
 
 class Session:
-    def __init__(self, exps_dir="./psycho/exps", port: int | None = None):
+    def __init__(self, exps_dir="./psycho/exps"):
         self.exps_dir = Path(exps_dir)
         self.experiments = []
         self.running = False
         self.win = None
         self.globalClock = core.Clock()
         self.trialClock = core.Clock()
-        self.port = parallel.ParallelPort(address=port) if port is not None else None
 
         self.continue_keys = ["space"]
         self.lsl_proc = None
-        event.globalKeys.add(key="escape", modifiers=["shift"], func=self.stop, name="quit")
-        event.globalKeys.add(key="p", modifiers=["shift"], func=self.pause, name="pause")
+        self.lsl_outlet = None
+
+        event.globalKeys.add(
+            key="escape", modifiers=["shift"], func=self.stop, name="quit"
+        )
+        event.globalKeys.add(
+            key="p", modifiers=["shift"], func=self.pause, name="pause"
+        )
 
     def discover_experiments(self):
         files = list(self.exps_dir.glob("*.py"))
@@ -40,14 +46,26 @@ class Session:
 
     def sort_experiments(self, exp_list: list[str]):
         num_exps = len(exp_list)
-        default_order_all = ["gng", "nback", "diat", "emotion_stim", "emotion_face", "prt"]
+        default_order_all = [
+            "gng",
+            "nback",
+            "diat",
+            "emotion_stim",
+            "emotion_face",
+            "prt",
+        ]
         default_order = [exp for exp in default_order_all if exp in exp_list]
 
         while True:
             dlg = gui.Dlg(title="选择实验顺序")
             dlg.addText("请确保每个实验只出现一次，如果退出则会使用默认顺序")
             for i in range(0, num_exps):
-                dlg.addField(f"第 {i + 1} 个实验", choices=default_order[i : i + 1] + default_order[:i] + default_order[i + 1 :])
+                dlg.addField(
+                    f"第 {i + 1} 个实验",
+                    choices=default_order[i : i + 1]
+                    + default_order[:i]
+                    + default_order[i + 1 :],
+                )
 
             ok_data = dlg.show()
             if not dlg.OK:
@@ -61,24 +79,30 @@ class Session:
 
         # ok_data 顺序即为最终实验顺序
         order = list(ok_data.values()) if ok_data else default_order
-        exp_list.sort(key=lambda x: order.index(x.lower()) if x.lower() in order else num_exps)
+        exp_list.sort(
+            key=lambda x: order.index(x.lower()) if x.lower() in order else num_exps
+        )
         return exp_list
 
     def add_experiments(self, exp_names):
         for name in exp_names:
             mod = importlib.import_module(f"psycho.exps.{name}")
-            self.experiments.append(mod)
+            self.experiments.append((name, mod))
 
     def start(self, with_lsl=False):
         self.running = True
-        self.win = visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")  # 全局窗口
+        # screen: 1 0 2
+        self.win = visual.Window(
+            screen=1, pos=(0, 0), fullscr=True, color="grey", units="norm"
+        )  # 全局窗口
         self.win.callOnFlip(event.clearEvents)
         if with_lsl:
             self.lsl_proc = multiprocessing.Process(target=self._lsl_recv)
             self.lsl_proc.start()
 
         try:
-            for exp in self.experiments:
+            self.lsl_outlet = init_lsl("ParadigmMarker")
+            for name, exp in self.experiments:
                 if not self.running:
                     break
                 start_msg = visual.TextStim(
@@ -94,7 +118,11 @@ class Session:
                 core.wait(0.3)
                 self.win.flip()
 
-                exp.entry(self.win, self.trialClock, self.port)
+                exp.entry(
+                    self.win,
+                    self.trialClock,
+                    lsl_outlet_session=self.lsl_outlet,
+                )
 
                 end_msg = visual.TextStim(
                     self.win,
@@ -125,7 +153,9 @@ class Session:
             self.win.close()
 
     def pause(self):
-        pause_msg = visual.TextStim(self.win, text="暂停中，按 r 恢复", height=0.20, wrapWidth=2)
+        pause_msg = visual.TextStim(
+            self.win, text="暂停中，按 r 恢复", height=0.20, wrapWidth=2
+        )
         pause_start = self.trialClock.getTime()  # 记录暂停开始时间（系统时间）
 
         # 只用管理 win 和 clock 即可
@@ -154,7 +184,7 @@ def run_session():
     # 切换到英文输入法
     switch_keyboard_layout()
 
-    session = Session(port=0x03F8)
+    session = Session()
     exps = session.discover_experiments()
     selected = session.select_experiments_gui(exps)
     sort = session.sort_experiments(selected)

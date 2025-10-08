@@ -191,7 +191,7 @@ def entry(
         block()
         post_block()
 
-    send_marker(lsl_outlet, "EXPERIMENT_END", port=port)
+    send_marker(lsl_outlet, "EXPERIMENT_END")
 
 
 def main():

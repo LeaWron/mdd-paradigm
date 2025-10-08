@@ -49,9 +49,6 @@ def send_marker(
     lsl_outlet: StreamOutlet,
     marker: str,
     timestamp: float | None = None,
-    port: Any | None = None,
-    ttl_code: int = 1,
-    pulse_ms: float = 5.0,
 ):
     """
     向 LSL 发送 marker
@@ -59,18 +56,12 @@ def send_marker(
         lsl_outlet (StreamOutlet): LSL 输出流
         marker (str): 要发送的 marker 字符串
         timestamp (float | None, optional): 时间戳. Defaults to None.
-        ttl_code (int, optional): TTL 高电平. 并口触发值, Defaults to 1.
-        pulse_ms (float, optional): 脉冲持续时间, 单位为毫秒. Defaults to 5.0.
     """
     if lsl_outlet is None:
         return
     lsl_outlet.push_sample(
         [marker], timestamp if timestamp is not None else local_clock()
     )
-    if port is not None:
-        port.setData(ttl_code)
-        core.wait(pulse_ms / 1000)
-        port.setData(0)
 
 
 def switch_keyboard_layout(layout: str = "en-US"):

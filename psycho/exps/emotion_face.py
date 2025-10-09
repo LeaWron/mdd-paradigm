@@ -14,12 +14,22 @@ fixation_duration = 0.5
 
 stim_folder = parse_stim_path("emotion-face")
 stim_items = list(stim_folder.glob("*"))
-stim_duration = 0.5
+stim_duration = 1
 
-response_map = {"left": "positive", "down": "neural", "right": "negative"}
+response_map = {"left": "positive", "right": "negative"}
 max_response_time = 2
 
-rest_duration = 30
+emotion_labels = {
+    "快乐": "happy",
+    "悲伤": "sad",
+    "愤怒": "angry",
+    "恐惧": "fear",
+    "厌恶": "disgust",
+    "中性": "neutral",
+}
+emotion_select_duration = 1
+
+rest_duration = 20
 # === 全局变量 ===
 win = None
 clock = None
@@ -29,7 +39,7 @@ port = None
 
 
 def pre_block():
-    text = f"当前 block 为第 {block_index + 1} 个 block, 请按空格键开始"
+    text = f"当前 block 为第 {block_index + 1} 个 block\n记住左方向键为积极, 右方向键为消极\n请按空格键开始"
     text_stim = visual.TextStim(win, text=text, color="white", wrapWidth=2)
     text_stim.draw()
     win.flip()
@@ -67,7 +77,7 @@ def trial():
         elif stim_item.name.startswith("n"):
             label = "negative"
         else:
-            label = "neural"
+            label = "neutral"
         return stim_item, label
 
     stim_item, label = get_stim()
@@ -80,27 +90,62 @@ def trial():
     )
     stimulus.draw()
     win.flip()
+    send_marker(
+        lsl_outlet,
+        "TRIAL_START",
+    )
 
     core.wait(stim_duration)
 
-    keys = event.waitKeys(
-        maxWait=max_response_time, keyList=list(response_map.keys()), timeStamped=True
-    )
+    keys = event.waitKeys(maxWait=max_response_time, keyList=list(response_map.keys()), timeStamped=True)
 
     if keys:
         key, rt = keys[0]
 
         resp_emotion = response_map.get(key, None)
         correct = resp_emotion == label
-        send_marker(
-            lsl_outlet,
-            f"{label}_{resp_emotion}_{correct}_{rt}",
-        )
+        send_marker(lsl_outlet, "RESPONSE_1")
 
 
 def post_trial():
-    # TODO: 是否需要 rate intensity
     win.flip()
+
+    def emotion_label_select():
+        # 显示情感标签选择界面
+        prompt = visual.TextStim(
+            win,
+            text="请选择情感标签:快乐、悲伤、愤怒、恐惧、厌恶、中性\n使用鼠标选择标签, 按空格键确认",
+            color="white",
+            height=0.06,
+            pos=(0, 0.3),
+            wrapWidth=2,
+        )
+        emotion_select = visual.Slider(
+            win,
+            pos=(0, 0),
+            # size=(1, 0.05),
+            ticks=None,
+            labels=list(emotion_labels.keys()),
+            font="SimSun",
+            granularity=1,
+            color="white",
+            style="radio",
+        )
+        while True:
+            prompt.draw()
+            emotion_select.draw()
+            win.flip()
+
+            keys = event.getKeys(keyList=continue_keys)
+            if keys and emotion_select.getRating() is not None:
+                selected_emtion_key = emotion_select.getRating()
+                selected_emotion_label = emotion_labels[selected_emtion_key]
+                print(f"选择了情感标签: {selected_emotion_label}")
+                break
+
+        send_marker(lsl_outlet, "RESPONSE_2")
+
+    emotion_label_select()
     core.wait(0.5)
 
 
@@ -110,17 +155,16 @@ def entry(
     lsl_outlet_session: StreamOutlet = None,
 ):
     global win, clock, lsl_outlet, block_index
-    win = (
-        win_session
-        if win_session
-        else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
-    )
+    win = win_session if win_session else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
 
     clock = clock_session if clock_session else core.Clock()
 
-    lsl_outlet = (
-        lsl_outlet_session if lsl_outlet_session else init_lsl("EmotionFaceMarker")
-    )  # 初始化 LSL
+    lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("EmotionFaceMarker")  # 初始化 LSL
+
+    send_marker(
+        lsl_outlet,
+        "EXPERIMENT_START",
+    )
 
     for local_block_index in range(n_blocks):
         block_index = local_block_index

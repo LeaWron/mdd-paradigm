@@ -10,6 +10,8 @@ n_blocks = 1  # block 数量
 n_trials_per_block = 10  # 每个 block 的 trial 数
 go_prob = 0.7  # Go trial 的概率
 resp_keys = ["space"]  # 受试者按键
+
+fixation_duration = 0.5
 total_trial_duration = 2.5  # 每个 trial 的总时间
 rest_duration = 30  # 每个 block 休息时间
 
@@ -51,7 +53,7 @@ def block():
 def post_block():
     msg = visual.TextStim(
         win,
-        text=f"第 {block_index + 1} 个区块结束\n休息一下\n按任意键继续",
+        text=f"第 {block_index + 1} 个区块结束\n按任意键继续",
         color="white",
         height=0.1,
         wrapWidth=2,
@@ -66,7 +68,7 @@ def pre_trial(trial_index):
     fixation = visual.TextStim(win, text="+", color="white", height=0.4, wrapWidth=2)
     fixation.draw()
     win.flip()
-    core.wait(0.5)
+    core.wait(fixation_duration)
 
 
 def trial(trial_index):
@@ -77,9 +79,9 @@ def trial(trial_index):
     blank_duration = get_isi(0.5, 1.0)
     core.wait(blank_duration)
 
-    # TODO: 是否选择结合图形, 颜色设置等
-    # ellipse = visual.Circle(win, radius=0.5, edges=128, size=(0.8, 0.4), lineColor="black")
-    # ellipse.draw()
+    # 可选: 结合图形, 颜色设置等
+    # eclipse = visual.Circle(win, radius=0.5, edges=128, size=(0.8, 0.4), lineColor="black")
+    # eclipse.draw()
 
     stim_text = "按键!" if is_go else "不要按!"
     stim = visual.TextStim(
@@ -92,6 +94,7 @@ def trial(trial_index):
     )
     stim.draw()
 
+    send_marker(lsl_outlet, "TRIAL_START")
     win.flip()
 
     # trial 开始 marker
@@ -105,7 +108,7 @@ def trial(trial_index):
     )
     # 反应 marker
     if keys:
-        send_marker(lsl_outlet, f"GO_RESPONSE_{keys[0][0]}_{keys[0][1]:.3f}")
+        send_marker(lsl_outlet, "GO_RESPONSE")
     else:
         send_marker(lsl_outlet, "NOGO_NO_RESPONSE")
 
@@ -132,7 +135,7 @@ def entry(
 
     lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("GoNogoMarker")  # 初始化 LSL
 
-    send_marker(lsl_outlet, "EXPERIMENT_GONOGO_START")
+    send_marker(lsl_outlet, "EXPERIMENT_START")
     for local_block_index in range(n_blocks):
         block_index = local_block_index
         pre_block()

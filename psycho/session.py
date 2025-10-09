@@ -1,13 +1,17 @@
-# session.py
 import importlib
 import multiprocessing
 from pathlib import Path
 
-from psychopy import core, event, gui, visual
+from psychopy import core, event, gui, prefs, visual
 
-from psycho.utils import init_lsl, switch_keyboard_layout
+from psycho.utils import init_lsl, send_marker, switch_keyboard_layout
 
 # TODO: skip one experiment
+
+# 全局设置
+prefs.general["defaultTextFont"] = "Arial"
+prefs.general["defaultTextSize"] = 0.05
+prefs.general["defaultTextColor"] = "white"
 
 
 class Session:
@@ -22,6 +26,9 @@ class Session:
         self.continue_keys = ["space"]
         self.lsl_proc = None
         self.lsl_outlet = None
+
+        self.before_duration = 5
+        self.after_rest_duration = 30
 
         event.globalKeys.add(key="escape", modifiers=["shift"], func=self.stop, name="quit")
         event.globalKeys.add(key="p", modifiers=["shift"], func=self.pause, name="pause")
@@ -44,6 +51,7 @@ class Session:
     def sort_experiments(self, exp_list: list[str]):
         num_exps = len(exp_list)
         default_order_all = [
+            "resting",
             "gng",
             "nback",
             "diat",
@@ -85,7 +93,7 @@ class Session:
     def start(self, with_lsl=False):
         self.running = True
         # screen: 1 0 2
-        self.win = visual.Window(screen=1, pos=(0, 0), fullscr=True, color="grey", units="norm")  # 全局窗口
+        self.win = visual.Window(monitor="testMonitor", screen=1, pos=(0, 0), fullscr=True, color="grey", units="norm")  # 全局窗口
         self.win.callOnFlip(event.clearEvents)
         if with_lsl:
             self.lsl_proc = multiprocessing.Process(target=self._lsl_recv)
@@ -93,6 +101,7 @@ class Session:
 
         try:
             self.lsl_outlet = init_lsl("ParadigmMarker")
+            send_marker(self.lsl_outlet, "SESSION_START")
             for name, exp in self.experiments:
                 if not self.running:
                     break
@@ -105,26 +114,26 @@ class Session:
                 )
                 start_msg.draw()
                 self.win.flip()
-                event.waitKeys(keyList=self.continue_keys)
+                event.waitKeys(self.before_duration, keyList=self.continue_keys)
                 core.wait(0.3)
                 self.win.flip()
 
                 exp.entry(
-                    self.win,
-                    self.trialClock,
+                    win_session=self.win,
+                    clock_session=self.trialClock,
                     lsl_outlet_session=self.lsl_outlet,
                 )
 
                 end_msg = visual.TextStim(
                     self.win,
-                    text="该实验结束, 按空格键继续",
+                    text="该实验结束, 你有 30s 休息时间\n你可以按空格键直接进入下一个实验",
                     color="white",
                     height=0.05,
                     wrapWidth=2,
                 )
                 end_msg.draw()
                 self.win.flip()
-                event.waitKeys(keyList=self.continue_keys)
+                event.waitKeys(self.after_rest_duration, keyList=self.continue_keys)
                 core.wait(0.3)
                 self.win.flip()
 
@@ -142,6 +151,7 @@ class Session:
             self.lsl_proc.terminate()
         if self.win:
             self.win.close()
+        send_marker(self.lsl_outlet, "SESSION_END")
 
     def pause(self):
         pause_msg = visual.TextStim(self.win, text="暂停中，按 r 恢复", height=0.20, wrapWidth=2)

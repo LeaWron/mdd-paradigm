@@ -10,6 +10,7 @@ n_back = 2
 n_blocks = 1
 n_trials_per_block = 10
 stim_pool = list(range(0, 4))
+fixation_duration = 0.5
 stim_duration = 1.0
 resp_keys = ["space"]
 rest_duration = 30  # 每个 block 休息时间
@@ -37,7 +38,7 @@ def pre_block():
     global stim_sequence, correct_count
     stim_sequence = [random.choice(stim_pool) for _ in range(n_trials_per_block)]
     # 区块开始前的提示
-    text = f"准备进入第 {block_index + 1} 个区块\n你有{rest_duration}秒响应时间\n或者可以按空格键直接开始"
+    text = f"准备进入第 {block_index + 1} 个区块\n你有{rest_duration}秒休息时间\n你可以按空格键直接开始"
 
     msg = visual.TextStim(
         win,
@@ -51,8 +52,6 @@ def pre_block():
     event.waitKeys(rest_duration, keyList=arbitary_keys)
     correct_count = 0
 
-    send_marker(lsl_outlet, f"BLOCK_START_{block_index}")
-
 
 def block():
     """执行一个 block"""
@@ -60,7 +59,6 @@ def block():
         pre_trial(trial_index)
         trial(trial_index)
         post_trial(trial_index)
-    send_marker(lsl_outlet, f"BLOCK_END_{block_index}")
 
 
 def post_block():
@@ -80,7 +78,7 @@ def post_block():
     msg.draw()
     win.flip()
 
-    event.waitKeys(keyList=arbitary_keys)
+    event.waitKeys(5, keyList=arbitary_keys)
 
 
 def pre_trial(trial_index: int):
@@ -88,14 +86,14 @@ def pre_trial(trial_index: int):
     fixation = visual.TextStim(win, text="+", color="white", height=0.4, wrapWidth=2)
     fixation.draw()
     win.flip()
-    core.wait(0.5)
+    core.wait(fixation_duration)
 
 
-def trial(t):
+def trial(trial_index):
     """单个 trial 的逻辑"""
     global results, correct_count
 
-    stim = stim_sequence[t]
+    stim = stim_sequence[trial_index]
     stim_text.text = stim
     stim_text.draw()
 
@@ -122,6 +120,7 @@ def trial(t):
     line_top.draw()
     line_bottom.draw()
 
+    send_marker(lsl_outlet, "TRIAL_START")
     win.flip()
     stim_onset = clock.getTime()
 
@@ -130,15 +129,17 @@ def trial(t):
 
     # 判定 target
     is_target = False
-    if t >= n_back and stim == stim_sequence[t - n_back]:
+    if trial_index >= n_back and stim == stim_sequence[trial_index - n_back]:
         is_target = True
 
     # 响应情况
     if keys:
+        send_marker(lsl_outlet, "RESPONSE")
         key, rt = keys[0]
         responded = True
         rt = rt - stim_onset
     else:
+        send_marker(lsl_outlet, "NO_RESPONSE")
         responded = False
         rt = None
 
@@ -152,10 +153,10 @@ def trial(t):
     else:
         correct = False
 
-    if correct:
+    if correct and responded:
         line_top.color = "green"
         line_bottom.color = "green"
-    else:
+    elif not correct and responded:
         line_top.color = "red"
         line_bottom.color = "red"
 
@@ -167,11 +168,11 @@ def trial(t):
     core.wait(stim_left)
 
     if is_target:
-        send_marker(lsl_outlet, f"TARGET_{rt}")
+        send_marker(lsl_outlet, "TARGET")
     else:
-        send_marker(lsl_outlet, "NONTARGET")
+        send_marker(lsl_outlet, "NOT_TARGET")
 
-    results.append([t, stim, is_target, responded, rt, correct])
+    results.append([trial_index, stim, is_target, responded, rt, correct])
 
 
 def post_trial(t):
@@ -189,19 +190,14 @@ def entry(
 ):
     """实验入口"""
     global stim_text, lsl_outlet, win, clock, block_index
-    win = (
-        win_session
-        if win_session
-        else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
-    )
+    win = win_session if win_session else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
 
     clock = clock_session if clock_session else core.Clock()
 
-    lsl_outlet = (
-        lsl_outlet_session if lsl_outlet_session else init_lsl("NBackMarker")
-    )  # 初始化 LSL
+    lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("NBackMarker")  # 初始化 LSL
     stim_text = visual.TextStim(win, text="", color="white", height=0.3, wrapWidth=2)
 
+    send_marker(lsl_outlet, "EXPERIMENT_START")
     for local_block_index in range(n_blocks):
         block_index = local_block_index
         pre_block()

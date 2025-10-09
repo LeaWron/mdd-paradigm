@@ -157,7 +157,8 @@ def test_prev_frame():
     win.close()
 
 
-def test_get_monitor():
-    from psychopy import sound
+def test_get_devices():
+    from psychopy import monitors, sound
 
     print(sound.getDevices())
+    print(monitors.getAllMonitors())

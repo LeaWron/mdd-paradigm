@@ -1,4 +1,7 @@
+import ctypes
+import math
 import random
+import tkinter as tk
 from pathlib import Path
 
 from PIL import Image
@@ -115,6 +118,49 @@ def adapt_image_stim_size(stim_path: Path, max_height: float = 2.0):
     else:
         stim_height = max_height / aspect_ratio
     return stim_height, aspect_ratio
+
+
+def cm_to_unit_ratio(cm):
+    """
+    输入: cm（厘米）
+    输出: 对应在屏幕坐标系下的比例值 (0.0 ~ 1.0)
+         坐标系说明:
+         - 屏幕中心为 0.0
+         - 四个角点为 ±1
+         - 不考虑象限，只返回模长比例
+    """
+    # --- 设置 DPI 感知模式，防止 Windows 缩放干扰 ---
+    try:
+        ctypes.windll.shcore.SetProcessDpiAwareness(2)  # Win 8.1+
+    except Exception:
+        try:
+            ctypes.windll.user32.SetProcessDPIAware()
+        except Exception:
+            pass
+
+    # --- 获取屏幕 DPI 和分辨率 ---
+    root = tk.Tk()
+    dpi = root.winfo_fpixels("1i")
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    root.destroy()
+
+    # --- 转换 cm → px ---
+    pixels = (cm / 2.54) * dpi
+
+    # --- 计算半对角线长度（中心 → 角点 的像素距离）---
+    max_radius_px = math.hypot(screen_width / 2, screen_height / 2)
+
+    # --- 计算比例 ---
+    ratio = pixels / max_radius_px
+
+    # 限定在 [0, 1]
+    if ratio < 0:
+        ratio = 0.0
+    elif ratio > 1:
+        ratio = 1.0
+
+    return ratio
 
 
 if __name__ == "__main__":

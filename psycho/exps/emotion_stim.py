@@ -2,9 +2,10 @@ import random
 from collections import deque
 from pathlib import Path
 
-from psychopy import core, event, visual
+from psychopy import core, event, sound, visual
 from pylsl import StreamOutlet
 
+from psycho.exps.resting import notification
 from psycho.utils import adapt_image_stim_size, init_lsl, parse_stim_path, send_marker
 
 # === 参数设置 ===
@@ -16,12 +17,11 @@ fixation_duration = 2
 
 stim_folder = parse_stim_path("emotion-stim")  # 刺激文件夹
 stim_items = list(stim_folder.glob("*"))
-stim_threshold = min(
-    4, len(stim_items) - 1
-)  # 每个刺激出现的间隔的最小次数, 即距离它上次出现至少隔着几个不同的刺激
-stim_duration = 7.5
+stim_threshold = min(4, len(stim_items) - 1)  # 每个刺激出现的间隔的最小次数, 即距离它上次出现至少隔着几个不同的刺激
+stim_duration = 4
 
-mathematic_trials_per_block = 10
+mathematic_trials_per_block = 1
+recovery_duration = 1 * 3
 
 # === 全局变量 ===
 win = None
@@ -84,9 +84,7 @@ def post_block():
 
         question_text = visual.TextStim(win, text=question, color="white", pos=(0, 0))
         answer_text = visual.TextStim(win, text="?", color="yellow", pos=(0.2, 0))
-        prompt_text = visual.TextStim(
-            win, text="请输入答案并按空格键确认", color="white", pos=(0, -0.3)
-        )
+        prompt_text = visual.TextStim(win, text="请输入答案并按空格键确认", color="white", pos=(0, -0.3))
 
         response = ""
         while True:
@@ -105,9 +103,7 @@ def post_block():
                         ans = int(response)
                     except ValueError:
                         ans = None
-                    feedback = (
-                        "正确！" if ans == correct else f"错误！正确答案是 {correct}"
-                    )
+                    feedback = "正确！" if ans == correct else f"错误！正确答案是 {correct}"
                     fb = visual.TextStim(win, text=feedback, color="white")
                     fb.draw()
                     win.flip()
@@ -118,8 +114,41 @@ def post_block():
                 elif key.isdigit():
                     response += key
 
-    for _ in range(mathematic_trials_per_block):
-        raise_question()
+    # 做算术题
+    # for _ in range(mathematic_trials_per_block):
+    #     raise_question()
+
+    # 恢复
+    recovery_text = visual.TextStim(win, text="该区块完成, 请闭眼静坐\n休息 3 分钟, 直到再次听到如下提示", color="white", pos=(0, 0), height=0.05, wrapWidth=2)
+    recovery_text.draw()
+
+    sount_prompt = sound.Sound(notification, secs=1)
+    win.flip()
+    sount_prompt.play()
+    send_marker(lsl_outlet, "RECOVERY_START")
+    core.wait(recovery_duration)
+    sount_prompt.play()
+    send_marker(lsl_outlet, "RECOVERY_END")
+    core.wait(1)
+
+    arousal_prompt, arousal_stim = rating_slider("请自评 arousal", up=True)
+    valence_prompt, valence_stim = rating_slider("请自评 valence", up=False)
+    confirm_text = visual.TextStim(win, text="按空格确认", color="white", pos=(0, -0.6))
+
+    while True:
+        arousal_prompt.draw()
+        arousal_stim.draw()
+
+        valence_prompt.draw()
+        valence_stim.draw()
+        confirm_text.draw()
+        win.flip()
+        keys = event.getKeys(continue_keys)
+        if "space" in keys:
+            arousal = arousal_stim.getRating()
+            valence = valence_stim.getRating()
+            break
+    core.wait(0.2)
 
 
 def pre_trial():
@@ -153,20 +182,17 @@ def trial():
     stim = random_stim()
     stim.draw()
     win.flip()
+    send_marker(lsl_outlet, "TRIAL_START")
     core.wait(stim_duration)
 
 
 def post_trial():
     # rating + resting
     # Valence rating
-    valence_question, valence_slider = rating_slider(
-        "请评价愉快程度 (1=非常消极, 9=非常积极)", up=True
-    )
+    valence_question, valence_slider = rating_slider("请评价愉快程度 (1=非常消极, 9=非常积极)", up=True)
 
     # Arousal rating
-    arousal_question, arousal_slider = rating_slider(
-        "请评价唤醒度 (1=非常平静, 9=非常激动)", up=False
-    )
+    arousal_question, arousal_slider = rating_slider("请评价唤醒度 (1=非常平静, 9=非常激动)", up=False)
     confirm_text = visual.TextStim(win, text="按空格确认", color="white", pos=(0, -0.6))
     while True:
         valence_question.draw()
@@ -183,28 +209,63 @@ def post_trial():
             arousal = arousal_slider.getRating()
             print(f"Valence: {valence}, Arousal: {arousal}")
             break
+    send_marker(lsl_outlet, "TRIAL_END")
     core.wait(0.2)
 
 
 # ========== rating 界面 ==========
 def rating_slider(prompt, labels=None, up=True):
     pos_sign = 1 if up else -1
-    question = visual.TextStim(
-        win, text=prompt, color="white", pos=(0, pos_sign * 0.4), wrapWidth=2
-    )
+    question = visual.TextStim(win, text=prompt, color="white", pos=(0, pos_sign * 0.4), wrapWidth=2)
     labels = labels or [1, 2, 3, 4, 5, 6, 7, 8, 9]
     slider = visual.Slider(
         win,
         ticks=labels,
         labels=labels,
         granularity=0,  # 连续可拖动
-        startValue=labels[len(labels) // 2],  # TODO: 不移动值依然为 None
+        startValue=labels[len(labels) // 2],
         size=(0.9, 0.05),
         style=["rating"],
         color="white",
         pos=(0, pos_sign * 0.2),
     )
+    # slider.setValue(labels[len(labels) // 2])
+    slider.setValue(slider.startValue)
     return question, slider
+
+
+def baseline_assess():
+    baseline_text = visual.TextStim(win, text="请闭眼静坐 3 分钟, 直到再次听到如下提示", color="white", pos=(0, 0), wrapWidth=2)
+    baseline_text.draw()
+
+    sount_prompt = sound.Sound(notification, secs=1)
+    win.flip()
+    send_marker(lsl_outlet, "BASELINE_START")
+    sount_prompt.play()
+    core.wait(recovery_duration)
+    sount_prompt.play()
+
+    send_marker(lsl_outlet, "BASELINE_END")
+    core.wait(1)
+
+    arousal_prompt, arousal_stim = rating_slider("请自评 arousal", up=True)
+    valence_prompt, valence_stim = rating_slider("请自评 valence", up=False)
+    confirm_text = visual.TextStim(win, text="按空格确认", color="white", pos=(0, -0.6))
+
+    while True:
+        arousal_prompt.draw()
+        arousal_stim.draw()
+
+        valence_prompt.draw()
+        valence_stim.draw()
+        confirm_text.draw()
+        win.flip()
+        keys = event.getKeys(continue_keys)
+        if "space" in keys:
+            arousal = arousal_stim.getRating()
+            valence = valence_stim.getRating()
+            break
+    core.wait(0.2)
 
 
 def entry(
@@ -213,18 +274,13 @@ def entry(
     lsl_outlet_session: StreamOutlet | None = None,
 ):
     global win, clock, lsl_outlet, block_index
-    win = (
-        win_session
-        if win_session
-        else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
-    )
+    win = win_session if win_session else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
 
     clock = clock_session if clock_session else core.Clock()
 
-    lsl_outlet = (
-        lsl_outlet_session if lsl_outlet_session else init_lsl("EmotionStimMarker")
-    )  # 初始化 LSL
+    lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("EmotionStimMarker")  # 初始化 LSL
 
+    baseline_assess()
     for local_block_index in range(n_blocks):
         block_index = local_block_index
         pre_block()

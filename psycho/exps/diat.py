@@ -3,7 +3,7 @@ import random
 from psychopy import core, event, visual
 from pylsl import StreamOutlet
 
-from psycho.utils import init_lsl, parse_stim_path, send_marker
+from psycho.utils import adapt_image_stim_size, init_lsl, parse_stim_path, send_marker
 
 # === 实验参数 ===
 blocks_info = [
@@ -12,6 +12,8 @@ blocks_info = [
         "prompt": """接下来的任务中，将要求你对一组呈现的词语或图片进行分类。分类要尽可能地快，但同时又尽可能少犯错。
 下面列出了类别标签以及属于那些类别的项目。
 按空格键继续
+
+
 """,
         "tips": "占位项, 让下标从 1 开始，同时也是实验开始的说明",
     },
@@ -309,6 +311,7 @@ def trial(trial_index: int):
         right_stim.draw()
         stim.draw()
 
+        send_marker(lsl_outlet, "TRIAL_START")
         win.flip()
 
         # 可能还要再等一帧，确保所有刺激都被绘制
@@ -324,9 +327,12 @@ def trial(trial_index: int):
     resp = event.waitKeys(maxWait=max_wait_respond, keyList=resp_keys, timeStamped=True)
     correct = False
     if resp is None:
-        send_marker(lsl_outlet, f"TRIAL_{trial_index}_NO_RESPONSE")
+        send_marker(lsl_outlet, "NO_RESPONSE")
     elif resp[0][0] == stim_correct_resp:
         correct = True
+        send_marker(lsl_outlet, "CORRECT")
+    else:
+        send_marker(lsl_outlet, "INCORRECT")
 
     if correct:
         correct_count += 1
@@ -342,14 +348,39 @@ def trial(trial_index: int):
         win.flip()
         event.waitKeys(keyList=[stim_correct_resp])
 
-    send_marker(lsl_outlet, f"TRIAL_{trial_index}_{resp}")
-    pass
-
 
 def post_trial(trial_index: int):
     """trial 结束后"""
     win.flip()
     pass
+
+
+def show_prompt():
+    """显示提示"""
+    visual.TextStim(
+        win=win,
+        text=blocks_info[0]["prompt"],
+        height=0.05,
+        wrapWidth=1.8,
+    ).draw()
+
+    for i, (key, value) in enumerate(stim_texts.items()):
+        visual.TextStim(
+            win=win,
+            text=f"{key}: {', '.join(value)}",
+            height=0.05,
+            pos=(0, -0.2 - 0.07 * (i + 1)),
+            wrapWidth=1.8,
+            alignText="left",
+        ).draw()
+    # height, aspect_ratio = adapt_image_stim_size(parse_stim_path("image_item_table.png"), 4)
+    # visual.ImageStim(
+    #     win=win,
+    #     image=parse_stim_path("image_item_table.png"),
+    #     pos=(0, -max(0.6, height / 2)),
+    #     # size=(height * aspect_ratio, height),
+    #     # units="norm",
+    # ).draw()
 
 
 def entry(
@@ -364,6 +395,7 @@ def entry(
     lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("D-IATMarker")
 
     n_blocks = len(blocks_info)
+    send_marker(lsl_outlet, "EXPERIMENT_START")
     for local_block_index in range(n_blocks):
         block_index = local_block_index
         pre_block()
@@ -375,24 +407,8 @@ def entry(
 
 def main():
     """实验主函数"""
-    entry(test_mode=True)
+    entry()
 
 
 if __name__ == "__main__":
     main()
-
-
-def show_prompt():
-    """显示提示"""
-    visual.TextStim(
-        win=win,
-        text=blocks_info[0]["prompt"],
-        height=0.05,
-        wrapWidth=1.8,
-    ).draw()
-
-    visual.ImageStim(
-        win=win,
-        image=parse_stim_path("image_item_table.png"),
-        pos=(0, -0.6),
-    ).draw()

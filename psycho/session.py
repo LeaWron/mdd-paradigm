@@ -5,9 +5,10 @@ from pathlib import Path
 
 from psychopy import core, event, gui, visual
 
-from psycho.utils import switch_keyboard_layout, init_lsl
+from psycho.utils import init_lsl, switch_keyboard_layout
 
 # TODO: skip one experiment
+
 
 class Session:
     def __init__(self, exps_dir="./psycho/exps"):
@@ -22,12 +23,8 @@ class Session:
         self.lsl_proc = None
         self.lsl_outlet = None
 
-        event.globalKeys.add(
-            key="escape", modifiers=["shift"], func=self.stop, name="quit"
-        )
-        event.globalKeys.add(
-            key="p", modifiers=["shift"], func=self.pause, name="pause"
-        )
+        event.globalKeys.add(key="escape", modifiers=["shift"], func=self.stop, name="quit")
+        event.globalKeys.add(key="p", modifiers=["shift"], func=self.pause, name="pause")
 
     def discover_experiments(self):
         files = list(self.exps_dir.glob("*.py"))
@@ -62,9 +59,7 @@ class Session:
             for i in range(0, num_exps):
                 dlg.addField(
                     f"第 {i + 1} 个实验",
-                    choices=default_order[i : i + 1]
-                    + default_order[:i]
-                    + default_order[i + 1 :],
+                    choices=default_order[i : i + 1] + default_order[:i] + default_order[i + 1 :],
                 )
 
             ok_data = dlg.show()
@@ -79,9 +74,7 @@ class Session:
 
         # ok_data 顺序即为最终实验顺序
         order = list(ok_data.values()) if ok_data else default_order
-        exp_list.sort(
-            key=lambda x: order.index(x.lower()) if x.lower() in order else num_exps
-        )
+        exp_list.sort(key=lambda x: order.index(x.lower()) if x.lower() in order else num_exps)
         return exp_list
 
     def add_experiments(self, exp_names):
@@ -92,9 +85,7 @@ class Session:
     def start(self, with_lsl=False):
         self.running = True
         # screen: 1 0 2
-        self.win = visual.Window(
-            screen=1, pos=(0, 0), fullscr=True, color="grey", units="norm"
-        )  # 全局窗口
+        self.win = visual.Window(screen=1, pos=(0, 0), fullscr=True, color="grey", units="norm")  # 全局窗口
         self.win.callOnFlip(event.clearEvents)
         if with_lsl:
             self.lsl_proc = multiprocessing.Process(target=self._lsl_recv)
@@ -153,9 +144,7 @@ class Session:
             self.win.close()
 
     def pause(self):
-        pause_msg = visual.TextStim(
-            self.win, text="暂停中，按 r 恢复", height=0.20, wrapWidth=2
-        )
+        pause_msg = visual.TextStim(self.win, text="暂停中，按 r 恢复", height=0.20, wrapWidth=2)
         pause_start = self.trialClock.getTime()  # 记录暂停开始时间（系统时间）
 
         # 只用管理 win 和 clock 即可

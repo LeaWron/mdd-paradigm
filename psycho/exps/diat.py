@@ -359,11 +359,7 @@ def entry(
 ):
     """实验入口"""
     global win, clock, lsl_outlet, block_index
-    win = (
-        win_session
-        if win_session is not None
-        else visual.Window(fullscr=True, units="norm")
-    )
+    win = win_session if win_session is not None else visual.Window(fullscr=True, units="norm")
     clock = clock_session if clock_session is not None else core.Clock()
     lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("D-IATMarker")
 

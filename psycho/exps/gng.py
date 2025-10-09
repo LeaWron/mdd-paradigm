@@ -1,11 +1,9 @@
 import random
 
 from psychopy import core, event, visual
-
 from pylsl import StreamOutlet
 
-from psycho.utils import get_isi, init_lsl, orbitary_keys, send_marker
-
+from psycho.utils import arbitary_keys, get_isi, init_lsl, send_marker
 
 # === 参数设置 ===
 n_blocks = 1  # block 数量
@@ -37,7 +35,7 @@ def pre_block():
     )
     msg.draw()
     win.flip()
-    event.waitKeys(rest_duration, keyList=orbitary_keys)
+    event.waitKeys(rest_duration, keyList=arbitary_keys)
 
     # send_marker(lsl_outlet, f"BLOCK_START_{block_index}")
 
@@ -60,7 +58,7 @@ def post_block():
     )
     msg.draw()
     win.flip()
-    event.waitKeys(1.0, keyList=orbitary_keys)
+    event.waitKeys(1.0, keyList=arbitary_keys)
 
 
 def pre_trial(trial_index):
@@ -111,7 +109,6 @@ def trial(trial_index):
     else:
         send_marker(lsl_outlet, "NOGO_NO_RESPONSE")
 
-    # TODO: 是否需要显示反馈
     # win.flip()
     # trial 结束 marker
     # send_marker(lsl_outlet, f"TRIAL_END_{trial_index}")
@@ -129,17 +126,11 @@ def entry(
     lsl_outlet_session: StreamOutlet | None = None,
 ):
     global win, clock, lsl_outlet, block_index
-    win = (
-        win_session
-        if win_session
-        else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
-    )
+    win = win_session if win_session else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
 
     clock = clock_session if clock_session else core.Clock()
 
-    lsl_outlet = (
-        lsl_outlet_session if lsl_outlet_session else init_lsl("GoNogoMarker")
-    )  # 初始化 LSL
+    lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("GoNogoMarker")  # 初始化 LSL
 
     send_marker(lsl_outlet, "EXPERIMENT_GONOGO_START")
     for local_block_index in range(n_blocks):

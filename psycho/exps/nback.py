@@ -3,7 +3,7 @@ import random
 from psychopy import core, event, visual
 from pylsl import StreamOutlet
 
-from psycho.utils import init_lsl, orbitary_keys, send_marker
+from psycho.utils import arbitary_keys, init_lsl, send_marker
 
 # ========== 参数设置 ==========
 n_back = 2
@@ -48,7 +48,7 @@ def pre_block():
     )
     msg.draw()
     win.flip()
-    event.waitKeys(rest_duration, keyList=orbitary_keys)
+    event.waitKeys(rest_duration, keyList=arbitary_keys)
     correct_count = 0
 
     send_marker(lsl_outlet, f"BLOCK_START_{block_index}")
@@ -80,7 +80,7 @@ def post_block():
     msg.draw()
     win.flip()
 
-    event.waitKeys(keyList=orbitary_keys)
+    event.waitKeys(keyList=arbitary_keys)
 
 
 def pre_trial(trial_index: int):

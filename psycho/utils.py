@@ -163,5 +163,41 @@ def cm_to_unit_ratio(cm):
     return ratio
 
 
+# 每个范式只生成一次, 所以简单点
+def generate_trial_sequence(
+    n_blocks: int,
+    n_trials_per_block: int,
+    max_seq_same: int = 2,
+    stim_list: list = None,
+):
+    """生成trial序列"""
+    from collections import defaultdict
+
+    stim_sequences = defaultdict(list)
+    for block_index in range(n_blocks):
+        current_count = 0
+        prev_choice = None
+
+        while True:
+            temp_seq = []
+            for _ in range(n_trials_per_block):
+                current_choice = random.choice(stim_list)
+                if current_choice == prev_choice:
+                    current_count += 1
+                else:
+                    current_count = 1
+                    prev_choice = current_choice
+                if current_count > max_seq_same:
+                    temp_seq.clear()
+                    break
+                temp_seq.append(current_choice)
+            if len(temp_seq) == n_trials_per_block:
+                break
+
+        stim_sequences[block_index].extend(temp_seq)
+
+    return stim_sequences
+
+
 if __name__ == "__main__":
     pass

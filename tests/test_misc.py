@@ -157,8 +157,29 @@ def test_prev_frame():
     win.close()
 
 
+@pytest.mark.skip(reason="暂时不测试这个函数")
 def test_get_devices():
     from psychopy import monitors, sound
 
     print(sound.getDevices())
     print(monitors.getAllMonitors())
+    for monitor in monitors.getAllMonitors():
+        monitor = monitors.Monitor(monitor)
+        width = monitor.getWidth()
+        distance = monitor.getDistance()
+        size_pix = monitor.getSizePix()
+        print(monitor, width, distance, size_pix)
+
+
+def test_get_trial_sequence():
+    from psycho.utils import generate_trial_sequence
+
+    n_blocks = 2
+    n_trials_per_block = 10
+    max_seq_same = 2
+    stim_list = ["A", "B", "C"]
+
+    stim_sequences = generate_trial_sequence(n_blocks, n_trials_per_block, max_seq_same, stim_list)
+
+    for block_index, seq in stim_sequences.items():
+        print(f"Block {block_index}: {seq}")

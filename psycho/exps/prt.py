@@ -34,7 +34,7 @@ iti = 0.5
 
 rest_duration = 30
 
-fov = 2  # 视场角, 单位: degree
+fov = 20  # 视场角, 单位: degree
 monitor_distance = 60  # 显示器与人眼距离（单位：厘米）
 
 reward_low = 1
@@ -42,6 +42,7 @@ reward_high = 10
 reward_set = [reward_low, reward_high]
 max_reward_count = 40  # 最大奖励次数
 high_low_ratio = 3  # 高值奖励与低值奖励次数的比例
+max_seq_same = 3  # 最大连续相同选择次数
 
 
 # === 全局变量 ===
@@ -55,10 +56,11 @@ high_side = random.choice(response_keys)
 total_point = 0
 current_block_reward_count = 0
 
+stim_sequences: dict[int, list] = None
+
 
 # ========== 工具函数 ==========
 # TODO: something about the reward
-# 由于到时候会固定随机顺序, 所以在生成顺序是就可以考虑比例等
 def give_reward(choice: str, high_side: str):
     """根据选择和当前高值侧决定奖励"""
     if choice == high_side:

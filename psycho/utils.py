@@ -4,6 +4,7 @@ import random
 import tkinter as tk
 from pathlib import Path
 
+import polars as pl
 from PIL import Image
 from pylsl import StreamInfo, StreamOutlet, local_clock
 
@@ -21,6 +22,7 @@ arbitary_keys = (
         "bracketright",
         "backslash",
     ]
+    + ["left", "right", "up", "down"]
 )
 
 
@@ -61,7 +63,6 @@ def send_marker(
 
 
 def switch_keyboard_layout(layout: str = "en-US"):
-    """切换到指定的键盘布局"""
     import ctypes
 
     # 加载 user32.dll
@@ -89,7 +90,6 @@ def get_isi(lower_bound: float = 0.5, upper_bound: float = 1.0) -> float:
 
 
 def parse_stim_path(stim: str) -> Path:
-    """解析刺激字符串"""
     stim = stim.strip()
     stim_dir = Path(__file__).parent / "stims"
     stim_path = stim_dir / stim
@@ -170,7 +170,6 @@ def generate_trial_sequence(
     max_seq_same: int = 2,
     stim_list: list = None,
 ):
-    """生成trial序列"""
     from collections import defaultdict
 
     stim_sequences = defaultdict(list)
@@ -197,6 +196,31 @@ def generate_trial_sequence(
         stim_sequences[block_index].extend(temp_seq)
 
     return stim_sequences
+
+
+def save_csv_data(data: dict[str, list], file_path: str | Path):
+    """
+    将实验数据保存为 CSV 文件
+
+    Args:
+        data (dict[str, list]): key 为列名, value 为该列的数据（长度需一致）
+        file_path (str | Path): 保存路径
+    """
+    file_path = Path(file_path)
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+
+    max_len = max(len(v) for v in data.values()) if data else 0
+    for _, v in data.items():
+        if len(v) < max_len:
+            v.extend([None] * (max_len - len(v)))
+
+    df = pl.DataFrame(data)
+
+    if file_path.exists():
+        with open(file_path, "a", encoding="utf-8", newline="") as f:
+            df.write_csv(f, include_header=False)
+    else:
+        df.write_csv(file_path)
 
 
 if __name__ == "__main__":

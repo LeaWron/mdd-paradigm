@@ -172,6 +172,8 @@ def test_get_devices():
 
 
 def test_get_trial_sequence():
+    from pathlib import Path
+
     from psycho.utils import generate_trial_sequence
 
     n_blocks = 2
@@ -179,7 +181,15 @@ def test_get_trial_sequence():
     max_seq_same = 2
     stim_list = ["A", "B", "C"]
 
-    stim_sequences = generate_trial_sequence(n_blocks, n_trials_per_block, max_seq_same, stim_list)
+    save_dir = Path(__file__).parent.parent / "psycho" / "conf"
+    save_dir = save_dir / "exp"
+    stim_sequences = generate_trial_sequence(
+        n_blocks,
+        n_trials_per_block,
+        max_seq_same,
+        stim_list,
+        save_path=save_dir / "sequence.json",
+    )
 
     for block_index, seq in stim_sequences.items():
         print(f"Block {block_index}: {seq}")

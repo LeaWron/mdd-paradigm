@@ -15,6 +15,12 @@ psycho/                 # 项目根目录
 │   ├── exps/           # 子包, 所有范式都在这里面实现
 │   │   ├── __init__.py
 │   │   └── gng.py
+│   ├── conf/           # 配置文件目录
+│   │   ├── config.yaml # 入口
+│   │   └── <exp>/      # 每个范式都应该有个这个目录
+│   │       ├── sequence.json # 生成的伪随机序列
+│   │       ├── pre.yaml  # 预实验配置
+│   │       └── full.yaml # 正式实演配置
 │   └── stims/          # 存放要使用的刺激的目录
 │       └── image_stims.png 
 ├── libs/               # 本地文件依赖

@@ -1,0 +1,4 @@
+n_blocks: 3
+n_trials_per_block: 90
+stim_dir: ${hydra:pkg_root}/psycho/stims/prt
+stim_sequence_file: ${hydra:pkg_root}/psycho/conf/prt/sequence.json

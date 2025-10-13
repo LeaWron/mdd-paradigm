@@ -4,6 +4,7 @@ import random
 import tkinter as tk
 from pathlib import Path
 
+import numpy as np
 import polars as pl
 from PIL import Image
 from pylsl import StreamInfo, StreamOutlet, local_clock
@@ -63,8 +64,6 @@ def send_marker(
 
 
 def switch_keyboard_layout(layout: str = "en-US"):
-    import ctypes
-
     # 加载 user32.dll
     user32 = ctypes.WinDLL("user32", use_last_error=True)
 
@@ -169,32 +168,43 @@ def generate_trial_sequence(
     n_trials_per_block: int,
     max_seq_same: int = 2,
     stim_list: list = None,
+    seed: int = None,
+    save_path: str | Path = None,
 ):
+    import json
     from collections import defaultdict
+
+    def check_seq(seq: list, max_seq_same: int) -> bool:
+        current_count = 0
+        prev_choice = None
+        for item in seq:
+            if item == prev_choice:
+                current_count += 1
+            else:
+                current_count = 1
+                prev_choice = item
+            if current_count > max_seq_same:
+                return False
+        return True
+
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(seed)
+    rng = np.random.default_rng(seed=seed)
 
     stim_sequences = defaultdict(list)
     for block_index in range(n_blocks):
-        current_count = 0
-        prev_choice = None
-
         while True:
-            temp_seq = []
-            for _ in range(n_trials_per_block):
-                current_choice = random.choice(stim_list)
-                if current_choice == prev_choice:
-                    current_count += 1
-                else:
-                    current_count = 1
-                    prev_choice = current_choice
-                if current_count > max_seq_same:
-                    temp_seq.clear()
-                    break
-                temp_seq.append(current_choice)
-            if len(temp_seq) == n_trials_per_block:
+            seq: list = rng.choice(stim_list, size=n_trials_per_block, replace=True).tolist()
+            if check_seq(seq, max_seq_same):
+                stim_sequences[block_index].extend(seq)
                 break
 
-        stim_sequences[block_index].extend(temp_seq)
-
+    if save_path:
+        save_path = Path(save_path)
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(save_path, "w", encoding="utf-8") as f:
+            json.dump(stim_sequences, f, ensure_ascii=False, indent=4)
     return stim_sequences
 
 
@@ -225,3 +235,6 @@ def save_csv_data(data: dict[str, list], file_path: str | Path):
 
 if __name__ == "__main__":
     pass
+    # from hydra.utils import to_absolute_path
+#
+# stim_file = to_absolute_path(cfg.stim_sequence_file)

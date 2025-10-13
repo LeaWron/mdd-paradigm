@@ -12,7 +12,7 @@ psycho/                 # 项目根目录
 │   ├── lsl_recv.py     # 接收 lsl 流，通过多进程同步
 │   ├── session.py      # session 管理
 │   ├── main.py	        # 入口程序
-│   └── exps/           # 子包, 所有范式都在这里面实现
+│   ├── exps/           # 子包, 所有范式都在这里面实现
 │   │   ├── __init__.py
 │   │   └── gng.py
 │   └── stims/          # 存放要使用的刺激的目录

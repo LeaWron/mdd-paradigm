@@ -1,0 +1,16 @@
+n_blocks: 2
+timing:
+  resting_duration: 300 # 60 * 5
+  max_wait_duration: 5
+phase:
+  - "eye_close"
+  - "eye_open"
+eye_close:
+  prompt: "请闭眼, 直到再次听到如下提示音"
+  marker: "EYE_CLOSE"
+
+eye_open:
+  prompt: "请睁眼, 直到再次听到如下提示音"
+  marker: "EYE_OPEN"
+
+notification: "notification.wav"

@@ -1,0 +1,38 @@
+defaults:
+  - exps@exps.diat.pre: diat/pre
+  - exps@exps.diat.full: diat/full
+  - exps@exps.gng.pre: gng/pre
+  - exps@exps.gng.full: gng/full
+  - exps@exps.emotion_face.pre: emotion_face/pre
+  - exps@exps.emotion_face.full: emotion_face/full
+  - exps@exps.emotion_stim.pre: emotion_stim/pre
+  - exps@exps.emotion_stim.full: emotion_stim/full
+  - exps@exps.nback.pre: nback/pre
+  - exps@exps.nback.full: nback/full
+  - exps@exps.prt.pre: prt/pre
+  - exps@exps.prt.full: prt/full
+  - exps@exps.resting.full: resting/full
+  - session: config
+
+project_root: ${hydra:runtime.cwd}
+pkg_root: ${project_root}/psycho
+exps_dir: ${pkg_root}/exps
+output_dir: ${project_root}/data
+
+log_level: INFO
+
+hydra:
+  run:
+    dir: . # 不创建新的输出目录
+  output_subdir: null # 不创建 outputs/ 子目录
+  job:
+    chdir: false
+  hydra_logging:
+    version: 1
+    root:
+      handlers: null # 禁止 hydra 自身 logger
+    loggers:
+      hydra:
+        handlers: null
+  sweep:
+    dir: .

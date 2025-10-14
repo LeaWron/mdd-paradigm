@@ -2,11 +2,13 @@ import importlib
 import multiprocessing
 from pathlib import Path
 
+import hydra
+from omegaconf import DictConfig, OmegaConf
 from psychopy import core, event, gui, prefs, visual
 
 from psycho.utils import init_lsl, send_marker, switch_keyboard_layout
 
-# TODO: skip one experiment
+# TODO: session 信息填写
 
 # 全局设置
 prefs.general["defaultTextFont"] = "Arial"
@@ -15,8 +17,9 @@ prefs.general["defaultTextColor"] = "white"
 
 
 class Session:
-    def __init__(self, exps_dir="./psycho/exps"):
-        self.exps_dir = Path(exps_dir)
+    def __init__(self, cfg: DictConfig):
+        self.cfg = cfg
+        self.exps_dir = Path(cfg.exps_dir)
         self.experiments = []
         self.running = False
         self.win = None
@@ -50,15 +53,7 @@ class Session:
 
     def sort_experiments(self, exp_list: list[str]):
         num_exps = len(exp_list)
-        default_order_all = [
-            "resting",
-            "gng",
-            "nback",
-            "diat",
-            "emotion_stim",
-            "emotion_face",
-            "prt",
-        ]
+        default_order_all = self.cfg.session.default_order
         default_order = [exp for exp in default_order_all if exp in exp_list]
 
         while True:
@@ -102,7 +97,7 @@ class Session:
         try:
             self.lsl_outlet = init_lsl("ParadigmMarker")
             send_marker(self.lsl_outlet, "SESSION_START")
-            for name, exp in self.experiments:
+            for name, exp_module in self.experiments:
                 if not self.running:
                     break
                 start_msg = visual.TextStim(
@@ -118,10 +113,11 @@ class Session:
                 core.wait(0.3)
                 self.win.flip()
 
-                exp.entry(
+                exp_module.entry(
                     win_session=self.win,
                     clock_session=self.trialClock,
                     lsl_outlet_session=self.lsl_outlet,
+                    config=self.cfg.exps[name],
                 )
 
                 end_msg = visual.TextStim(
@@ -179,11 +175,13 @@ class Session:
         # self.trialClock.addTime(-pause_duration)
 
 
-def run_session():
+@hydra.main(version_base=None, config_path="conf", config_name="pilot")
+def run_session(cfg: DictConfig):
     # 切换到英文输入法
     switch_keyboard_layout()
 
-    session = Session()
+    OmegaConf.resolve(cfg)
+    session = Session(cfg)
     exps = session.discover_experiments()
     selected = session.select_experiments_gui(exps)
     sort = session.sort_experiments(selected)

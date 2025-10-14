@@ -3,29 +3,30 @@
 ## 项目结构
 
 ```plaintext
-psycho/                 # 项目根目录
-├── pyproject.toml      # （可选，现代项目配置，推荐）
+psycho/                              # 项目根目录
+├── pyproject.toml                   # （可选，现代项目配置，推荐）
 ├── README.md
-├── psycho/             # 包的真正代码
-│   ├── __init__.py     # 让 psycho 变成一个包
-│   ├── utils.py        # 工具模块
-│   ├── lsl_recv.py     # 接收 lsl 流，通过多进程同步
-│   ├── session.py      # session 管理
-│   ├── main.py	        # 入口程序
-│   ├── exps/           # 子包, 所有范式都在这里面实现
+├── psycho/                          # 包的真正代码
+│   ├── __init__.py                  # 让 psycho 变成一个包
+│   ├── utils.py                     # 工具模块
+│   ├── lsl_recv.py                  # 接收 lsl 流，通过多进程同步
+│   ├── session.py                   # session 管理
+│   ├── main.py	                     # 入口程序
+│   ├── exps/                        # 子包, 所有范式都在这里面实现
 │   │   ├── __init__.py
 │   │   └── gng.py
-│   ├── conf/           # 配置文件目录
-│   │   ├── config.yaml # 入口
-│   │   └── <exp>/      # 每个范式都应该有个这个目录
-│   │       ├── sequence.json # 生成的伪随机序列
-│   │       ├── pre.yaml  # 预实验配置
-│   │       └── full.yaml # 正式实演配置
-│   └── stims/          # 存放要使用的刺激的目录
+│   ├── conf/                        # 配置文件目录
+│   │   ├── config.yaml              # 入口
+│   │   └── exps/                    # 范式配置文件目录
+│   │       └── <exp>                # 范式名
+│   │          ├── sequence.json     # 生成的伪随机序列
+│   │          ├── pre.yaml          # 预实验配置
+│   │          └── full.yaml         # 正式实验配置
+│   └── stims/                       # 存放要使用的刺激的目录
 │       └── image_stims.png 
-├── libs/               # 本地文件依赖
+├── libs/                            # 本地文件依赖
 │   └── <local_file>.whl
-└── tests/              # 单元测试
+└── tests/                           # 单元测试
     └── test_<paradigm>.py
 
 ```
@@ -54,7 +55,6 @@ psycho/                 # 项目根目录
 ```python
 from psycho.utils import init_lsl, send_marker
 
-
 def pre_block():
 
 def block():
@@ -68,7 +68,9 @@ def trial():
 def post_trial():
 
 # win 和 clock 都是从 session 中传递进来的, 如果想方便使用可以在用这两个参数对本地的全局变量赋值
-def entry(win, clock): 
+# lsl_outlet_session 是 lsl 输出流, cfg 是 hydra 关于这个范式的配置
+# 这些参数都可以为 None, 意味着不是由 session 管理, 而是单独运行
+def entry(win_session, clock_session, lsl_outlet_session, cfg): 
 
 def main():
     entry()

@@ -1,3 +1,0 @@
-n_blocks: 1
-n_trials_per_block: 20
-stim_dir: ${hydra:pkg_root}/psycho/stims/prt

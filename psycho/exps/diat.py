@@ -1,22 +1,13 @@
 import random
 
+from omegaconf import DictConfig
 from psychopy import core, event, visual
 from pylsl import StreamOutlet
 
-from psycho.utils import adapt_image_stim_size, init_lsl, parse_stim_path, send_marker
+from psycho.utils import init_lsl, send_marker
 
 # === 实验参数 ===
 blocks_info = [
-    {
-        "n_trials": 0,
-        "prompt": """接下来的任务中，将要求你对一组呈现的词语或图片进行分类。分类要尽可能地快，但同时又尽可能少犯错。
-下面列出了类别标签以及属于那些类别的项目。
-按空格键继续
-
-
-""",
-        "tips": "占位项, 让下标从 1 开始，同时也是实验开始的说明",
-    },
     {
         "n_trials": 1,
         "prompt": """请以舒适的姿势将两根任意手指放在键盘F键和J键上。
@@ -100,7 +91,9 @@ resp_keys = ["f", "j"]  # 反应键, f 对应左边, j 对应右边
 
 continue_key = ["space"]  # 继续键
 
-max_wait_respond = 10.0  # 最大等待时间
+timing = {
+    "max_wait_respond": 10.0,  # 最大等待时间
+}
 
 # === 全局设置 ===
 win = None
@@ -110,126 +103,43 @@ lsl_outlet = None
 correct_count = 0
 block_index = 0  # 当前区块索引
 
+start_prompt = """接下来的任务中，将要求你对一组呈现的词语或图片进行分类。分类要尽可能地快，但同时又尽可能少犯错。
+下面列出了类别标签以及属于那些类别的项目。
+
+按空格键继续
+"""
+
 
 # === 刺激设置 ===
-stim_kind = ["自我", "他人", "生命", "死亡"]
-stim_texts = {
-    "自我": [
-        "我",
-        "自己",
-        "我的",
-        "俺",
-        "咱",
-        "本身",
-        "本人",
-        "自我",
-        "自个儿",
-        "吾",
-        "余",
-        "我辈",
-        "吾身",
-        "吾辈",
-        "在下",
-        "本我",
-        "自家",
-        "自个",
-        "本人自身",
-        "我自己",
-    ],
-    "他人": [
-        "他",
-        "她",
-        "它",
-        "他们",
-        "她们",
-        "它们",
-        "其",
-        "彼",
-        "彼人",
-        "他者",
-        "他人",
-        "他辈",
-        "他身",
-        "她身",
-        "其人",
-        "某人",
-        "某他",
-        "旁人",
-    ],
-    "生命": [
-        "生命",
-        "生存",
-        "生活",
-        "活力",
-        "存在",
-        "生机",
-        "成长",
-        "生命力",
-        "呼吸",
-        "心跳",
-        "意识",
-        "灵魂",
-        "生命线",
-        "生长",
-        "繁衍",
-        "生育",
-        "活着",
-        "生命体",
-        "生命现象",
-        "生灵",
-    ],
-    "死亡": [
-        "死亡",
-        "逝去",
-        "去世",
-        "故去",
-        "亡故",
-        "离世",
-        "谢世",
-        "长逝",
-        "亡",
-        "逝者",
-        "终结",
-        "消亡",
-        "死去",
-        "辞世",
-        "殒命",
-        "过世",
-        "死",
-        "死去的人",
-        "命终",
-        "夭折",
-    ],
+stims = {
+    "自我": ["我", "自己", "我的", "本人", "自我", "我辈"],
+    "他人": ["他", "她", "它", "他们", "她们", "它们", "他人", "某人", "旁人"],
+    "生命": ["生命", "生存", "生活", "活力", "存在", "生机", "成长", "呼吸", "心跳", "生长", "繁衍", "生育", "活着"],
+    "死亡": ["死亡", "逝去", "去世", "故去", "亡故", "离世", "逝者", "终结", "消亡", "死去", "辞世", "殒命", "过世", "死", "夭折"],
 }
+stim_kinds = list(stims.keys())
 
 
 def pre_block():
-    """block 开始前"""
-    if block_index == 0:
-        show_prompt()
-    else:
-        visual.TextStim(
-            win=win,
-            text=blocks_info[block_index]["prompt"],
-            height=0.05,
-            wrapWidth=2,
-            alignText="center",
-        ).draw()
+    visual.TextStim(
+        win=win,
+        text=blocks_info[block_index]["prompt"],
+        height=0.05,
+        wrapWidth=2,
+        alignText="center",
+    ).draw()
 
     win.flip()
     event.waitKeys(keyList=continue_key)
-    send_marker(lsl_outlet, f"BLOCK_START_{block_index}")
 
 
 def block():
     """block 运行中"""
     n_trials = blocks_info[block_index]["n_trials"]
-    for trial_index in range(n_trials):
-        pre_trial(trial_index)
-        trial(trial_index)
-        post_trial(trial_index)
-
-    send_marker(lsl_outlet, f"BLOCK_END_{block_index}")
+    for _ in range(n_trials):
+        pre_trial()
+        trial()
+        post_trial()
 
 
 def post_block():
@@ -250,7 +160,7 @@ def post_block():
     event.waitKeys(keyList=continue_key)
 
 
-def pre_trial(trial_index: int):
+def pre_trial():
     """trial 开始前"""
     fixation = visual.TextStim(win=win, text="+", height=0.4)
     fixation.draw()
@@ -258,7 +168,7 @@ def pre_trial(trial_index: int):
     core.wait(0.5)
 
 
-def trial(trial_index: int):
+def trial():
     """trial 运行中"""
     global correct_count
 
@@ -292,12 +202,12 @@ def trial(trial_index: int):
         if l_or_r == "left":
             stim_range = []
             for kind in left_kinds:
-                stim_range.extend(stim_texts[kind])
+                stim_range.extend(stims[kind])
             stim_text = random.choice(stim_range)
         else:
             stim_range = []
             for kind in right_kinds:
-                stim_range.extend(stim_texts[kind])
+                stim_range.extend(stims[kind])
             stim_text = random.choice(stim_range)
         stim = visual.TextStim(
             win=win,
@@ -324,7 +234,7 @@ def trial(trial_index: int):
             return "j"
 
     stim_correct_resp = show_stim()
-    resp = event.waitKeys(maxWait=max_wait_respond, keyList=resp_keys, timeStamped=True)
+    resp = event.waitKeys(maxWait=timing["max_wait_respond"], keyList=resp_keys, timeStamped=True)
     correct = False
     if resp is None:
         send_marker(lsl_outlet, "NO_RESPONSE")
@@ -349,7 +259,7 @@ def trial(trial_index: int):
         event.waitKeys(keyList=[stim_correct_resp])
 
 
-def post_trial(trial_index: int):
+def post_trial():
     """trial 结束后"""
     win.flip()
     pass
@@ -359,12 +269,12 @@ def show_prompt():
     """显示提示"""
     visual.TextStim(
         win=win,
-        text=blocks_info[0]["prompt"],
+        text=start_prompt,
         height=0.05,
         wrapWidth=1.8,
     ).draw()
 
-    for i, (key, value) in enumerate(stim_texts.items()):
+    for i, (key, value) in enumerate(stims.items()):
         visual.TextStim(
             win=win,
             text=f"{key}: {', '.join(value)}",
@@ -373,35 +283,51 @@ def show_prompt():
             wrapWidth=1.8,
             alignText="left",
         ).draw()
-    # height, aspect_ratio = adapt_image_stim_size(parse_stim_path("image_item_table.png"), 4)
-    # visual.ImageStim(
-    #     win=win,
-    #     image=parse_stim_path("image_item_table.png"),
-    #     pos=(0, -max(0.6, height / 2)),
-    #     # size=(height * aspect_ratio, height),
-    #     # units="norm",
-    # ).draw()
+    win.flip()
+    event.waitKeys(keyList=continue_key)
+
+
+def init_exp(config: DictConfig | None):
+    def read_config(cfg: DictConfig):
+        global blocks_info, key_blocks, start_prompt, timing, stims
+        if cfg is not None:
+            blocks_info = cfg.blocks_info
+            key_blocks = cfg.key_blocks
+            start_prompt = cfg.start_prompt
+            timing = cfg.timing
+            stims = cfg.stims
+
+    if config is not None:
+        read_config(config)
+
+
+def run_exp(cfg: DictConfig | None):
+    global block_index
+    init_exp(cfg)
+
+    show_prompt()
+
+    for local_block_index in range(len(blocks_info)):
+        block_index = local_block_index
+        pre_block()
+        block()
+        post_block()
 
 
 def entry(
     win_session: visual.Window | None = None,
     clock_session: core.Clock | None = None,
     lsl_outlet_session: StreamOutlet | None = None,
+    config: DictConfig | None = None,
 ):
     """实验入口"""
-    global win, clock, lsl_outlet, block_index
+    global win, clock, lsl_outlet
     win = win_session if win_session is not None else visual.Window(fullscr=True, units="norm")
     clock = clock_session if clock_session is not None else core.Clock()
     lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("D-IATMarker")
 
-    n_blocks = len(blocks_info)
     send_marker(lsl_outlet, "EXPERIMENT_START")
-    for local_block_index in range(n_blocks):
-        block_index = local_block_index
-        pre_block()
-        block()
-        post_block()
-
+    run_exp(config.full if config is not None else None)
     send_marker(lsl_outlet, "EXPERIMENT_END")
 
 

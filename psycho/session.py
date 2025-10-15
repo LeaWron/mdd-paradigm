@@ -183,6 +183,8 @@ def run_session(cfg: DictConfig):
     if cfg.debug:
         print(cfg)
     OmegaConf.resolve(cfg)
+    if cfg.debug:
+        print(cfg)
     session = Session(cfg)
     exps = session.discover_experiments()
     selected = session.select_experiments_gui(exps)

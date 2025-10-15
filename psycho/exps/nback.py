@@ -232,7 +232,22 @@ def entry(
     stim_text = visual.TextStim(win, text="", color="white", height=0.3, wrapWidth=2)
 
     if config is not None and "pre" in config:
-        run_exp(config.pre)
+        while True:
+            run_exp(config.pre)
+
+            commit_text = "是否需要再次进行预实验?\n按 y 键再次进行预实验, 按 n 键结束预实验"
+            prompt = visual.TextStim(
+                win,
+                text=commit_text,
+                color="white",
+                height=0.1,
+                wrapWidth=2,
+            )
+            prompt.draw()
+            win.flip()
+            keys = event.waitKeys(keyList=["y", "n"])
+            if keys and keys[0] == "n":
+                break
 
     send_marker(lsl_outlet, "EXPERIMENT_START")
     run_exp(config.full if config is not None else None)

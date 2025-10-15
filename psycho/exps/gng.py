@@ -32,7 +32,7 @@ lsl_outlet = None
 
 # 实验部分
 def pre_block():
-    text = f"准备进入第 {block_index + 1} 个区块" + (f"你有{timing['rest']}秒休息时间\n" if block_index > 0 else "\n" + "或者可以按空格键开始")
+    text = f"准备进入第 {block_index + 1} 个区块," + (f"你有{timing['rest']}秒休息时间\n" if block_index > 0 else "\n" + "你可以按空格键开始")
 
     msg = visual.TextStim(
         win,
@@ -147,16 +147,17 @@ def run_exp(cfg: DictConfig | None):
 
     init_exp(cfg)
 
-    prompt = visual.TextStim(
-        win,
-        text=cfg.phase_prompt,
-        color="white",
-        height=0.1,
-        wrapWidth=2,
-    )
-    prompt.draw()
-    win.flip()
-    event.waitKeys(keyList=continue_keys)
+    if cfg is not None:
+        prompt = visual.TextStim(
+            win,
+            text=cfg.phase_prompt,
+            color="white",
+            height=0.1,
+            wrapWidth=2,
+        )
+        prompt.draw()
+        win.flip()
+        event.waitKeys(keyList=continue_keys)
 
     for local_block_index in range(n_blocks):
         block_index = local_block_index

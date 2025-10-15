@@ -180,6 +180,8 @@ def run_session(cfg: DictConfig):
     # 切换到英文输入法
     switch_keyboard_layout()
 
+    if cfg.debug:
+        print(cfg)
     OmegaConf.resolve(cfg)
     session = Session(cfg)
     exps = session.discover_experiments()

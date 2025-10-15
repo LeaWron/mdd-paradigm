@@ -1,44 +1,44 @@
 import random
 
+from omegaconf import DictConfig
 from psychopy import core, event, visual
 from pylsl import StreamOutlet
 
 from psycho.utils import arbitary_keys, init_lsl, send_marker
 
-# ========== 参数设置 ==========
-n_back = 2
+# === 参数设置 ===
+nback = 2
 n_blocks = 1
 n_trials_per_block = 10
 stim_pool = list(range(0, 4))
-fixation_duration = 0.5
-stim_duration = 1.0
-resp_keys = ["space"]
-rest_duration = 30  # 每个 block 休息时间
 
-# PsychoPy 全局对象
+timing = {
+    "fixation": 0.5,
+    "stim": 1.0,
+    "rest": 30,
+}
+resp_keys = ["space"]
+continue_keys = ["space"]
+
+# === 全局对象 ===
 win = None
 stim_text = None
 clock = None
-block_index = 0
 lsl_outlet = None
 
+block_index = 0
+trial_index = 0
 correct_count = 0  # 正确响应次数
 # 存储
 stim_sequence = []
 results = []
 
-# LSL 全局对象
-lsl_outlet = None
-
-# ========== 生命周期函数 ==========
-
 
 def pre_block():
-    """block 开始前"""
     global stim_sequence, correct_count
     stim_sequence = [random.choice(stim_pool) for _ in range(n_trials_per_block)]
     # 区块开始前的提示
-    text = f"准备进入第 {block_index + 1} 个区块\n你有{rest_duration}秒休息时间\n你可以按空格键直接开始"
+    text = f"准备进入第 {block_index + 1} 个区块," + (f"你有{timing['rest']}秒休息时间\n" if block_index > 0 else "\n") + "你可以按空格键直接开始"
 
     msg = visual.TextStim(
         win,
@@ -49,20 +49,20 @@ def pre_block():
     )
     msg.draw()
     win.flip()
-    event.waitKeys(rest_duration, keyList=arbitary_keys)
+    event.waitKeys(timing["rest"] if block_index > 0 else 5.0, keyList=continue_keys)
     correct_count = 0
 
 
 def block():
-    """执行一个 block"""
-    for trial_index in range(n_trials_per_block):
-        pre_trial(trial_index)
-        trial(trial_index)
-        post_trial(trial_index)
+    global trial_index
+    for local_trial_index in range(n_trials_per_block):
+        trial_index = local_trial_index
+        pre_trial()
+        trial()
+        post_trial()
 
 
 def post_block():
-    """block 结束后"""
     # 区块结束后的提示
     correct_rate = correct_count / n_trials_per_block
 
@@ -81,16 +81,14 @@ def post_block():
     event.waitKeys(5, keyList=arbitary_keys)
 
 
-def pre_trial(trial_index: int):
-    """trial 开始前"""
+def pre_trial():
     fixation = visual.TextStim(win, text="+", color="white", height=0.4, wrapWidth=2)
     fixation.draw()
     win.flip()
-    core.wait(fixation_duration)
+    core.wait(timing["fixation"])
 
 
-def trial(trial_index):
-    """单个 trial 的逻辑"""
+def trial():
     global results, correct_count
 
     stim = stim_sequence[trial_index]
@@ -125,11 +123,11 @@ def trial(trial_index):
     stim_onset = clock.getTime()
 
     # 等待刺激期间响应
-    keys = event.waitKeys(maxWait=stim_duration, keyList=resp_keys, timeStamped=True)
+    keys = event.waitKeys(maxWait=timing["stim"], keyList=resp_keys, timeStamped=True)
 
     # 判定 target
     is_target = False
-    if trial_index >= n_back and stim == stim_sequence[trial_index - n_back]:
+    if trial_index >= nback and stim == stim_sequence[trial_index - nback]:
         is_target = True
 
     # 响应情况
@@ -164,7 +162,7 @@ def trial(trial_index):
     line_bottom.draw()
     stim_text.draw()
     win.flip()
-    stim_left = stim_duration - (clock.getTime() - stim_onset)
+    stim_left = timing["stim"] - (clock.getTime() - stim_onset)
     core.wait(stim_left)
 
     if is_target:
@@ -175,21 +173,57 @@ def trial(trial_index):
     results.append([trial_index, stim, is_target, responded, rt, correct])
 
 
-def post_trial(t):
-    """trial 结束后"""
+def post_trial():
     win.flip()
-    # isi = get_isi()
-    # core.wait(isi)
     core.wait(0.5)
+
+
+def init_exp(config: DictConfig | None):
+    def read_config(cfg: DictConfig):
+        global nback, n_blocks, n_trials_per_block, timing, stim_pool
+        if cfg is not None:
+            n_blocks = cfg.n_blocks
+            n_trials_per_block = cfg.n_trials_per_block
+            timing = cfg.timing
+            nback = cfg.nback
+            stim_pool = list(range(cfg.n_stim))
+
+    if config is not None:
+        read_config(config)
+
+
+def run_exp(cfg: DictConfig | None):
+    """运行实验"""
+    global block_index
+    init_exp(cfg)
+
+    if cfg is not None:
+        prompt = visual.TextStim(
+            win,
+            text=cfg.phase_prompt,
+            color="white",
+            height=0.1,
+            wrapWidth=2,
+        )
+        prompt.draw()
+        win.flip()
+        event.waitKeys(keyList=continue_keys)
+
+    for local_block_index in range(n_blocks):
+        block_index = local_block_index
+        pre_block()
+        block()
+        post_block()
 
 
 def entry(
     win_session: visual.Window | None = None,
     clock_session: core.Clock | None = None,
     lsl_outlet_session: StreamOutlet | None = None,
+    config: DictConfig | None = None,
 ):
     """实验入口"""
-    global stim_text, lsl_outlet, win, clock, block_index
+    global stim_text, lsl_outlet, win, clock
     win = win_session if win_session else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
 
     clock = clock_session if clock_session else core.Clock()
@@ -197,15 +231,12 @@ def entry(
     lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("NBackMarker")  # 初始化 LSL
     stim_text = visual.TextStim(win, text="", color="white", height=0.3, wrapWidth=2)
 
+    if config is not None and "pre" in config:
+        run_exp(config.pre)
+
     send_marker(lsl_outlet, "EXPERIMENT_START")
-    for local_block_index in range(n_blocks):
-        block_index = local_block_index
-        pre_block()
-        block()
-        post_block()
-
+    run_exp(config.full if config is not None else None)
     # 实验结束
-
     send_marker(lsl_outlet, "EXPERIMENT_END")
 
 

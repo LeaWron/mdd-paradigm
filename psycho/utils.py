@@ -27,6 +27,7 @@ arbitary_keys = (
 )
 
 
+# === lsl === #
 def init_lsl(
     name,
     stream_info_type: str = "Markers",
@@ -63,6 +64,7 @@ def send_marker(
     lsl_outlet.push_sample([marker], timestamp if timestamp is not None else local_clock())
 
 
+# === session === #
 def switch_keyboard_layout(layout: str = "en-US"):
     # 加载 user32.dll
     user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -74,6 +76,7 @@ def switch_keyboard_layout(layout: str = "en-US"):
     user32.ActivateKeyboardLayout(HKL_NEXT, 0)
 
 
+# === experiment === #
 def get_isi(lower_bound: float = 0.5, upper_bound: float = 1.0) -> float:
     """
     获取随机的 ISI 间隔, 单位为秒
@@ -162,6 +165,7 @@ def cm_to_unit_ratio(cm):
     return ratio
 
 
+# === misc === #
 # 每个范式只生成一次, 所以简单点
 def generate_trial_sequence(
     n_blocks: int,
@@ -235,6 +239,3 @@ def save_csv_data(data: dict[str, list], file_path: str | Path):
 
 if __name__ == "__main__":
     pass
-    # from hydra.utils import to_absolute_path
-#
-# stim_file = to_absolute_path(cfg.stim_sequence_file)

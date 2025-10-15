@@ -130,24 +130,19 @@ def post_trial():
 
 
 def init_exp(config: DictConfig | None = None):
-    def read_config(cfg: DictConfig):
-        global n_blocks, n_trials_per_block, timing, go_prob
-        if cfg is not None:
-            n_blocks = cfg.n_blocks
-            n_trials_per_block = cfg.n_trials_per_block
-            timing = cfg.timing
-            go_prob = cfg.go_prob
+    global n_blocks, n_trials_per_block, timing, go_prob
 
-    if config is not None:
-        read_config(config)
+    n_blocks = config.n_blocks
+    n_trials_per_block = config.n_trials_per_block
+    timing = config.timing
+    go_prob = config.go_prob
 
 
 def run_exp(cfg: DictConfig | None):
     global block_index
 
-    init_exp(cfg)
-
     if cfg is not None:
+        init_exp(cfg)
         prompt = visual.TextStim(
             win,
             text=cfg.phase_prompt,

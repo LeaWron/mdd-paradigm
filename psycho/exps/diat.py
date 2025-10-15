@@ -288,22 +288,20 @@ def show_prompt():
 
 
 def init_exp(config: DictConfig | None):
-    def read_config(cfg: DictConfig):
-        global blocks_info, key_blocks, start_prompt, timing, stims
-        if cfg is not None:
-            blocks_info = cfg.blocks_info
-            key_blocks = cfg.key_blocks
-            start_prompt = cfg.start_prompt
-            timing = cfg.timing
-            stims = cfg.stims
+    global blocks_info, key_blocks, start_prompt, timing, stims
 
-    if config is not None:
-        read_config(config)
+    blocks_info = config.blocks_info
+    key_blocks = config.key_blocks
+    start_prompt = config.start_prompt
+    timing = config.timing
+    stims = config.stims
 
 
 def run_exp(cfg: DictConfig | None):
     global block_index
-    init_exp(cfg)
+
+    if cfg is not None:
+        init_exp(cfg)
 
     show_prompt()
 

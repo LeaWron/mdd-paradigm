@@ -179,25 +179,21 @@ def post_trial():
 
 
 def init_exp(config: DictConfig | None):
-    def read_config(cfg: DictConfig):
-        global nback, n_blocks, n_trials_per_block, timing, stim_pool
-        if cfg is not None:
-            n_blocks = cfg.n_blocks
-            n_trials_per_block = cfg.n_trials_per_block
-            timing = cfg.timing
-            nback = cfg.nback
-            stim_pool = list(range(cfg.n_stim))
+    global nback, n_blocks, n_trials_per_block, timing, stim_pool
 
-    if config is not None:
-        read_config(config)
+    n_blocks = config.n_blocks
+    n_trials_per_block = config.n_trials_per_block
+    timing = config.timing
+    nback = config.nback
+    stim_pool = list(range(config.n_stim))
 
 
 def run_exp(cfg: DictConfig | None):
     """运行实验"""
     global block_index
-    init_exp(cfg)
 
     if cfg is not None:
+        init_exp(cfg)
         prompt = visual.TextStim(
             win,
             text=cfg.phase_prompt,

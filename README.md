@@ -67,6 +67,14 @@ def trial():
 
 def post_trial():
 
+# 初始化范式的一些参数, 比如 block 数等全局变量, 根据传入的 cfg 来赋值
+# 这个 cfg 会根据预实验与否发生变化
+def init_exp(cfg):
+
+# 运行实验, 会在这里调用 init_exp
+def run_exp(cfg):
+
+
 # win 和 clock 都是从 session 中传递进来的, 如果想方便使用可以在用这两个参数对本地的全局变量赋值
 # lsl_outlet_session 是 lsl 输出流, cfg 是 hydra 关于这个范式的配置
 # 这些参数都可以为 None, 意味着不是由 session 管理, 而是单独运行

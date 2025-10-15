@@ -6,3 +6,7 @@ default_order:
   - "emotion_stim"
   - "emotion_face"
   - "prt"
+
+timing:
+  iei: 30
+  before_wait: 5

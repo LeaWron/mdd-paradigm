@@ -1,7 +1,7 @@
 n_blocks: 2
 timing:
-  resting_duration: 300 # 60 * 5
-  max_wait_duration: 5
+  rest: 300 # 60 * 5
+  max_wait: 5
 phase:
   - "eye_close"
   - "eye_open"

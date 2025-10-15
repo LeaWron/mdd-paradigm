@@ -30,8 +30,8 @@ class Session:
         self.lsl_proc = None
         self.lsl_outlet = None
 
-        self.before_duration = 5
-        self.after_rest_duration = 30
+        self.before_duration = self.cfg.session.timing.before_wait
+        self.after_rest_duration = self.cfg.session.timing.iei
 
         event.globalKeys.add(key="escape", modifiers=["shift"], func=self.stop, name="quit")
         event.globalKeys.add(key="p", modifiers=["shift"], func=self.pause, name="pause")
@@ -122,7 +122,7 @@ class Session:
 
                 end_msg = visual.TextStim(
                     self.win,
-                    text="该实验结束, 你有 30s 休息时间\n你可以按空格键直接进入下一个实验",
+                    text=f"该实验结束, 你有 {self.after_rest_duration} 秒休息时间\n你可以按空格键直接进入下一个实验",
                     color="white",
                     height=0.05,
                     wrapWidth=2,

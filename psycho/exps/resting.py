@@ -11,8 +11,8 @@ prefs.hardware["audioDevice"] = "扬声器 (2- High Definition Audio Device)"
 n_blocks = 2
 phase = ["eye_close", "eye_open"]
 timing = {
-    "max_wait_duration": 1 * 1,  # 等待时间，单位秒
-    "resting_duration": 1 * 5,  # 休息时间，单位秒
+    "max_wait": 1 * 1,  # 等待时间，单位秒
+    "rest": 1 * 5,  # 休息时间，单位秒
 }
 block_cfg = {
     "eye_close": {
@@ -45,7 +45,7 @@ def pre_block():
     core.wait(0.5)
     sound_prompt = sound.Sound(notification, secs=1)
     sound_prompt.play()
-    event.waitKeys(timing["max_wait_duration"], keyList=continue_keys)
+    event.waitKeys(timing["max_wait"], keyList=continue_keys)
 
 
 def block():
@@ -54,7 +54,7 @@ def block():
     stim = visual.TextStim(win, text=text, color="white", height=0.1, wrapWidth=2)
     stim.draw()
     win.flip()
-    core.wait(timing["resting_duration"])
+    core.wait(timing["rest"])
     sound_prompt = sound.Sound(notification, secs=1)
     sound_prompt.play()
     core.wait(1)

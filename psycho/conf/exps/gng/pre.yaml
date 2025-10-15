@@ -1,0 +1,12 @@
+n_blocks: 1
+n_trials_per_block: 5
+go_prob: 0.7
+
+phase_prompt: "你将进入预实验, 你将学习该实验如何进行\n当看到屏幕上出现绿色圆圈, 请尽快按空格键响应\n当看到屏幕上出现红色圆圈, 请不要响应\n请按空格键继续"
+timing:
+  fixation: 0.5
+  total_trial: 2.5
+  rest: 1
+  iti:
+    lower: 0.5
+    upper: 1.0

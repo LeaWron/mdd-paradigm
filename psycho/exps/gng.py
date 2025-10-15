@@ -1,5 +1,6 @@
 import random
 
+from omegaconf import DictConfig
 from psychopy import core, event, visual
 from pylsl import StreamOutlet
 
@@ -10,10 +11,17 @@ n_blocks = 1  # block 数量
 n_trials_per_block = 10  # 每个 block 的 trial 数
 go_prob = 0.7  # Go trial 的概率
 resp_keys = ["space"]  # 受试者按键
+continue_keys = ["space"]
 
-fixation_duration = 0.5
-total_trial_duration = 2.5  # 每个 trial 的总时间
-rest_duration = 30  # 每个 block 休息时间
+timing = {
+    "fixation": 0.5,
+    "total_trial": 2.5,
+    "rest": 30,
+    "iti": {
+        "lower": 0.5,
+        "upper": 1.0,
+    },
+}
 
 # === 全局变量 ===
 block_index = 0
@@ -24,7 +32,7 @@ lsl_outlet = None
 
 # 实验部分
 def pre_block():
-    text = f"准备进入第 {block_index + 1} 个区块, 你有{rest_duration}秒休息时间\n或者可以按任意键开始"
+    text = f"准备进入第 {block_index + 1} 个区块" + (f"你有{timing['rest']}秒休息时间\n" if block_index > 0 else "\n" + "或者可以按空格键开始")
 
     msg = visual.TextStim(
         win,
@@ -37,16 +45,16 @@ def pre_block():
     )
     msg.draw()
     win.flip()
-    event.waitKeys(rest_duration, keyList=arbitary_keys)
+    event.waitKeys(timing["rest"] if block_index > 0 else 5.0, keyList=arbitary_keys)
 
     # send_marker(lsl_outlet, f"BLOCK_START_{block_index}")
 
 
 def block():
-    for trial_index in range(n_trials_per_block):
-        pre_trial(trial_index)
-        trial(trial_index)
-        post_trial(trial_index)
+    for _ in range(n_trials_per_block):
+        pre_trial()
+        trial()
+        post_trial()
     # send_marker(lsl_outlet, f"BLOCK_END_{block_index}")
 
 
@@ -60,36 +68,30 @@ def post_block():
     )
     msg.draw()
     win.flip()
-    event.waitKeys(1.0, keyList=arbitary_keys)
+    event.waitKeys(5.0, keyList=arbitary_keys)
 
 
-def pre_trial(trial_index):
+def pre_trial():
     # 空屏 + 注视点
     fixation = visual.TextStim(win, text="+", color="white", height=0.4, wrapWidth=2)
     fixation.draw()
     win.flip()
-    core.wait(fixation_duration)
+    core.wait(timing["fixation"])
 
 
-def trial(trial_index):
+def trial():
     # 随机决定 Go / No-Go
     is_go = random.random() < go_prob
 
     win.flip()
-    blank_duration = get_isi(0.5, 1.0)
+    blank_duration = get_isi(timing["iti"]["lower"], timing["iti"]["upper"])
     core.wait(blank_duration)
 
-    # 可选: 结合图形, 颜色设置等
-    # eclipse = visual.Circle(win, radius=0.5, edges=128, size=(0.8, 0.4), lineColor="black")
-    # eclipse.draw()
-
-    stim_text = "按键!" if is_go else "不要按!"
-    stim = visual.TextStim(
+    stim_color = "#23af27" if is_go else "#d43a3a"
+    stim = visual.Circle(
         win,
-        text=stim_text,
-        color="#f9f871" if is_go else "#ff6f91",
-        height=0.3,
-        wrapWidth=2,
+        radius=0.2,
+        color=stim_color,
         colorSpace="hex",
     )
     stim.draw()
@@ -98,50 +100,89 @@ def trial(trial_index):
     win.flip()
 
     # trial 开始 marker
-    # send_marker(lsl_outlet, f"TRIAL_START_{trial_index}")
-    # send_marker(lsl_outlet, "STIM_GO" if is_go else "STIM_NOGO")
     # 反应
     keys = event.waitKeys(
-        maxWait=total_trial_duration - blank_duration,
+        maxWait=timing["total_trial"] - blank_duration,
         keyList=resp_keys,
         timeStamped=True,
     )
     # 反应 marker
-    if keys:
-        send_marker(lsl_outlet, "GO_RESPONSE")
+    if is_go:
+        if keys:
+            send_marker(lsl_outlet, "GO_RESPONSE")
+        else:
+            send_marker(lsl_outlet, "GO_NORESPONSE")
     else:
-        send_marker(lsl_outlet, "NOGO_NO_RESPONSE")
+        if keys:
+            send_marker(lsl_outlet, "NOGO_RESPONSE")
+        else:
+            send_marker(lsl_outlet, "NOGO_NORESPONSE")
 
     # win.flip()
     # trial 结束 marker
     # send_marker(lsl_outlet, f"TRIAL_END_{trial_index}")
 
 
-def post_trial(trial_index):
+def post_trial():
     # 空屏间隔
     win.flip()
     core.wait(0.5)
 
 
-def entry(
-    win_session: visual.Window | None = None,
-    clock_session: core.Clock | None = None,
-    lsl_outlet_session: StreamOutlet | None = None,
-):
-    global win, clock, lsl_outlet, block_index
-    win = win_session if win_session else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
+def init_exp(config: DictConfig | None = None):
+    def read_config(cfg: DictConfig):
+        global n_blocks, n_trials_per_block, timing, go_prob
+        if cfg is not None:
+            n_blocks = cfg.n_blocks
+            n_trials_per_block = cfg.n_trials_per_block
+            timing = cfg.timing
+            go_prob = cfg.go_prob
 
-    clock = clock_session if clock_session else core.Clock()
+    if config is not None:
+        read_config(config)
 
-    lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("GoNogoMarker")  # 初始化 LSL
 
-    send_marker(lsl_outlet, "EXPERIMENT_START")
+def run_exp(cfg: DictConfig | None):
+    global block_index
+
+    init_exp(cfg)
+
+    prompt = visual.TextStim(
+        win,
+        text=cfg.phase_prompt,
+        color="white",
+        height=0.1,
+        wrapWidth=2,
+    )
+    prompt.draw()
+    win.flip()
+    event.waitKeys(keyList=continue_keys)
+
     for local_block_index in range(n_blocks):
         block_index = local_block_index
         pre_block()
         block()
         post_block()
 
+
+def entry(
+    win_session: visual.Window | None = None,
+    clock_session: core.Clock | None = None,
+    lsl_outlet_session: StreamOutlet | None = None,
+    config: DictConfig | None = None,
+):
+    global win, clock, lsl_outlet
+    win = win_session if win_session else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
+
+    clock = clock_session if clock_session else core.Clock()
+
+    lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("GoNogoMarker")  # 初始化 LSL
+
+    if config is not None and "pre" in config:
+        run_exp(config.pre)
+
+    send_marker(lsl_outlet, "EXPERIMENT_START")
+    run_exp(config.full if config is not None else None)
     # 实验结束
     send_marker(lsl_outlet, "EXPERIMENT_END")
 

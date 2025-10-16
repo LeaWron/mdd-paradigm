@@ -1,6 +1,7 @@
 import random
 
 import numpy as np
+from omegaconf import DictConfig
 from psychopy import core, event, tools, visual
 from pylsl import StreamOutlet
 
@@ -10,6 +11,15 @@ from psycho.utils import init_lsl, parse_stim_path, send_marker
 n_blocks = 1
 n_trials_per_block = 10
 
+timing = {
+    "fixation": 0.5,
+    "empty": 0.5,
+    "stim": 0.1,
+    "response": 0.5,
+    "iti": 0.5,
+    "feedback": 0.5,
+    "rest": 30,
+}
 fixation_duration = 0.5
 
 response_keys = ["s", "l"]
@@ -52,6 +62,7 @@ lsl_outlet = None
 block_index = 0
 trial_index = 0
 
+# 这里要随机选吗, 伪随机序列要生成两份吗
 high_side = random.choice(response_keys)
 total_point = 0
 current_block_reward_count = 0
@@ -209,10 +220,69 @@ def get_stim_size() -> float:
     return stim_size  # 假设刺激大小与距离成比例
 
 
+def init_exp(config: DictConfig | None):
+    global \
+        n_blocks, \
+        n_trials_per_block, \
+        timing, \
+        stim_folder, \
+        empty_face, \
+        short_mouth, \
+        long_mouth, \
+        high_reward_prob, \
+        monitor_distance, \
+        fov, \
+        reward_high, \
+        reward_low, \
+        reward_set, \
+        max_reward_count, \
+        high_low_ratio
+
+    n_blocks = config.n_blocks
+    n_trials_per_block = config.n_trials_per_block
+    timing = config.timing
+    stim_folder = parse_stim_path(config.stim_folder)
+    empty_face = stim_folder / "empty_face.png"
+    short_mouth = stim_folder / "short_mouth.png"
+    long_mouth = stim_folder / "long_mouth.png"
+    high_reward_prob = config.high_reward_prob
+    monitor_distance = config.monitor_distance
+    fov = config.fov
+    reward_high = config.reward_high
+    reward_low = config.reward_low
+    reward_set = [reward_low, reward_high]
+    max_reward_count = config.max_reward_count
+    high_low_ratio = config.high_low_ratio
+
+
+def run_exp(cfg: DictConfig | None):
+    global block_index
+
+    if cfg is not None:
+        init_exp(cfg)
+        prompt = visual.TextStim(
+            win,
+            text=cfg.phase_prompt,
+            color="white",
+            height=0.1,
+            wrapWidth=2,
+        )
+        prompt.draw()
+        win.flip()
+        event.waitKeys(keyList=continue_keys)
+
+    for local_block_index in range(n_blocks):
+        block_index = local_block_index
+        pre_block()
+        block()
+        post_block()
+
+
 def entry(
     win_session: visual.Window | None = None,
     clock_session: core.Clock | None = None,
     lsl_outlet_session: StreamOutlet | None = None,
+    config: DictConfig | None = None,
 ):
     global win, clock, lsl_outlet, block_index, port
     win = win_session if win_session else visual.Window(monitor="testMonitor", pos=(0, 0), fullscr=True, color="grey", units="norm")
@@ -221,14 +291,11 @@ def entry(
 
     lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("PRTMarker")  # 初始化 LSL
 
+    if config is not None and "pre" in config:
+        run_exp(config.pre)
+
     send_marker(lsl_outlet, "EXPERIMENT_START")
-
-    for local_block_index in range(n_blocks):
-        block_index = local_block_index
-        pre_block()
-        block()
-        post_block()
-
+    run_exp(config.full if config is not None else None)
     send_marker(lsl_outlet, "EXPERIMENT_END")
 
 

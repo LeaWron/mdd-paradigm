@@ -2,6 +2,7 @@ import random
 from collections import deque
 from pathlib import Path
 
+from omegaconf import DictConfig
 from psychopy import core, event, sound, visual
 from pylsl import StreamOutlet
 
@@ -13,15 +14,16 @@ n_blocks = 1
 n_trials_per_block = 1
 continue_keys = ["space"]
 
-fixation_duration = 2
-
+timing = {
+    "fixation": 2,
+    "stim": 4,
+    "recovery": 180,
+}
 stim_folder = parse_stim_path("emotion-stim")  # 刺激文件夹
 stim_items = list(stim_folder.glob("*"))
 stim_threshold = min(4, len(stim_items) - 1)  # 每个刺激出现的间隔的最小次数, 即距离它上次出现至少隔着几个不同的刺激
-stim_duration = 4
 
 mathematic_trials_per_block = 1
-recovery_duration = 1 * 3
 
 # === 全局变量 ===
 win = None
@@ -126,7 +128,7 @@ def post_block():
     win.flip()
     sount_prompt.play()
     send_marker(lsl_outlet, "RECOVERY_START")
-    core.wait(recovery_duration)
+    core.wait(timing["recovery"])
     sount_prompt.play()
     send_marker(lsl_outlet, "RECOVERY_END")
     core.wait(1)
@@ -156,7 +158,7 @@ def pre_trial():
     fixation = visual.TextStim(win, text="+", color="white", height=0.4, wrapWidth=2)
     fixation.draw()
     win.flip()
-    core.wait(fixation_duration)
+    core.wait(timing["fixation"])
 
 
 def trial():
@@ -183,7 +185,7 @@ def trial():
     stim.draw()
     win.flip()
     send_marker(lsl_outlet, "TRIAL_START")
-    core.wait(stim_duration)
+    core.wait(timing["stim"])
 
 
 def post_trial():
@@ -242,7 +244,7 @@ def baseline_assess():
     win.flip()
     send_marker(lsl_outlet, "BASELINE_START")
     sount_prompt.play()
-    core.wait(recovery_duration)
+    core.wait(timing["recovery"])
     sount_prompt.play()
 
     send_marker(lsl_outlet, "BASELINE_END")
@@ -268,10 +270,48 @@ def baseline_assess():
     core.wait(0.2)
 
 
+def init_exp(config: DictConfig | None = None):
+    global n_blocks, n_trials_per_block, timing, stim_folder, stim_deque, stim_items, stim_set, stim_threshold, mathematic_trials_per_block
+
+    n_blocks = config.n_blocks
+    n_trials_per_block = config.n_trials_per_block
+    timing = config.timing
+    mathematic_trials_per_block = config.mathematic_trials_per_block
+    stim_folder = parse_stim_path(config.stim_folder)
+    stim_items = list(stim_folder.glob("*"))
+    stim_deque = deque(maxlen=mathematic_trials_per_block)
+    stim_set = set()
+    stim_threshold = mathematic_trials_per_block
+
+
+def run_exp(cfg: DictConfig | None):
+    global block_index
+
+    if cfg is not None:
+        init_exp(cfg)
+        prompt = visual.TextStim(
+            win,
+            text=cfg.phase_prompt,
+            color="white",
+            height=0.1,
+            wrapWidth=2,
+        )
+        prompt.draw()
+        win.flip()
+        event.waitKeys(keyList=continue_keys)
+
+    for local_block_index in range(n_blocks):
+        block_index = local_block_index
+        pre_block()
+        block()
+        post_block()
+
+
 def entry(
     win_session: visual.Window | None = None,
     clock_session: core.Clock | None = None,
     lsl_outlet_session: StreamOutlet | None = None,
+    config: DictConfig | None = None,
 ):
     global win, clock, lsl_outlet, block_index
     win = win_session if win_session else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
@@ -281,16 +321,13 @@ def entry(
     lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("EmotionStimMarker")  # 初始化 LSL
 
     baseline_assess()
-    for local_block_index in range(n_blocks):
-        block_index = local_block_index
-        pre_block()
-        block()
-        post_block()
 
-    send_marker(
-        lsl_outlet,
-        "EXPERIMENT_END",
-    )
+    if config is not None and "pre" in config:
+        run_exp(config.pre)
+
+    send_marker(lsl_outlet, "EXPERIMENT_START")
+    run_exp(config.full if config is not None else None)
+    send_marker(lsl_outlet, "EXPERIMENT_END")
 
 
 def main():

@@ -1,5 +1,6 @@
 import random
 
+from omegaconf import DictConfig
 from psychopy import core, event, visual
 from pylsl import StreamOutlet
 
@@ -10,14 +11,18 @@ n_blocks = 1
 n_trials_per_block = 10
 continue_keys = ["space"]
 
-fixation_duration = 0.5
+timing = {
+    "fixation": 0.5,
+    "stim": 1.0,
+    "max_response": 2.0,
+    "emotion_select": 1.0,
+    "rest": 20.0,
+}
 
 stim_folder = parse_stim_path("emotion-face")
 stim_items = list(stim_folder.glob("*"))
-stim_duration = 1
 
 response_map = {"left": "positive", "right": "negative"}
-max_response_time = 2
 
 emotion_labels = {
     "快乐": "happy",
@@ -27,9 +32,6 @@ emotion_labels = {
     "厌恶": "disgust",
     "中性": "neutral",
 }
-emotion_select_duration = 1
-
-rest_duration = 20
 # === 全局变量 ===
 win = None
 clock = None
@@ -55,18 +57,18 @@ def block():
 
 def post_block():
     # resting
-    text = f"你有 {rest_duration} 秒休息时间, 或者你可以选择按空格键进入下一个 block"
+    text = f"你有 {timing['rest']} 秒休息时间, 或者你可以选择按空格键进入下一个 block"
     text_stim = visual.TextStim(win, text=text, color="white", wrapWidth=2)
     text_stim.draw()
     win.flip()
-    event.waitKeys(rest_duration, keyList=continue_keys)
+    event.waitKeys(timing["rest"], keyList=continue_keys)
 
 
 def pre_trial():
     fixation = visual.TextStim(win, text="+", color="white", height=0.4, wrapWidth=2)
     fixation.draw()
     win.flip()
-    core.wait(fixation_duration)
+    core.wait(timing["fixation"])
 
 
 def trial():
@@ -95,9 +97,9 @@ def trial():
         "TRIAL_START",
     )
 
-    core.wait(stim_duration)
+    core.wait(timing["stim"])
 
-    keys = event.waitKeys(maxWait=max_response_time, keyList=list(response_map.keys()), timeStamped=True)
+    keys = event.waitKeys(maxWait=timing["max_response"], keyList=list(response_map.keys()), timeStamped=True)
 
     if keys:
         key, rt = keys[0]
@@ -149,10 +151,43 @@ def post_trial():
     core.wait(0.5)
 
 
+def init_exp(config: DictConfig | None = None):
+    global n_blocks, n_trials_per_block, timing, go_prob
+
+    n_blocks = config.n_blocks
+    n_trials_per_block = config.n_trials_per_block
+    timing = config.timing
+    go_prob = config.go_prob
+
+
+def run_exp(cfg: DictConfig | None):
+    global block_index
+
+    if cfg is not None:
+        init_exp(cfg)
+        prompt = visual.TextStim(
+            win,
+            text=cfg.phase_prompt,
+            color="white",
+            height=0.1,
+            wrapWidth=2,
+        )
+        prompt.draw()
+        win.flip()
+        event.waitKeys(keyList=continue_keys)
+
+    for local_block_index in range(n_blocks):
+        block_index = local_block_index
+        pre_block()
+        block()
+        post_block()
+
+
 def entry(
     win_session: visual.Window | None = None,
     clock_session: core.Clock | None = None,
     lsl_outlet_session: StreamOutlet = None,
+    config: DictConfig | None = None,
 ):
     global win, clock, lsl_outlet, block_index
     win = win_session if win_session else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
@@ -161,21 +196,12 @@ def entry(
 
     lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("EmotionFaceMarker")  # 初始化 LSL
 
-    send_marker(
-        lsl_outlet,
-        "EXPERIMENT_START",
-    )
+    if config is not None and "pre" in config:
+        run_exp(config.pre)
 
-    for local_block_index in range(n_blocks):
-        block_index = local_block_index
-        pre_block()
-        block()
-        post_block()
-
-    send_marker(
-        lsl_outlet,
-        "EXPERIMENT_END",
-    )
+    send_marker(lsl_outlet, "EXPERIMENT_START")
+    run_exp(config.full if config is not None else None)
+    send_marker(lsl_outlet, "EXPERIMENT_END")
 
 
 def main():

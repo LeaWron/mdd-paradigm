@@ -1,6 +1,9 @@
+defaults:
+  - nback@stim_sequence: sequence
+
 nback: 2
 n_blocks: 3
-n_trials_per_block: 90
+n_trials_per_block: 60
 
 phase_prompt: |
   接下来是正式实验, 实验方式与预实验相同
@@ -12,4 +15,5 @@ timing:
   stim: 1.0
   rest: 30
 
-n_stim: 10
+start_stim: 1
+end_stim: 9

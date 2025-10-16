@@ -1,5 +1,6 @@
 defaults:
   - gng@stim_sequence: sequence
+
 n_blocks: 3
 n_trials_per_block: 60
 go_prob: 0.7

@@ -129,7 +129,7 @@ class Session:
                     clock_session=self.trialClock,
                     lsl_outlet_session=self.lsl_outlet,
                     config=self.cfg.exps[name],
-                    logger=self.logger,
+                    logger_session=self.logger,
                 )
 
                 end_msg = visual.TextStim(
@@ -192,8 +192,6 @@ def run_session(cfg: DictConfig):
     # 切换到英文输入法
     switch_keyboard_layout()
 
-    if cfg.debug:
-        print(cfg)
     OmegaConf.resolve(cfg)
     if cfg.debug:
         print(cfg)

@@ -1,3 +1,4 @@
+import logging
 import random
 
 import numpy as np
@@ -5,8 +6,9 @@ from omegaconf import DictConfig
 from psychopy import core, event, tools, visual
 from pylsl import StreamOutlet
 
-from psycho.utils import init_lsl, parse_stim_path, send_marker
+from psycho.utils import init_lsl, parse_stim_path, send_marker, setup_default_logger
 
+# TODO: logger
 # === 参数设置 ===
 n_blocks = 1
 n_trials_per_block = 10
@@ -20,7 +22,6 @@ timing = {
     "feedback": 0.5,
     "rest": 30,
 }
-fixation_duration = 0.5
 
 response_keys = ["s", "l"]
 continue_keys = ["space"]
@@ -30,19 +31,10 @@ empty_face = stim_folder / "empty_face.png"
 short_mouth = stim_folder / "short_mouth.png"
 long_mouth = stim_folder / "long_mouth.png"
 
-empty_duration = 0.5
-stim_duration = 0.1
-
-response_duration = 0.5
 
 high_reward_prob = 0.8
 low_reward_prob = 1 - high_reward_prob
 
-feedback_duration = 0.5
-
-iti = 0.5
-
-rest_duration = 30
 
 fov = 20  # 视场角, 单位: degree
 monitor_distance = 60  # 显示器与人眼距离（单位：厘米）
@@ -59,42 +51,65 @@ max_seq_same = 3  # 最大连续相同选择次数
 win = None
 clock = None
 lsl_outlet = None
+logger = None
+
 block_index = 0
 trial_index = 0
 
-# 这里要随机选吗, 伪随机序列要生成两份吗
 high_side = random.choice(response_keys)
 total_point = 0
-current_block_reward_count = 0
 
-stim_sequences: dict[int, list] = None
+stim_sequence: dict[int, list] = None
+reward_indice = None
+high_cache = 0
+low_cache = 0
 
 
 # ========== 工具函数 ==========
 # TODO: something about the reward
-def give_reward(choice: str, high_side: str):
+def give_reward(choice: str, right_choice: str):
     """根据选择和当前高值侧决定奖励"""
-    if choice == high_side:
-        p = high_reward_prob
+    if reward_indice is not None:
+        global high_cache, low_cache
+        if choice == right_choice:
+            if trial_index in reward_indice[block_index]["high"]:
+                return reward_high
+            elif trial_index in reward_indice[block_index]["low"]:
+                return reward_low
+            elif right_choice == high_side and high_cache > 0:
+                high_cache -= 1
+                return reward_high
+            elif right_choice != high_side and low_cache > 0:
+                low_cache -= 1
+                return reward_low
+            else:
+                return 0
+        else:
+            if trial_index in reward_indice[block_index]["high"]:
+                high_cache += 1
+            elif trial_index in reward_indice[block_index]["low"]:
+                low_cache += 1
+            return -1
     else:
-        p = low_reward_prob
-    return reward_set[int(random.random() < p)]
+        if choice == right_choice:
+            if choice == high_side and random.random() < high_reward_prob:
+                return reward_high
+            elif choice != high_side and random.random() < low_reward_prob:
+                return reward_low
+            else:
+                return 0
+        else:
+            return -1
 
 
 # ========== 框架函数 ==========
 def pre_block():
-    global current_block_reward_count
-    current_block_reward_count = max_reward_count
-
     text = f"准备进入第 {block_index + 1} 个区块, 按空格键开始"
     msg = visual.TextStim(
         win,
         color="white",
         text=text,
         height=0.06,
-        wrapWidth=2,
-        anchorHoriz="center",
-        anchorVert="center",
     )
     msg.draw()
     win.flip()
@@ -113,14 +128,14 @@ def block():
 def post_block():
     msg = visual.TextStim(
         win,
-        text=f"第 {block_index + 1} 个区块结束\n你目前已有{total_point}分\n你有{rest_duration}秒休息时间\n你可以直接按空格键继续",
+        text=f"第 {block_index + 1} 个区块结束\n你目前已有 {total_point} 分\n你有 {timing['rest']} 秒休息时间\n你可以直接按空格键继续",
         color="white",
         height=0.06,
         wrapWidth=2,
     )
     msg.draw()
     win.flip()
-    event.waitKeys(rest_duration, keyList=continue_keys)
+    event.waitKeys(timing["rest"], keyList=continue_keys)
 
 
 def pre_trial():
@@ -128,7 +143,7 @@ def pre_trial():
     fixation = visual.TextStim(win, text="+", height=0.4, color="white")
     fixation.draw()
     win.flip()
-    core.wait(fixation_duration)
+    core.wait(timing["fixation"])
 
 
 def trial():
@@ -146,9 +161,12 @@ def trial():
         empty_face_stim.draw()
         win.flip()
         send_marker(lsl_outlet, "TRIAL_START")
-        core.wait(empty_duration)
+        core.wait(timing["empty"])
 
-        long_or_short = random.choice(["long", "short"])
+        if stim_sequence is not None:
+            long_or_short = stim_sequence[block_index][trial_index]
+        else:
+            long_or_short = random.choice(["long", "short"])
         if long_or_short == "short":
             short_mouth_stim = visual.ImageStim(
                 win,
@@ -168,13 +186,13 @@ def trial():
             )
             long_mouth_stim.draw()
         win.flip()
-        core.wait(stim_duration)
+        core.wait(timing["stim"])
         return empty_face_stim, "s" if long_or_short == "short" else "l"
 
     empty_stim, long_or_short = show_stim()
     empty_stim.draw()
     win.flip()
-    keys = event.waitKeys(maxWait=response_duration, keyList=response_keys, timeStamped=True)
+    keys = event.waitKeys(maxWait=timing["response"], keyList=response_keys, timeStamped=True)
 
     choice = "no_response"
     rt = None
@@ -185,27 +203,32 @@ def trial():
     else:
         send_marker(lsl_outlet, "NO_RESPONSE")
 
-    if choice == long_or_short:
-        reward = give_reward(choice, high_side)
-    else:
-        reward = 0
+    reward = give_reward(choice, long_or_short)
 
     # feedback
-    if reward:
-        feedback_reward = visual.TextStim(win, text=f"correct!\nYou won {reward} points", height=0.08, color="green" if reward == reward_high else "white")
+    if reward > 0:
+        feedback_reward = visual.TextStim(win, text=f"正确!\n你获得了 {reward} 分", height=0.08, color="green")
         feedback_reward.draw()
         total_point += reward
-    else:
-        feedback_no = visual.TextStim(win, text="sorry, you got only 0 points", height=0.08, color="red")
+    elif reward == 0:
+        feedback_no = visual.TextStim(win, text="正确!", height=0.08, color="white")
         feedback_no.draw()
+    elif reward < 0:
+        feedback_wrong = visual.TextStim(
+            win,
+            text="错误!",
+            height=0.08,
+            color="red",
+        )
+        feedback_wrong.draw()
     win.flip()
-    core.wait(feedback_duration)
+    core.wait(timing["feedback"])
 
 
 def post_trial():
     # iti
-    core.wait(iti)
     win.flip()
+    core.wait(timing["iti"])
 
 
 def get_stim_size() -> float:
@@ -236,7 +259,9 @@ def init_exp(config: DictConfig | None):
         reward_low, \
         reward_set, \
         max_reward_count, \
-        high_low_ratio
+        high_low_ratio, \
+        stim_sequence, \
+        reward_indice
 
     n_blocks = config.n_blocks
     n_trials_per_block = config.n_trials_per_block
@@ -245,7 +270,6 @@ def init_exp(config: DictConfig | None):
     empty_face = stim_folder / "empty_face.png"
     short_mouth = stim_folder / "short_mouth.png"
     long_mouth = stim_folder / "long_mouth.png"
-    high_reward_prob = config.high_reward_prob
     monitor_distance = config.monitor_distance
     fov = config.fov
     reward_high = config.reward_high
@@ -253,6 +277,12 @@ def init_exp(config: DictConfig | None):
     reward_set = [reward_low, reward_high]
     max_reward_count = config.max_reward_count
     high_low_ratio = config.high_low_ratio
+
+    if "stim_sequence" in config:
+        stim_sequence = config.stim_sequence
+
+    if "reward_indice" in config:
+        reward_indice = config.reward_indice
 
 
 def run_exp(cfg: DictConfig | None):
@@ -283,11 +313,13 @@ def entry(
     clock_session: core.Clock | None = None,
     lsl_outlet_session: StreamOutlet | None = None,
     config: DictConfig | None = None,
+    logger_session: logging.Logger | None = None,
 ):
-    global win, clock, lsl_outlet, block_index, port
+    global win, clock, lsl_outlet, block_index, logger
     win = win_session if win_session else visual.Window(monitor="testMonitor", pos=(0, 0), fullscr=True, color="grey", units="norm")
 
     clock = clock_session if clock_session else core.Clock()
+    logger = logger_session if logger_session else setup_default_logger()
 
     lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("PRTMarker")  # 初始化 LSL
 

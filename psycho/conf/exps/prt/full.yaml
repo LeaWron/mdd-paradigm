@@ -1,5 +1,6 @@
 defaults:
-  - prt@stims: sequence.json
+  - prt@stim_sequence: sequence
+  - prt@reward_indice: reward_indice
 
 n_blocks: 3
 n_trials_per_block: 90
@@ -23,8 +24,8 @@ timing:
 fov: 20
 monitor_distance: 60
 
-reward_high: 10
-reward_low: 1
+reward_high: 9
+reward_low: 3
 
 max_reward_count: 40
 high_low_ratio: 3.0

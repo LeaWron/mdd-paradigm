@@ -148,10 +148,10 @@ def test_generate_diat(
     max_seq_same: int = 5,
 ):
     base_path = Path(__file__)
-    with open(base_path.parent / stim_path, "r", encoding="utf-8") as f:
+    with open(base_path.parent / stim_path, encoding="utf-8") as f:
         stim_dict: dict[str, list[str]] = yaml.safe_load(f)
 
-    with open(base_path.parent / config_path, "r", encoding="utf-8") as f:
+    with open(base_path.parent / config_path, encoding="utf-8") as f:
         config_dict: dict = yaml.safe_load(f)
 
     blocks_info: list[dict] = config_dict["blocks_info"]
@@ -176,4 +176,70 @@ def test_generate_diat(
 
     sequence = dict(sequence)
     with open(Path(save_path).with_suffix(".yaml"), "w", encoding="utf-8") as f:
+        yaml.dump(sequence, f, allow_unicode=True, indent=2)
+
+
+def check_prt_seq(
+    stim_seq: list[str],
+    max_seq_same: int = 3,
+):
+    pre = None
+    cnt = 0
+    for stim in stim_seq:
+        if pre == stim:
+            cnt += 1
+            if cnt > max_seq_same:
+                return False
+        else:
+            cnt = 1
+        pre = stim
+    return True
+
+
+@pytest.mark.skip(reason="已生成")
+def test_generate_prt(
+    n_blocks: int = 3,
+    n_trials_per_block: int = 90,
+    max_seq_same: int = 3,
+    max_reward_count: int = 40,
+    high_low_ratio: float = 3.0,
+    stim_list: list = ["long", "short"],
+    seq_save_path: str | Path = "./prt_sequence",
+    idx_save_path: str | Path = "./prt_idx_sequence",
+):
+    long_mouth, short_mouth = stim_list
+
+    sequence = defaultdict(list)
+    idx_sequence = {}
+    for block_index in range(n_blocks):
+        while True:
+            half = n_trials_per_block // 2
+            stim_seq = [str(long_mouth)] * half + [str(short_mouth)] * half
+            random.shuffle(stim_seq)
+
+            if check_prt_seq(stim_seq, max_seq_same):
+                break
+
+        high_count = int(max_reward_count * (high_low_ratio / (high_low_ratio + 1)))
+        low_count = max_reward_count - high_count
+
+        available_indices = set(range(n_trials_per_block))
+
+        high_indices = np.random.choice(list(available_indices), size=high_count, replace=False).tolist()
+
+        available_indices -= set(high_indices)
+
+        low_indices = np.random.choice(list(available_indices), size=low_count, replace=False).tolist()
+        sequence[block_index] = stim_seq
+
+        idx_sequence[block_index] = {}
+        idx_sequence[block_index]["high"] = high_indices
+        idx_sequence[block_index]["low"] = low_indices
+
+    sequence = dict(sequence)
+    idx_sequence = dict(idx_sequence)
+    with open(Path(idx_save_path).with_suffix(".yaml"), "w", encoding="utf-8") as f:
+        yaml.dump(idx_sequence, f, allow_unicode=True, indent=2)
+
+    with open(Path(seq_save_path).with_suffix(".yaml"), "w", encoding="utf-8") as f:
         yaml.dump(sequence, f, allow_unicode=True, indent=2)

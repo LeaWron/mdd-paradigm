@@ -1,4 +1,5 @@
 import importlib
+import logging
 import multiprocessing
 from pathlib import Path
 
@@ -35,6 +36,16 @@ class Session:
 
         event.globalKeys.add(key="escape", modifiers=["shift"], func=self.stop, name="quit")
         event.globalKeys.add(key="p", modifiers=["shift"], func=self.pause, name="pause")
+
+        # 初始化 logger
+        self._setup_logger()
+
+    def _setup_logger(self):
+        logging.basicConfig(
+            level=logging.DEBUG if self.cfg.debug else logging.INFO,
+            format="%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
+        )
+        self.logger = logging.getLogger(__name__)
 
     def discover_experiments(self):
         files = list(self.exps_dir.glob("*.py"))
@@ -118,6 +129,7 @@ class Session:
                     clock_session=self.trialClock,
                     lsl_outlet_session=self.lsl_outlet,
                     config=self.cfg.exps[name],
+                    logger=self.logger,
                 )
 
                 end_msg = visual.TextStim(

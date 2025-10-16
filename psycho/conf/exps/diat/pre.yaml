@@ -88,8 +88,8 @@ blocks_info:
       - 死亡
 
 key_blocks:
-  - 4
-  - 7
+  - 3
+  - 6
 
 start_prompt: |
   接下来的任务中，将要求你对一组呈现的词语或图片进行分类。分类要尽可能地快，但同时又尽可能少犯错。
@@ -98,5 +98,4 @@ start_prompt: |
   按空格键继续
 timing:
   max_wait: 10.0
-
-stims: ./stims
+  rest: 3.0

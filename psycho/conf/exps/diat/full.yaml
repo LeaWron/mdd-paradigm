@@ -1,5 +1,6 @@
 defaults:
   - diat@stims: stims
+  - diat@stim_sequence: sequence
 
 blocks_info:
   - n_trials: 10
@@ -26,7 +27,7 @@ blocks_info:
       - 生命
     right_kinds:
       - 死亡
-  - n_trials: 10
+  - n_trials: 12
     prompt: |
       注意上方，之前各自呈现的四个类别标签现在一起出现
       记住，每个项目只属于一个类别
@@ -65,7 +66,7 @@ blocks_info:
       - 他人
     right_kinds:
       - 自我
-  - n_trials: 10
+  - n_trials: 12
     prompt: |
       注意上方，四个类别标签以新的组合方式出现。记住，每个项目只属于一个类别
       使用F键和J键将类别项目分类到左边和右边的四个类别中，纠正错误请按另一个键
@@ -91,8 +92,8 @@ blocks_info:
       - 死亡
 
 key_blocks:
-  - 4
-  - 7
+  - 3
+  - 6
 
 start_prompt: |
   接下来的任务中，将要求你对一组呈现的词语或图片进行分类。分类要尽可能地快，但同时又尽可能少犯错
@@ -101,3 +102,4 @@ start_prompt: |
   按空格键继续
 timing:
   max_wait_respond: 10.0
+  rest: 30.0

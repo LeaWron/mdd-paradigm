@@ -1,10 +1,10 @@
-import random
+import logging
 
 from omegaconf import DictConfig
 from psychopy import core, event, visual
 from pylsl import StreamOutlet
 
-from psycho.utils import init_lsl, send_marker
+from psycho.utils import init_lsl, send_marker, setup_default_logger
 
 # === 实验参数 ===
 blocks_info = [
@@ -85,7 +85,7 @@ blocks_info = [
     },
 ]
 
-key_blocks = [4, 7]  # 重要区块的索引
+key_blocks = [3, 6]  # 重要区块的索引
 
 resp_keys = ["f", "j"]  # 反应键, f 对应左边, j 对应右边
 
@@ -93,15 +93,18 @@ continue_key = ["space"]  # 继续键
 
 timing = {
     "max_wait_respond": 10.0,  # 最大等待时间
+    "rest": 3.0,  # 休息时间
 }
 
 # === 全局设置 ===
 win = None
 clock = None
 lsl_outlet = None
+logger = None
 
 correct_count = 0
 block_index = 0  # 当前区块索引
+trial_index = 0
 
 start_prompt = """接下来的任务中，将要求你对一组呈现的词语或图片进行分类。分类要尽可能地快，但同时又尽可能少犯错。
 下面列出了类别标签以及属于那些类别的项目。
@@ -118,6 +121,15 @@ stims = {
     "死亡": ["死亡", "逝去", "去世", "故去", "亡故", "离世", "逝者", "终结", "消亡", "死去", "辞世", "殒命", "过世", "死", "夭折"],
 }
 stim_kinds = list(stims.keys())
+stim_sequence = {
+    0: ["自我", "他人"],
+    1: ["生命", "死亡"],
+    2: ["自我", "生命", "他人", "死亡"],
+    3: ["他人", "生命", "自我", "死亡"],
+    4: ["生命", "死亡", "自我", "他人"],
+    5: ["生命", "死亡", "他人", "自我"],
+    6: ["他人", "死亡", "自我", "生命"],
+}
 
 
 def pre_block():
@@ -134,25 +146,23 @@ def pre_block():
 
 
 def block():
-    """block 运行中"""
+    global trial_index
     n_trials = blocks_info[block_index]["n_trials"]
-    for _ in range(n_trials):
+    for local_trial_index in range(n_trials):
+        trial_index = local_trial_index
         pre_trial()
         trial()
         post_trial()
 
 
 def post_block():
-    """block 结束后"""
     global correct_count
     win.flip()
-    if block_index == 0:
-        return
     correct_rate = correct_count / blocks_info[block_index]["n_trials"]
     correct_count = 0
     visual.TextStim(
         win=win,
-        text=f"在这个任务中你的正确率为: {correct_rate * 100:.2f}%\n按空格键继续",
+        text=f"在这个任务中你的正确率为: {correct_rate * 100:.2f}%\n你有{int(timing['rest'])}秒休息时间\n你可以直接按空格键继续",
         height=0.1,
         wrapWidth=2,
     ).draw()
@@ -176,6 +186,8 @@ def trial():
         """显示刺激"""
         left_kinds: list[str] = blocks_info[block_index]["left_kinds"]
         right_kinds: list[str] = blocks_info[block_index]["right_kinds"]
+
+        left_stims = [stim for kind in left_kinds for stim in stims[kind]]
         color = "#00ff00"
         color_space = "hex"
         # 左
@@ -198,17 +210,9 @@ def trial():
         )
 
         # 中心刺激
-        l_or_r = random.choice(["left", "right"])
-        if l_or_r == "left":
-            stim_range = []
-            for kind in left_kinds:
-                stim_range.extend(stims[kind])
-            stim_text = random.choice(stim_range)
-        else:
-            stim_range = []
-            for kind in right_kinds:
-                stim_range.extend(stims[kind])
-            stim_text = random.choice(stim_range)
+        stim_text = stim_sequence[block_index][trial_index]
+        l_or_r = "left" if stim_text in left_stims else "right"
+
         stim = visual.TextStim(
             win=win,
             text=stim_text,
@@ -236,13 +240,17 @@ def trial():
     stim_correct_resp = show_stim()
     resp = event.waitKeys(maxWait=timing["max_wait_respond"], keyList=resp_keys, timeStamped=True)
     correct = False
+    # 反应时
     if resp is None:
-        send_marker(lsl_outlet, "NO_RESPONSE")
+        send_marker(lsl_outlet, "NORESPONSE")
+        logger.info("No response")
     elif resp[0][0] == stim_correct_resp:
         correct = True
         send_marker(lsl_outlet, "CORRECT")
+        logger.info(f"Correct: {stim_correct_resp}")
     else:
         send_marker(lsl_outlet, "INCORRECT")
+        logger.info(f"Incorrect: {stim_correct_resp}")
 
     if correct:
         correct_count += 1
@@ -262,7 +270,7 @@ def trial():
 def post_trial():
     """trial 结束后"""
     win.flip()
-    pass
+    core.wait(0.1)
 
 
 def show_prompt():
@@ -288,13 +296,15 @@ def show_prompt():
 
 
 def init_exp(config: DictConfig | None):
-    global blocks_info, key_blocks, start_prompt, timing, stims
+    global blocks_info, key_blocks, start_prompt, timing, stims, stim_sequence
 
     blocks_info = config.blocks_info
     key_blocks = config.key_blocks
     start_prompt = config.start_prompt
     timing = config.timing
     stims = config.stims
+    if "stim_sequence" in config:
+        stim_sequence = config.stim_sequence
 
 
 def run_exp(cfg: DictConfig | None):
@@ -317,20 +327,24 @@ def entry(
     clock_session: core.Clock | None = None,
     lsl_outlet_session: StreamOutlet | None = None,
     config: DictConfig | None = None,
+    logger_session: logging.Logger | None = None,
 ):
     """实验入口"""
-    global win, clock, lsl_outlet
+    global win, clock, lsl_outlet, logger
     win = win_session if win_session is not None else visual.Window(fullscr=True, units="norm")
     clock = clock_session if clock_session is not None else core.Clock()
+    logger = logger_session if logger_session is not None else setup_default_logger()
+
     lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("D-IATMarker")
 
     send_marker(lsl_outlet, "EXPERIMENT_START")
+    logger.info("实验开始")
     run_exp(config.full if config is not None else None)
     send_marker(lsl_outlet, "EXPERIMENT_END")
+    logger.info("实验结束")
 
 
 def main():
-    """实验主函数"""
     entry()
 
 

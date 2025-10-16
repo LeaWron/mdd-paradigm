@@ -1,4 +1,5 @@
 import ctypes
+import logging
 import math
 import random
 import tkinter as tk
@@ -172,11 +173,14 @@ def generate_trial_sequence(
     n_trials_per_block: int,
     max_seq_same: int = 2,
     stim_list: list = None,
+    stim_weights: list = None,
     seed: int = None,
     save_path: str | Path = None,
 ):
-    import json
-    from collections import defaultdict
+    from collections import Counter, defaultdict
+    from pprint import pprint
+
+    import yaml
 
     def check_seq(seq: list, max_seq_same: int) -> bool:
         current_count = 0
@@ -189,6 +193,10 @@ def generate_trial_sequence(
                 prev_choice = item
             if current_count > max_seq_same:
                 return False
+        cnt = Counter(seq)
+        pprint(cnt)
+        pprint([stim_weights[i] * len(seq) for i in range(len(stim_list))])
+
         return True
 
     if seed is not None:
@@ -198,17 +206,19 @@ def generate_trial_sequence(
 
     stim_sequences = defaultdict(list)
     for block_index in range(n_blocks):
+        print(f"b: {block_index}")
         while True:
-            seq: list = rng.choice(stim_list, size=n_trials_per_block, replace=True).tolist()
+            seq: list = rng.choice(stim_list, size=n_trials_per_block, replace=True, p=stim_weights).tolist()
             if check_seq(seq, max_seq_same):
                 stim_sequences[block_index].extend(seq)
                 break
 
+    stim_sequences = dict(stim_sequences)
     if save_path:
         save_path = Path(save_path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(save_path, "w", encoding="utf-8") as f:
-            json.dump(stim_sequences, f, ensure_ascii=False, indent=4)
+        with open(save_path.with_suffix(".yaml"), "w", encoding="utf-8") as f:
+            yaml.dump(stim_sequences, f, indent=2)
     return stim_sequences
 
 
@@ -237,5 +247,26 @@ def save_csv_data(data: dict[str, list], file_path: str | Path):
         df.write_csv(file_path)
 
 
+def setup_default_logger():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
+    )
+    return logging.getLogger("default")
+
+
 if __name__ == "__main__":
-    pass
+    n_blocks = 3
+    n_trials_per_block = 60
+    max_seq_same = 5
+    stim_list = [True, False]
+    stim_weights = [0.7, 0.3]
+
+    generate_trial_sequence(
+        n_blocks,
+        n_trials_per_block,
+        max_seq_same=max_seq_same,
+        stim_list=stim_list,
+        stim_weights=stim_weights,
+        save_path="./sequence",
+    )

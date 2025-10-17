@@ -6,6 +6,7 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig, OmegaConf
 from psychopy import core, event, gui, prefs, visual
+from datetime import datetime
 
 from psycho.utils import init_lsl, send_marker, switch_keyboard_layout
 
@@ -95,6 +96,23 @@ class Session:
         for name in exp_names:
             mod = importlib.import_module(f"psycho.exps.{name}")
             self.experiments.append((name, mod))
+
+    def add_session_info(self):
+        session_info = dict()
+        dlg = gui.Dlg(title="Session Info")
+        # 序号
+        dlg.addField(label="Session ID", key="session_id")
+        # 日期
+        dlg.addFixedField(label="日期", initial=datetime.now().strftime("%Y-%m-%d"), key="date")
+        # 受试信息
+        dlg.addField(label="受试信息", key="participant_id")
+        # ..... 其他信息
+
+        ok_data = dlg.show()
+        if not dlg.OK:
+            core.quit()
+        session_info.update(ok_data)
+        self.session_info = session_info
 
     def start(self, with_lsl=False):
         self.running = True

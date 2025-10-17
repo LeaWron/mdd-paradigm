@@ -19,9 +19,9 @@ psycho/                              # 项目根目录
 │   │   ├── config.yaml              # 入口
 │   │   └── exps/                    # 范式配置文件目录
 │   │       └── <exp>                # 范式名
-│   │          ├── sequence.json     # 生成的伪随机序列
+│   │          ├── full.yaml         # 正式实验配置
 │   │          ├── pre.yaml          # 预实验配置
-│   │          └── full.yaml         # 正式实验配置
+│   │          └── <other>           # 其他会用到的配置文件
 │   └── stims/                       # 存放要使用的刺激的目录
 │       └── image_stims.png 
 ├── libs/                            # 本地文件依赖

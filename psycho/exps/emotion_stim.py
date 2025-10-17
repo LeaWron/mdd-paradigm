@@ -1,3 +1,4 @@
+import logging
 import random
 from collections import deque
 from pathlib import Path
@@ -7,7 +8,7 @@ from psychopy import core, event, sound, visual
 from pylsl import StreamOutlet
 
 from psycho.exps.resting import notification
-from psycho.utils import adapt_image_stim_size, init_lsl, parse_stim_path, send_marker
+from psycho.utils import adapt_image_stim_size, init_lsl, parse_stim_path, send_marker, setup_default_logger
 
 # === 参数设置 ===
 n_blocks = 1
@@ -29,7 +30,8 @@ mathematic_trials_per_block = 1
 win = None
 clock = None
 lsl_outlet = None
-port = None
+logger = None
+
 block_index = 0
 trial_index = 0
 
@@ -312,11 +314,13 @@ def entry(
     clock_session: core.Clock | None = None,
     lsl_outlet_session: StreamOutlet | None = None,
     config: DictConfig | None = None,
+    logger_session: logging.Logger | None = None,
 ):
     global win, clock, lsl_outlet, block_index
     win = win_session if win_session else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
 
     clock = clock_session if clock_session else core.Clock()
+    logger = logger_session if logger_session else setup_default_logger()
 
     lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("EmotionStimMarker")  # 初始化 LSL
 

@@ -6,6 +6,7 @@ from pylsl import StreamOutlet
 
 from psycho.utils import arbitary_keys, generate_trial_sequence, get_isi, init_lsl, send_marker, setup_default_logger
 
+# TODO: 缩短 trial 时间
 # === 参数设置 ===
 n_blocks = 1  # block 数量
 n_trials_per_block = 10  # 每个 block 的 trial 数

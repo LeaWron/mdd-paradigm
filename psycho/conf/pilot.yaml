@@ -1,9 +1,6 @@
 defaults:
   - exps@exps.diat.full: diat/pre
-  - exps@exps.gng.full: gng/pre
   - exps@exps.emotion_face.full: emotion_face/pre
-  - exps@exps.emotion_stim.full: emotion_stim/pre
-  - exps@exps.nback.full: nback/pre
   - exps@exps.prt.full: prt/pre
   - exps@exps.resting.full: resting/pre
   - session: config

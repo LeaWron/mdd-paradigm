@@ -1,10 +1,11 @@
+import logging
 import random
 
 from omegaconf import DictConfig
 from psychopy import core, event, visual
 from pylsl import StreamOutlet
 
-from psycho.utils import adapt_image_stim_size, init_lsl, parse_stim_path, send_marker
+from psycho.utils import adapt_image_stim_size, init_lsl, parse_stim_path, send_marker, setup_default_logger
 
 # === 参数设置 ===
 n_blocks = 1
@@ -37,7 +38,7 @@ win = None
 clock = None
 lsl_outlet = None
 block_index = 0
-port = None
+logger = None
 
 
 def pre_block():
@@ -188,11 +189,13 @@ def entry(
     clock_session: core.Clock | None = None,
     lsl_outlet_session: StreamOutlet = None,
     config: DictConfig | None = None,
+    logger_session: logging.Logger | None = None,
 ):
-    global win, clock, lsl_outlet, block_index
+    global win, clock, lsl_outlet, block_index, logger
     win = win_session if win_session else visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
 
     clock = clock_session if clock_session else core.Clock()
+    logger = logger_session if logger_session else setup_default_logger()
 
     lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("EmotionFaceMarker")  # 初始化 LSL
 

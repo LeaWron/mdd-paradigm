@@ -1,8 +1,10 @@
+import logging
+
 from omegaconf import DictConfig
 from psychopy import core, event, prefs, sound, visual
 from pylsl import StreamOutlet
 
-from psycho.utils import init_lsl, parse_stim_path, send_marker
+from psycho.utils import init_lsl, parse_stim_path, send_marker, setup_default_logger
 
 # === 偏好设置 ===
 prefs.hardware["audioDevice"] = "扬声器 (2- High Definition Audio Device)"
@@ -35,6 +37,7 @@ win = None
 clock = None
 lsl_outlet = None
 block_index = 0
+logger = None
 
 
 def pre_block():
@@ -109,12 +112,14 @@ def entry(
     lsl_outlet_session: StreamOutlet | None = None,
     clock_session: core.Clock | None = None,
     config: DictConfig | None = None,
+    logger_session: logging.Logger | None = None,
 ):
-    global win, lsl_outlet, clock
+    global win, lsl_outlet, clock, logger
     win = win_session or visual.Window(fullscr=True, color="grey", units="norm")
-    lsl_outlet = lsl_outlet_session or init_lsl("RestingStateMarker")
     clock = clock_session or core.Clock()
+    logger = logger_session if logger_session is not None else setup_default_logger()
 
+    lsl_outlet = lsl_outlet_session or init_lsl("RestingStateMarker")
     # 预实验
     if config is not None and "pre" in config:
         run_exp(config.pre)

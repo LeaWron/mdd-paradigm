@@ -4,6 +4,7 @@ from omegaconf import DictConfig
 from psychopy import core, event, visual
 from pylsl import StreamOutlet
 
+from psycho.session import Experiment
 from psycho.utils import init_lsl, send_marker, setup_default_logger
 
 # === 实验参数 ===
@@ -126,7 +127,7 @@ stim_sequence = {
     1: ["生命", "死亡"],
     2: ["自我", "生命", "他人", "死亡"],
     3: ["他人", "生命", "自我", "死亡"],
-    4: ["生命", "死亡", "自我", "他人"],
+    4: ["自我", "他人"],
     5: ["生命", "死亡", "他人", "自我"],
     6: ["他人", "死亡", "自我", "生命"],
 }
@@ -302,7 +303,8 @@ def init_exp(config: DictConfig | None):
     key_blocks = config.key_blocks
     start_prompt = config.start_prompt
     timing = config.timing
-    stims = config.stims
+    if "stims" in config:
+        stims = config.stims
     if "stim_sequence" in config:
         stim_sequence = config.stim_sequence
 
@@ -322,24 +324,19 @@ def run_exp(cfg: DictConfig | None):
         post_block()
 
 
-def entry(
-    win_session: visual.Window | None = None,
-    clock_session: core.Clock | None = None,
-    lsl_outlet_session: StreamOutlet | None = None,
-    config: DictConfig | None = None,
-    logger_session: logging.Logger | None = None,
-):
+def entry(exp: Experiment):
     """实验入口"""
     global win, clock, lsl_outlet, logger
-    win = win_session if win_session is not None else visual.Window(fullscr=True, units="norm")
-    clock = clock_session if clock_session is not None else core.Clock()
-    logger = logger_session if logger_session is not None else setup_default_logger()
+    win = exp.win or visual.Window(fullscr=True, units="norm")
+    clock = exp.clock or core.Clock()
+    logger = exp.logger or setup_default_logger()
 
-    lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("D-IATMarker")
+    lsl_outlet = exp.lsl_outlet or init_lsl("D-IATMarker")
 
     send_marker(lsl_outlet, "EXPERIMENT_START")
     logger.info("实验开始")
-    run_exp(config.full if config is not None else None)
+
+    run_exp(exp.config.full if exp.config is not None else None)
     send_marker(lsl_outlet, "EXPERIMENT_END")
     logger.info("实验结束")
 

@@ -1,6 +1,7 @@
 import importlib
 import logging
 import multiprocessing
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
@@ -16,6 +17,16 @@ from psycho.utils import init_lsl, send_marker, switch_keyboard_layout
 prefs.general["defaultTextFont"] = "Arial"
 prefs.general["defaultTextSize"] = 0.05
 prefs.general["defaultTextColor"] = "white"
+
+
+@dataclass
+class Experiment:
+    win: visual.Window
+    clock: core.Clock
+    lsl_outlet: None
+    config: DictConfig
+    logger: logging.Logger
+    session_info: dict
 
 
 class Session:
@@ -54,7 +65,7 @@ class Session:
         return exps
 
     def select_experiments_gui(self, exps):
-        dlg = gui.Dlg(title="Select Experiments")
+        dlg = gui.Dlg(title="Select Experiments", screen=0)
         for exp in exps:
             dlg.addField(f"Run {exp}?", initial=True)
         ok = dlg.show()
@@ -69,7 +80,7 @@ class Session:
         default_order = [exp for exp in default_order_all if exp in exp_list]
 
         while True:
-            dlg = gui.Dlg(title="选择实验顺序")
+            dlg = gui.Dlg(title="选择实验顺序", screen=0)
             dlg.addText("请确保每个实验只出现一次，如果退出则会使用默认顺序")
             for i in range(0, num_exps):
                 dlg.addField(
@@ -99,9 +110,9 @@ class Session:
 
     def add_session_info(self):
         session_info = dict()
-        dlg = gui.Dlg(title="Session Info")
+        dlg = gui.Dlg(title="Session Info", screen=0)
         # 序号
-        dlg.addField(label="Session ID", key="session_id")
+        dlg.addField(label="Session ID", key="session_id", required=True)
         # 日期
         dlg.addFixedField(label="日期", initial=datetime.now().strftime("%Y-%m-%d"), key="date")
         # 受试信息
@@ -113,6 +124,8 @@ class Session:
             core.quit()
         session_info.update(ok_data)
         self.session_info = session_info
+        if self.cfg.debug:
+            print(session_info)
 
     def start(self, with_lsl=False):
         self.running = True
@@ -143,11 +156,14 @@ class Session:
                 self.win.flip()
 
                 exp_module.entry(
-                    win_session=self.win,
-                    clock_session=self.trialClock,
-                    lsl_outlet_session=self.lsl_outlet,
-                    config=self.cfg.exps[name],
-                    logger_session=self.logger,
+                    Experiment(
+                        win=self.win,
+                        clock=self.trialClock,
+                        lsl_outlet=self.lsl_outlet,
+                        config=self.cfg.exps[name],
+                        logger=self.logger,
+                        session_info=self.session_info,
+                    )
                 )
 
                 end_msg = visual.TextStim(
@@ -214,6 +230,8 @@ def run_session(cfg: DictConfig):
     if cfg.debug:
         print(cfg)
     session = Session(cfg)
+    session.add_session_info()
+
     exps = session.discover_experiments()
     selected = session.select_experiments_gui(exps)
     sort = session.sort_experiments(selected)

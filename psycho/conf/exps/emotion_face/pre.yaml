@@ -1,0 +1,22 @@
+n_blocks: 1
+n_trials_per_block: 10
+
+timing:
+  fixation: 0.5
+  stim: 1.0
+  max_response: 2.0
+  emotion_select: 1.0
+  rest: 3
+
+stim_folder: emotion-face
+response_map:
+  left: positive
+  right: negative
+
+emotion_labels:
+  快乐: happy
+  悲伤: sad
+  愤怒: angry
+  恐惧: fear
+  厌恶: disgust
+  中性: neutral

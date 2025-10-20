@@ -6,6 +6,7 @@ from omegaconf import DictConfig
 from psychopy import core, event, tools, visual
 from pylsl import StreamOutlet
 
+from psycho.session import Experiment
 from psycho.utils import init_lsl, parse_stim_path, send_marker, setup_default_logger
 
 # TODO: logger
@@ -308,26 +309,20 @@ def run_exp(cfg: DictConfig | None):
         post_block()
 
 
-def entry(
-    win_session: visual.Window | None = None,
-    clock_session: core.Clock | None = None,
-    lsl_outlet_session: StreamOutlet | None = None,
-    config: DictConfig | None = None,
-    logger_session: logging.Logger | None = None,
-):
+def entry(exp: Experiment):
     global win, clock, lsl_outlet, block_index, logger
-    win = win_session if win_session else visual.Window(monitor="testMonitor", pos=(0, 0), fullscr=True, color="grey", units="norm")
+    win = exp.win or visual.Window(monitor="testMonitor", pos=(0, 0), fullscr=True, color="grey", units="norm")
 
-    clock = clock_session if clock_session else core.Clock()
-    logger = logger_session if logger_session else setup_default_logger()
+    clock = exp.clock or core.Clock()
+    logger = exp.logger or setup_default_logger()
 
-    lsl_outlet = lsl_outlet_session if lsl_outlet_session else init_lsl("PRTMarker")  # 初始化 LSL
+    lsl_outlet = exp.lsl_outlet or init_lsl("PRTMarker")  # 初始化 LSL
 
-    if config is not None and "pre" in config:
-        run_exp(config.pre)
+    if exp.config is not None and "pre" in exp.config:
+        run_exp(exp.config.pre)
 
     send_marker(lsl_outlet, "EXPERIMENT_START")
-    run_exp(config.full if config is not None else None)
+    run_exp(exp.config.full if exp.config is not None else None)
     send_marker(lsl_outlet, "EXPERIMENT_END")
 
 

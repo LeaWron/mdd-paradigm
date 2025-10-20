@@ -1,14 +1,13 @@
-import logging
 import random
 
 from omegaconf import DictConfig
 from psychopy import core, event, visual
-from pylsl import StreamOutlet
 
 from psycho.session import Experiment
-from psycho.utils import adapt_image_stim_size, init_lsl, parse_stim_path, send_marker, setup_default_logger
+from psycho.utils import adapt_image_stim_size, init_lsl, parse_stim_path, send_marker, setup_default_logger, update_block, update_trial
 
 # === 参数设置 ===
+# TODO: 增加 neutral 和 intensity, 删除 arousal 和 valence
 n_blocks = 1
 n_trials_per_block = 10
 continue_keys = ["space"]
@@ -40,6 +39,24 @@ clock = None
 lsl_outlet = None
 block_index = 0
 logger = None
+
+# === 数据保存 ===
+data_to_save = {
+    "exp_start_time": [],
+    "exp_end_time": [],
+    "block_index": [],
+    "trial_index": [],
+    "trial_start_time": [],
+    "trial_end_time": [],
+    "stim": [],
+    "choice": [],
+    "rt": [],
+    "intensity": [],
+    "correct_rate": [],
+}
+
+one_trial_data = {key: None for key in data_to_save.keys()}
+one_block_data = {key: [] for key in data_to_save.keys()}
 
 
 def pre_block():
@@ -184,7 +201,7 @@ def run_exp(cfg: DictConfig | None):
         post_block()
 
 
-def entry(exp: Experiment):
+def entry(exp: Experiment | None = None):
     global win, clock, lsl_outlet, block_index, logger
     win = exp.win or visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
 

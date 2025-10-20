@@ -1,11 +1,8 @@
-import logging
-
 from omegaconf import DictConfig
 from psychopy import core, event, visual
-from pylsl import StreamOutlet
 
 from psycho.session import Experiment
-from psycho.utils import init_lsl, send_marker, setup_default_logger
+from psycho.utils import init_lsl, save_csv_data, send_marker, setup_default_logger, update_block, update_trial
 
 # === 实验参数 ===
 blocks_info = [
@@ -132,6 +129,24 @@ stim_sequence = {
     6: ["他人", "死亡", "自我", "生命"],
 }
 
+# === 数据保存 ===
+data_to_save = {
+    "exp_start_time": [],
+    "exp_end_time": [],
+    "block_index": [],
+    "trial_index": [],
+    "trial_start_time": [],
+    "trial_end_time": [],
+    "stim": [],
+    "stim_kind": [],
+    "choice": [],
+    "rt": [],
+    "correct_rate": [],
+}
+
+one_trial_data = {key: None for key in data_to_save.keys()}
+one_block_data = {key: [] for key in data_to_save.keys()}
+
 
 def pre_block():
     visual.TextStim(
@@ -151,9 +166,18 @@ def block():
     n_trials = blocks_info[block_index]["n_trials"]
     for local_trial_index in range(n_trials):
         trial_index = local_trial_index
+        one_trial_data["trial_index"] = trial_index
+        # 记录 trial 开始时间
+        one_trial_data["trial_start_time"] = clock.getTime()
+
         pre_trial()
         trial()
         post_trial()
+
+        # 记录 trial 结束时间
+        one_trial_data["trial_end_time"] = clock.getTime()
+
+        update_trial(one_trial_data, one_block_data)
 
 
 def post_block():
@@ -161,6 +185,10 @@ def post_block():
     win.flip()
     correct_rate = correct_count / blocks_info[block_index]["n_trials"]
     correct_count = 0
+
+    one_trial_data["correct_rate"] = correct_rate
+    update_trial(one_trial_data, one_block_data)
+
     visual.TextStim(
         win=win,
         text=f"在这个任务中你的正确率为: {correct_rate * 100:.2f}%\n你有{int(timing['rest'])}秒休息时间\n你可以直接按空格键继续",
@@ -214,6 +242,9 @@ def trial():
         stim_text = stim_sequence[block_index][trial_index]
         l_or_r = "left" if stim_text in left_stims else "right"
 
+        one_trial_data["stim"] = stim_text
+        one_trial_data["stim_kind"] = l_or_r
+
         stim = visual.TextStim(
             win=win,
             text=stim_text,
@@ -227,6 +258,7 @@ def trial():
         stim.draw()
 
         send_marker(lsl_outlet, "TRIAL_START")
+        on_set = clock.getTime()
         win.flip()
 
         # 可能还要再等一帧，确保所有刺激都被绘制
@@ -234,11 +266,13 @@ def trial():
         right_stim.draw()
         stim.draw()
         if l_or_r == "left":
-            return "f"
+            return "f", on_set
         else:
-            return "j"
+            return "j", on_set
 
-    stim_correct_resp = show_stim()
+    stim_correct_resp, on_set = show_stim()
+    # 记录刺激
+
     resp = event.waitKeys(maxWait=timing["max_wait_respond"], keyList=resp_keys, timeStamped=True)
     correct = False
     # 反应时
@@ -248,8 +282,13 @@ def trial():
     elif resp[0][0] == stim_correct_resp:
         correct = True
         send_marker(lsl_outlet, "CORRECT")
-        logger.info(f"Correct: {stim_correct_resp}")
+
+        one_trial_data["choice"] = resp[0][0]
+        one_trial_data["rt"] = resp[0][1] - on_set
+        logger.info(f"Correct: {stim_correct_resp}, rt: {one_trial_data['rt']:.3f}")
     else:
+        one_trial_data["choice"] = resp[0][0]
+        one_trial_data["rt"] = resp[0][1] - on_set
         send_marker(lsl_outlet, "INCORRECT")
         logger.info(f"Incorrect: {stim_correct_resp}")
 
@@ -319,12 +358,16 @@ def run_exp(cfg: DictConfig | None):
 
     for local_block_index in range(len(blocks_info)):
         block_index = local_block_index
+        one_trial_data["block_index"] = block_index
+
         pre_block()
         block()
         post_block()
 
+        update_block(one_block_data, data_to_save)
 
-def entry(exp: Experiment):
+
+def entry(exp: Experiment | None = None):
     """实验入口"""
     global win, clock, lsl_outlet, logger
     win = exp.win or visual.Window(fullscr=True, units="norm")
@@ -333,12 +376,22 @@ def entry(exp: Experiment):
 
     lsl_outlet = exp.lsl_outlet or init_lsl("D-IATMarker")
 
+    one_trial_data["exp_start_time"] = clock.getTime()
     send_marker(lsl_outlet, "EXPERIMENT_START")
     logger.info("实验开始")
 
     run_exp(exp.config.full if exp.config is not None else None)
+
+    # 记录实验结束时间
+    one_trial_data["exp_end_time"] = clock.getTime()
+
     send_marker(lsl_outlet, "EXPERIMENT_END")
     logger.info("实验结束")
+
+    if exp is not None:
+        update_trial(one_trial_data, one_block_data)
+        update_block(one_block_data, data_to_save)
+        save_csv_data(data_to_save, exp.session_info["save_path"] + "_iat")
 
 
 def main():

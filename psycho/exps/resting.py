@@ -108,7 +108,7 @@ def run_exp(cfg: DictConfig | None):
         post_block()
 
 
-def entry(exp: Experiment):
+def entry(exp: Experiment | None = None):
     global win, lsl_outlet, clock, logger
     win = exp.win or visual.Window(fullscr=True, color="grey", units="norm")
     clock = exp.clock or core.Clock()
@@ -121,8 +121,10 @@ def entry(exp: Experiment):
 
     # 正式实验
     send_marker(lsl_outlet, "EXPERIMENT_START")
+    logger.info("实验开始")
     run_exp(None if exp.config is None else exp.config.full)
     send_marker(lsl_outlet, "EXPERIMENT_END")
+    logger.info("实验结束")
 
 
 def main():

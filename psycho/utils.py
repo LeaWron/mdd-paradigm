@@ -4,6 +4,7 @@ import math
 import random
 import tkinter as tk
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import polars as pl
@@ -52,6 +53,7 @@ def send_marker(
     lsl_outlet: StreamOutlet,
     marker: str,
     timestamp: float | None = None,
+    is_pre: bool = False,
 ):
     """
     向 LSL 发送 marker
@@ -62,7 +64,8 @@ def send_marker(
     """
     if lsl_outlet is None:
         return
-    lsl_outlet.push_sample([marker], timestamp if timestamp is not None else local_clock())
+    if not is_pre:
+        lsl_outlet.push_sample([marker], timestamp if timestamp is not None else local_clock())
 
 
 # === session === #
@@ -210,16 +213,29 @@ def generate_trial_sequence(
     return stim_sequences
 
 
-def save_csv_data(data: dict[str, list], file_path: str | Path):
+def update_trial(one_trial_data: dict[str, Any], one_block_data: dict[str, list]):
+    for key, value in one_trial_data.items():
+        one_block_data[key].append(value)
+        one_trial_data[key] = None
+
+
+def update_block(one_block_data: dict[str, list], data_to_save: dict[str, list]):
+    for key, value in one_block_data.items():
+        data_to_save[key].extend(value)
+        one_block_data[key] = []
+
+
+def save_csv_data(data: dict[str, list], file_name: str | Path):
     """
     将实验数据保存为 CSV 文件
 
     Args:
         data (dict[str, list]): key 为列名, value 为该列的数据（长度需一致）
-        file_path (str | Path): 保存路径
+        file_name (str | Path): 保存文件名, 会保存到根目录的 data 文件下, 会自动添加 .csv 后缀
     """
-    file_path = Path(file_path)
-    file_path.parent.mkdir(parents=True, exist_ok=True)
+    base_path = Path(__file__).parent.parent / "data"
+    file_name = base_path / f"{file_name}.csv"
+    file_name.parent.mkdir(parents=True, exist_ok=True)
 
     max_len = max(len(v) for v in data.values()) if data else 0
     for _, v in data.items():
@@ -228,11 +244,11 @@ def save_csv_data(data: dict[str, list], file_path: str | Path):
 
     df = pl.DataFrame(data)
 
-    if file_path.exists():
-        with open(file_path, "a", encoding="utf-8", newline="") as f:
+    if file_name.exists():
+        with open(file_name.with_suffix(".csv"), "a", encoding="utf-8", newline="") as f:
             df.write_csv(f, include_header=False)
     else:
-        df.write_csv(file_path)
+        df.write_csv(file_name)
 
 
 def setup_default_logger():

@@ -118,6 +118,7 @@ class Session:
         # 受试信息
         dlg.addField(label="受试信息", key="participant_id")
         # ..... 其他信息
+        dlg.addField(label="数据保存路径", initial="", key="save_path", required=True, tip="csv 数据会保存到 data 目录下, 这里需要指定一个前缀")
 
         ok_data = dlg.show()
         if not dlg.OK:

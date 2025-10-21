@@ -4,6 +4,7 @@ from psychopy import core, event, visual
 from psycho.session import Experiment
 from psycho.utils import init_lsl, save_csv_data, send_marker, setup_default_logger, update_block, update_trial
 
+# TODO: 刺激词
 # === 实验参数 ===
 blocks_info = [
     {
@@ -389,9 +390,11 @@ def entry(exp: Experiment | None = None):
     logger.info("实验结束")
 
     if exp is not None:
+        logger.info("保存数据")
         update_trial(one_trial_data, one_block_data)
         update_block(one_block_data, data_to_save)
-        save_csv_data(data_to_save, exp.session_info["save_path"] + "_iat")
+
+        save_csv_data(data_to_save, exp.session_info["save_path"] + "-iat")
 
 
 def main():

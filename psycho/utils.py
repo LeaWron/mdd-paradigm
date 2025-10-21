@@ -3,6 +3,7 @@ import logging
 import math
 import random
 import tkinter as tk
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -231,11 +232,14 @@ def save_csv_data(data: dict[str, list], file_name: str | Path):
 
     Args:
         data (dict[str, list]): key 为列名, value 为该列的数据（长度需一致）
-        file_name (str | Path): 保存文件名, 会保存到根目录的 data 文件下, 会自动添加 .csv 后缀
+        file_name (str | Path): 保存文件名, 会保存到根目录的 data 文件夹下的当前日期文件夹, 会自动添加 .csv 后缀
     """
     base_path = Path(__file__).parent.parent / "data"
-    file_name = base_path / f"{file_name}.csv"
-    file_name.parent.mkdir(parents=True, exist_ok=True)
+    date_folder = base_path / datetime.now().strftime("%Y-%m-%d")
+    # 日期文件夹
+    date_folder.mkdir(parents=True, exist_ok=True)
+
+    file_name = (date_folder / f"{file_name}").with_suffix(".csv")
 
     max_len = max(len(v) for v in data.values()) if data else 0
     for _, v in data.items():
@@ -245,7 +249,7 @@ def save_csv_data(data: dict[str, list], file_name: str | Path):
     df = pl.DataFrame(data)
 
     if file_name.exists():
-        with open(file_name.with_suffix(".csv"), "a", encoding="utf-8", newline="") as f:
+        with open(file_name, "a", encoding="utf-8", newline="") as f:
             df.write_csv(f, include_header=False)
     else:
         df.write_csv(file_name)

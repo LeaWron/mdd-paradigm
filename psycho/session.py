@@ -11,8 +11,6 @@ from psychopy import core, event, gui, prefs, visual
 
 from psycho.utils import init_lsl, send_marker, switch_keyboard_layout
 
-# TODO: session 信息填写
-
 # 全局设置
 prefs.general["defaultTextFont"] = "Arial"
 prefs.general["defaultTextSize"] = 0.05
@@ -112,18 +110,26 @@ class Session:
         session_info = dict()
         dlg = gui.Dlg(title="Session Info", screen=0)
         # 序号
-        dlg.addField(label="Session ID", key="session_id", required=True)
+        dlg.addField(label="Session ID *", key="session_id", required=True)
         # 日期
         dlg.addFixedField(label="日期", initial=datetime.now().strftime("%Y-%m-%d"), key="date")
         # 受试信息
         dlg.addField(label="受试信息", key="participant_id")
         # ..... 其他信息
-        dlg.addField(label="数据保存路径", initial="", key="save_path", required=True, tip="csv 数据会保存到 data 目录下, 这里需要指定一个前缀")
+        dlg.addField(
+            label="数据保存路径",
+            initial="",
+            key="save_path",
+            tip="csv 数据会保存到 data 目录下当前日期下, 这里需要指定一个前缀, 默认会是 session_id",
+        )
 
         ok_data = dlg.show()
         if not dlg.OK:
             core.quit()
+        if not ok_data["save_path"]:
+            ok_data["save_path"] = ok_data["session_id"]
         session_info.update(ok_data)
+
         self.session_info = session_info
         if self.cfg.debug:
             print(session_info)

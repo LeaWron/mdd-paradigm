@@ -5,18 +5,24 @@ timing:
   fixation: 0.5
   stim: 1.0
   max_response: 2.0
-  emotion_select: 1.0
   rest: 20.0
 
-stim_folder: emotion-face
+phase_prompt: |
+  接下来是正式实验, 实验方式与预实验相同
+  仅有实验次数不同
+  请按空格键继续
+
 response_map:
   left: positive
+  down: neutral
   right: negative
 
-emotion_labels:
-  快乐: happy
-  悲伤: sad
-  愤怒: angry
-  恐惧: fear
-  厌恶: disgust
-  中性: neutral
+intensity_prompt: "请选择情感的强度"
+intensity_ticks:
+  start: 1
+  end: 9
+
+intensity_tips:
+  - 最弱
+  - 中等
+  - 最强

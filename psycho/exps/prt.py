@@ -86,7 +86,6 @@ one_block_data = {key: [] for key in data_to_save.keys()}
 
 
 # ========== 工具函数 ==========
-# TODO: something about the reward
 def give_reward(choice: str, right_choice: str):
     """根据选择和当前高值侧决定奖励"""
     if reward_indice is not None:
@@ -226,10 +225,11 @@ def trial():
             )
             long_mouth_stim.draw()
         win.flip()
+        on_set = clock.getTime()
         core.wait(timing["stim"])
-        return empty_face_stim, "s" if long_or_short == "short" else "l"
+        return empty_face_stim, on_set, "s" if long_or_short == "short" else "l"
 
-    empty_stim, long_or_short = show_stim()
+    empty_stim, on_set, long_or_short = show_stim()
     empty_stim.draw()
     win.flip()
 
@@ -241,7 +241,7 @@ def trial():
     rt = None
     if keys:
         choice = keys[0][0]
-        rt = keys[0][1]
+        rt = keys[0][1] - on_set
         # 记录反应时
         one_trial_data["choice"] = choice
         one_trial_data["rt"] = rt
@@ -398,10 +398,11 @@ def entry(exp: Experiment | None = None):
     one_trial_data["exp_end_time"] = clock.getTime()
 
     if exp.config is not None:
+        logger.info("保存数据")
         update_trial(one_trial_data, one_block_data)
         update_block(one_block_data, data_to_save)
 
-        save_csv_data(data_to_save, exp.session_info["save_path"] + "_prt")
+        save_csv_data(data_to_save, exp.session_info["save_path"] + "-prt")
 
 
 def main():

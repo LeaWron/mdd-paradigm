@@ -105,11 +105,3 @@ if __name__ == "__main__":
 `uv run -m psycho.main` 进入一个 session
 
 如果想单独运行一个实验，需要通过 ``uv run -m psycho.exps.<paradigm> # 没有.py``
-
-## TODO
-
-使用 `hydra` 来管理配置
-
-随机生成序列并固定
-
-将 反应时 之类的数据保存为 csv

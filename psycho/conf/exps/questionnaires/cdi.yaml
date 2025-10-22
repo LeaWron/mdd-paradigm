@@ -1,0 +1,219 @@
+name: CDI
+
+items:
+  - text: 1
+    label:
+      - tip: 我偶尔感到悲伤
+        value: 0
+      - tip: 我经常感到悲伤
+        value: 1
+      - tip: 我总是感到悲伤
+        value: 2
+  - text: 2
+    label:
+      - tip: 我的将来不会有什么好的事情发生
+        value: 2
+      - tip: 我不能肯定我的将来会有什么好事情发生
+        value: 1
+      - tip: 我的将来会有好的事情发生
+        value: 0
+  - text: 3
+    label:
+      - tip: 绝大多数事情我都做得不错
+        value: 0
+      - tip: 许多事情我都做错了
+        value: 1
+      - tip: 我做的每一件事情都是错的
+        value: 2
+  - text: 4
+    label:
+      - tip: 我的生活中有许多让我开心的事情
+        value: 0
+      - tip: 我的生活中有一些让我开心的事情
+        value: 1
+      - tip: 没有什么事情是让我开心的
+        value: 2
+  - text: 5
+    label:
+      - tip: 我总是做不好事情
+        value: 2
+      - tip: 我许多时候都做不好事情
+        value: 1
+      - tip: 我偶尔做不好事情
+        value: 0
+  - text: 6
+    label:
+      - tip: 我偶尔会想到不好的事情会发生在我身上
+        value: 0
+      - tip: 我担心不好的事情将发生在我身上
+        value: 1
+      - tip: 我确信有可怕的事情将发生在我身上
+        value: 2
+  - text: 7
+    label:
+      - tip: 我恨我自己
+        value: 2
+      - tip: 我不喜欢我自己
+        value: 1
+      - tip: 我喜欢自己
+        value: 0
+  - text: 8
+    label:
+      - tip: 所有的坏事情都是我的错
+        value: 2
+      - tip: 许多坏事情是我的错
+        value: 1
+      - tip: 坏事情的发生通常不是我的错
+        value: 0
+  - text: 9
+    label:
+      - tip: 我从没有想过自杀
+        value: 0
+      - tip: 我有自杀的想法，但我不会去做
+        value: 1
+      - tip: 我想自杀
+        value: 2
+  - text: 10
+    label:
+      - tip: 每天我都想哭
+        value: 0
+      - tip: 许多时候我想哭
+        value: 1
+      - tip: 偶尔我想哭
+        value: 2
+  - text: 11
+    label:
+      - tip: 总是有事情烦我
+        value: 2
+      - tip: 许多时候有事情烦我
+        value: 1
+      - tip: 偶尔有事情烦我
+        value: 0
+  - text: 12
+    label:
+      - tip: 我喜欢与别人在一起
+        value: 0
+      - tip: 许多时候我不喜欢与别人在一起
+        value: 1
+      - tip: 我总是不喜欢与别人在一起
+        value: 2
+  - text: 13
+    label:
+      - tip: 我不能做出决定
+        value: 2
+      - tip: 我难以做出决定
+        value: 1
+      - tip: 我很容易做出决定
+        value: 0
+  - text: 14
+    label:
+      - tip: 我长得不错
+        value: 0
+      - tip: 我有些地方长得不好
+        value: 1
+      - tip: 我长得丑陋
+        value: 2
+  - text: 15
+    label:
+      - tip: 我总是要逼自己去做我的功课
+        value: 2
+      - tip: 许多时候我要逼自己去做我的功课
+        value: 1
+      - tip: 对我来说，学校的功课不是大问题
+        value: 0
+  - text: 16
+    label:
+      - tip: 每天晚上我都睡不安
+        value: 2
+      - tip: 许多晚上我都睡不好
+        value: 1
+      - tip: 我的睡眠很好
+        value: 0
+  - text: 17
+    label:
+      - tip: 偶尔我感到疲乏
+        value: 0
+      - tip: 许多时候我感到疲乏
+        value: 1
+      - tip: 我总是感到疲乏
+        value: 2
+  - text: 18
+    label:
+      - tip: 大多数日子里我的食欲不好
+        value: 2
+      - tip: 许多时候我的食欲不好
+        value: 1
+      - tip: 我的食欲不错
+        value: 0
+  - text: 19
+    label:
+      - tip: 我不担心疼痛
+        value: 0
+      - tip: 许多时候我担心疼痛
+        value: 1
+      - tip: 我总是担心疼痛
+        value: 2
+  - text: 20
+    label:
+      - tip: 我不感到孤单
+        value: 0
+      - tip: 许多时候我感到孤单
+        value: 1
+      - tip: 我总是感到孤单
+        value: 2
+  - text: 21
+    label:
+      - tip: 学校里没有事情让我开心
+        value: 2
+      - tip: 在学校里有时有事情让我感到开心
+        value: 1
+      - tip: 在学校里许多时候我感到开心
+        value: 0
+  - text: 22
+    label:
+      - tip: 我有许多朋友
+        value: 0
+      - tip: 我有一些朋友，但我希望有更多
+        value: 1
+      - tip: 我没有任何朋友
+        value: 2
+  - text: 23
+    label:
+      - tip: 我的功课不错
+        value: 0
+      - tip: 我的功课不如过去了
+        value: 1
+      - tip: 我以前很好的科目现在却很不好
+        value: 2
+  - text: 24
+    label:
+      - tip: 我从来就不如别的小孩
+        value: 2
+      - tip: 如果我想好的话，我就能像别的孩子一样好
+        value: 1
+      - tip: 我同别的孩子一样好
+        value: 0
+  - text: 25
+    label:
+      - tip: 没有人真正爱我
+        value: 2
+      - tip: 我不能确定是否有人爱我
+        value: 1
+      - tip: 我确定有人爱我
+        value: 0
+  - text: 26
+    label:
+      - tip: 我常常做别人要我做的事
+        value: 0
+      - tip: 大多数情况下，我不会做别人要我做的事
+        value: 1
+      - tip: 我从不做别人要我做的事
+        value: 2
+  - text: 27
+    label:
+      - tip: 我能与人相处得不错
+        value: 0
+      - tip: 许多时候我与人有冲突
+        value: 1
+      - tip: 我总是与人冲突
+        value: 2

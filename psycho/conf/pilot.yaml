@@ -1,9 +1,10 @@
 defaults:
+  - session: config
   - exps@exps.diat.full: diat/pre
   - exps@exps.emotion_face.full: emotion_face/pre
   - exps@exps.prt.full: prt/pre
   - exps@exps.resting.full: resting/pre
-  - session: config
+  - exps@exps.questionnaires: questionnaires/config
 
 project_root: ${hydra:runtime.cwd}
 pkg_root: ${project_root}/psycho

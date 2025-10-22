@@ -1,4 +1,5 @@
 default_order:
+  - "questionnaires"
   - "resting"
   - "emotion_face"
   - "diat"

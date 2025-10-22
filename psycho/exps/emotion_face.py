@@ -17,7 +17,6 @@ from psycho.utils import (
 )
 
 # === 参数设置 ===
-# TODO: save and logger
 n_blocks = 1
 n_trials_per_block = 10
 continue_keys = ["space"]

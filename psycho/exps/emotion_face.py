@@ -8,6 +8,7 @@ from psycho.utils import (
     adapt_image_stim_size,
     generate_trial_sequence,
     init_lsl,
+    into_stim_str,
     parse_stim_path,
     save_csv_data,
     send_marker,
@@ -18,7 +19,7 @@ from psycho.utils import (
 
 # === 参数设置 ===
 n_blocks = 1
-n_trials_per_block = 10
+n_trials_per_block = 5
 continue_keys = ["space"]
 
 timing = {
@@ -30,7 +31,7 @@ timing = {
 }
 
 stim_folder = parse_stim_path("emotion-face")
-stim_items = list(stim_folder.glob("*"))
+stim_items = list(stim_folder.glob("*.BMP"))
 
 response_map = {"left": "positive", "down": "neutral", "right": "negative"}
 
@@ -59,6 +60,14 @@ stim_sequence = generate_trial_sequence(
     stim_weights=None,
 )
 
+for block, stims in stim_sequence.items():
+    block_seq = []
+    for stim_path in stims:
+        stim_str = into_stim_str(stim_path)
+        block_seq.append({"stim_path": stim_str, "label": 0})
+    stim_sequence[block] = block_seq
+
+
 # === 数据保存 ===
 data_to_save = {
     "exp_start_time": [],
@@ -68,6 +77,7 @@ data_to_save = {
     "trial_start_time": [],
     "trial_end_time": [],
     "stim": [],
+    "label_intensity": [],
     "choice": [],
     "rt": [],
     "intensity": [],
@@ -123,19 +133,22 @@ def pre_trial():
 def trial():
     global correct_count
 
-    def get_stim_kind(stim_item: Path):
-        if stim_item.name.startswith("p"):
-            label = "positive"
-        elif stim_item.name.startswith("n"):
-            label = "negative"
+    def get_stim_kind(stim_item_path: Path):
+        stim_item = parse_stim_path(stim_item_path)
+        seq = int(stim_item.stem.rsplit("-", 1)[-1])
+        if seq < 10:
+            kind_label = "positive"
+        elif seq > 11:
+            kind_label = "negative"
         else:
-            label = "neutral"
-        return label
+            kind_label = "neutral"
+        return stim_item, kind_label
 
-    stim_item = stim_sequence[block_index][trial_index]
-    label = get_stim_kind(stim_item)
+    stim_path: str = stim_sequence[block_index][trial_index]["stim_path"]
+    stim_item, kind_label = get_stim_kind(stim_path)
 
-    one_trial_data["stim"] = label
+    one_trial_data["stim"] = kind_label
+    one_trial_data["label_intensity"] = stim_sequence[block_index][trial_index]["label"]
 
     stim_height, aspect_ratio = adapt_image_stim_size(stim_item, 1)
 
@@ -146,7 +159,6 @@ def trial():
     )
     stimulus.draw()
     win.flip()
-    on_set = clock.getTime()
     send_marker(
         lsl_outlet,
         "TRIAL_START",
@@ -157,15 +169,17 @@ def trial():
     judge_stim = visual.TextStim(win, text="请判断这张图片中的人脸的情绪类别", color="white", wrapWidth=2)
     judge_stim.draw()
     win.flip()
+    on_set = clock.getTime()
 
     keys = event.waitKeys(maxWait=timing["max_response"], keyList=list(response_map.keys()), timeStamped=True)
+    resp_emotion = None
 
     if keys:
         key, rt = keys[0]
         rt -= on_set
 
         resp_emotion = response_map.get(key, None)
-        correct = resp_emotion == label
+        correct = resp_emotion == kind_label
         if correct:
             correct_count += 1
         one_trial_data["choice"] = resp_emotion
@@ -197,7 +211,8 @@ def trial():
     button_text = visual.TextStim(win, text="确认", color="white", pos=(0, -0.5), height=0.1)
 
     mouse = event.Mouse(win=win)
-    while True:
+    # 选择中性的时候不打分
+    while resp_emotion != "neutral" and True:
         prompt.draw()
         slider.draw()
 
@@ -216,11 +231,15 @@ def trial():
         if slider.rating is not None and mouse.isPressedIn(button_box):
             intensity = slider.getValue()
             one_trial_data["intensity"] = intensity
+
+            logger.info(f"intensity: {intensity}")
+            send_marker(lsl_outlet, "RESPONSE_2", is_pre=pre)
             break
 
-        send_marker(lsl_outlet, "RESPONSE_2", is_pre=pre)
-
-    logger.info(f"intensity: {intensity}")
+    # 选择了中性情绪, 则强度为0
+    if resp_emotion == "neutral":
+        one_trial_data["intensity"] = 0
+        send_marker(lsl_outlet, "RESPONSE_3", is_pre=pre)
 
 
 def post_trial():

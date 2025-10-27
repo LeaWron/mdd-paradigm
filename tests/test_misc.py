@@ -2,6 +2,13 @@ import pytest
 from psychopy import core, event, gui, prefs, visual
 
 
+def test_misc():
+    string = "a-b-c-d"
+    print(string.rsplit("-", 1))
+
+    pass
+
+
 @pytest.mark.skip(reason="暂时不测试这个函数")
 def test_gui():
     myDlg = gui.Dlg(title="Go-nogo 任务")

@@ -243,3 +243,39 @@ def test_generate_prt(
 
     with open(Path(seq_save_path).with_suffix(".yaml"), "w", encoding="utf-8") as f:
         yaml.dump(sequence, f, allow_unicode=True, indent=2)
+
+
+@pytest.mark.skip(reason="已生成")
+def test_generate_emotion_face(
+    n_blocks: int = 3,
+    n_trials_per_block: int = 60,
+    max_seq_same: int = 1,
+    stim_folder: str | Path = "emotion-face",
+    seq_save_path: str | Path = "./emotion_face_sequence",
+):
+    from psycho.utils import into_stim_str, parse_stim_path
+
+    stim_folder = parse_stim_path(stim_folder)
+    stim_sub_folder = list(stim_folder.glob("*-*"))
+    np.random.shuffle(stim_sub_folder)
+
+    sequence = defaultdict(list)
+
+    for block_index in range(n_blocks):
+        block_seq = []
+        while True:
+            sub_folder = stim_sub_folder.pop()
+            stim_item = list(sub_folder.glob("*.BMP"))
+            for i in range(9):
+                block_seq.append({"stim_path": into_stim_str(stim_item[i]), "label": 9 - i})
+                block_seq.append({"stim_path": into_stim_str(stim_item[-i]), "label": 9 - i})
+            block_seq.append({"stim_path": into_stim_str(stim_item[10]), "label": 0})
+            block_seq.append({"stim_path": into_stim_str(stim_item[9]), "label": 0})
+
+            if len(block_seq) >= n_trials_per_block:
+                break
+        np.random.shuffle(block_seq)
+        sequence[block_index].extend(block_seq)
+
+    with open(Path(seq_save_path).with_suffix(".yaml"), "w", encoding="utf-8") as f:
+        yaml.dump(dict(sequence), f, allow_unicode=True, indent=2)

@@ -105,6 +105,20 @@ def parse_stim_path(stim: str) -> Path:
     return stim_path
 
 
+def into_stim_str(stim: Path) -> str:
+    """
+    将刺激路径转换为项目内相对路径字符串
+
+    Args:
+        stim (str | Path): 刺激字符串或路径
+    Returns:
+        str: 刺激路径字符串
+    """
+    stim_dir = Path(__file__).parent / "stims"
+    stim = str(stim.relative_to(stim_dir))
+    return stim
+
+
 def adapt_image_stim_size(stim_path: Path, max_height: float = 2.0):
     """
     调整图像刺激大小, 使图像在保持宽高比的前提下, 能被屏幕正好容纳下

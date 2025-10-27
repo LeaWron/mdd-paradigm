@@ -1,5 +1,8 @@
-n_blocks: 3
-n_trials_per_block: 90
+defaults:
+  - emotion_face@stim_sequence: sequence
+
+n_blocks: 1
+n_trials_per_block: 10
 
 timing:
   fixation: 0.5

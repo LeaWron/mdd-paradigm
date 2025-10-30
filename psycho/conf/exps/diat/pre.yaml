@@ -20,9 +20,9 @@ blocks_info:
 
       按下空格键开始
     left_kinds:
-      - 生命
+      - 积极
     right_kinds:
-      - 死亡
+      - 消极
   - n_trials: 2
     prompt: |
       注意上方，之前各自呈现的四个类别标签现在一起出现
@@ -34,10 +34,10 @@ blocks_info:
       按下空格键开始
     left_kinds:
       - 自我
-      - 生命
+      - 积极
     right_kinds:
       - 他人
-      - 死亡
+      - 消极
   - n_trials: 4
     prompt: |
       再次对同样的四个类别进行分类。记住尽可能快速且准确地作出反应
@@ -47,10 +47,10 @@ blocks_info:
       按下空格键开始
     left_kinds:
       - 自我
-      - 生命
+      - 积极
     right_kinds:
       - 他人
-      - 死亡
+      - 消极
   - n_trials: 2
     prompt: |
       注意上方，只有两个类别标签，但互换了位置
@@ -70,10 +70,10 @@ blocks_info:
       按下空格键开始
     left_kinds:
       - 他人
-      - 生命
+      - 积极
     right_kinds:
       - 自我
-      - 死亡
+      - 消极
   - n_trials: 4
     prompt: |
       再次对同样的四个类别进行分类。尽可能快速且准确地作出反应
@@ -82,17 +82,17 @@ blocks_info:
       按下空格键开始
     left_kinds:
       - 他人
-      - 生命
+      - 积极
     right_kinds:
       - 自我
-      - 死亡
+      - 消极
 
 key_blocks:
   - 3
   - 6
 
 start_prompt: |
-  接下来的任务中，将要求你对一组呈现的词语或图片进行分类。分类要尽可能地快，但同时又尽可能少犯错。
+  接下来的任务中，将要求你对一组呈现的词语进行分类。分类要尽可能地快，但同时又尽可能少犯错。
   下面列出了类别标签以及属于那些类别的项目。
 
   按空格键继续

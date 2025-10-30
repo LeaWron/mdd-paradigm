@@ -2,7 +2,14 @@ from omegaconf import DictConfig
 from psychopy import core, event, visual
 
 from psycho.session import Experiment
-from psycho.utils import init_lsl, save_csv_data, send_marker, setup_default_logger, update_block, update_trial
+from psycho.utils import (
+    init_lsl,
+    save_csv_data,
+    send_marker,
+    setup_default_logger,
+    update_block,
+    update_trial,
+)
 
 # TODO: 刺激词
 # === 实验参数 ===
@@ -116,8 +123,38 @@ start_prompt = """接下来的任务中，将要求你对一组呈现的词语�
 stims = {
     "自我": ["我", "自己", "我的", "本人", "自我", "我辈"],
     "他人": ["他", "她", "它", "他们", "她们", "它们", "他人", "某人", "旁人"],
-    "生命": ["生命", "生存", "生活", "活力", "存在", "生机", "成长", "呼吸", "心跳", "生长", "繁衍", "生育", "活着"],
-    "死亡": ["死亡", "逝去", "去世", "故去", "亡故", "离世", "逝者", "终结", "消亡", "死去", "辞世", "殒命", "过世", "死", "夭折"],
+    "生命": [
+        "生命",
+        "生存",
+        "生活",
+        "活力",
+        "存在",
+        "生机",
+        "成长",
+        "呼吸",
+        "心跳",
+        "生长",
+        "繁衍",
+        "生育",
+        "活着",
+    ],
+    "死亡": [
+        "死亡",
+        "逝去",
+        "去世",
+        "故去",
+        "亡故",
+        "离世",
+        "逝者",
+        "终结",
+        "消亡",
+        "死去",
+        "辞世",
+        "殒命",
+        "过世",
+        "死",
+        "夭折",
+    ],
 }
 stim_kinds = list(stims.keys())
 stim_sequence = {
@@ -274,7 +311,9 @@ def trial():
     stim_correct_resp, on_set = show_stim()
     # 记录刺激
 
-    resp = event.waitKeys(maxWait=timing["max_wait_respond"], keyList=resp_keys, timeStamped=True)
+    resp = event.waitKeys(
+        maxWait=timing["max_wait_respond"], keyList=resp_keys, timeStamped=True
+    )
     correct = False
     # 反应时
     if resp is None:

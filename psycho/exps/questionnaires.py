@@ -51,7 +51,9 @@ def pre_trial():
 
 def trial():
     global score
-    item_text = visual.TextStim(win, text=item["text"], height=0.12, wrapWidth=2, pos=(0, 0.4))
+    item_text = visual.TextStim(
+        win, text=item["text"], height=0.12, wrapWidth=2, pos=(0, 0.4)
+    )
     label_info = item["label"]
     labels = [label_info[i]["tip"] for i in range(len(label_info))]
     item_label = visual.Slider(

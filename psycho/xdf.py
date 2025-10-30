@@ -21,7 +21,9 @@ def parse_xdf(max_samples: int | None = None):
         timestamps = stream["time_stamps"]
 
         n_samples = len(timestamps)
-        print(f"[{i}] {name} (type={stype}, channel_count={n_channels}, 采样率={nominal_srate} Hz)")
+        print(
+            f"[{i}] {name} (type={stype}, channel_count={n_channels}, 采样率={nominal_srate} Hz)"
+        )
         print(f"    样本数: {n_samples}")
 
         # 计算要打印的样本数
@@ -34,14 +36,18 @@ def parse_xdf(max_samples: int | None = None):
         if stype.lower() in ["markers", "marker", "event"]:
             print(f"    事件数: {len(timestamps)}")
             for j in range(n_show):
-                value = data[j][0] if isinstance(data[j], (list, np.ndarray)) else data[j]
+                value = (
+                    data[j][0] if isinstance(data[j], (list, np.ndarray)) else data[j]
+                )
                 print(f"      t={timestamps[j]:.3f}s, value={value!r}")
         else:
             # 连续流（EEG, ACC, 等）
             print(f"    前{n_show}个样本:")
             for j in range(n_show):
                 d = np.array(data[j])
-                short_data = np.array2string(d, precision=3, separator=", ", threshold=10)
+                short_data = np.array2string(
+                    d, precision=3, separator=", ", threshold=10
+                )
                 print(f"      t={timestamps[j]:.4f}s, data={short_data}")
         print()
 

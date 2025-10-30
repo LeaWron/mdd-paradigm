@@ -99,7 +99,9 @@ def test_generate_nback(
     for block_index in range(n_blocks):
         candidate = []
         while True:
-            target_indices = np.random.choice(valid_range, size=target_count, replace=False).tolist()
+            target_indices = np.random.choice(
+                valid_range, size=target_count, replace=False
+            ).tolist()
             if check_nback(target_indices, n_back, max_seq_target):
                 break
 
@@ -226,11 +228,15 @@ def test_generate_prt(
 
         available_indices = set(range(n_trials_per_block))
 
-        high_indices = np.random.choice(list(available_indices), size=high_count, replace=False).tolist()
+        high_indices = np.random.choice(
+            list(available_indices), size=high_count, replace=False
+        ).tolist()
 
         available_indices -= set(high_indices)
 
-        low_indices = np.random.choice(list(available_indices), size=low_count, replace=False).tolist()
+        low_indices = np.random.choice(
+            list(available_indices), size=low_count, replace=False
+        ).tolist()
         sequence[block_index] = stim_seq
 
         idx_sequence[block_index] = {}
@@ -285,7 +291,9 @@ def test_generate_emotion_face(
         stim_item = list(sub_folder.glob("*.bmp"))
         for i in range(9):
             block_seq.append({"stim_path": into_stim_str(stim_item[i]), "label": 9 - i})
-            block_seq.append({"stim_path": into_stim_str(stim_item[-i - 1]), "label": 9 - i})
+            block_seq.append(
+                {"stim_path": into_stim_str(stim_item[-i - 1]), "label": 9 - i}
+            )
         block_seq.append({"stim_path": into_stim_str(stim_item[10]), "label": 0})
         block_seq.append({"stim_path": into_stim_str(stim_item[9]), "label": 0})
 

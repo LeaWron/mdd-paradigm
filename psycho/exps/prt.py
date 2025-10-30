@@ -5,7 +5,15 @@ from omegaconf import DictConfig
 from psychopy import core, event, tools, visual
 
 from psycho.session import Experiment
-from psycho.utils import init_lsl, parse_stim_path, save_csv_data, send_marker, setup_default_logger, update_block, update_trial
+from psycho.utils import (
+    init_lsl,
+    parse_stim_path,
+    save_csv_data,
+    send_marker,
+    setup_default_logger,
+    update_block,
+    update_trial,
+)
 
 # === 参数设置 ===
 n_blocks = 1
@@ -235,7 +243,9 @@ def trial():
 
     logger.info(f"Correct face: {long_or_short}")
     one_trial_data["stim"] = long_or_short
-    keys = event.waitKeys(maxWait=timing["response"], keyList=response_keys, timeStamped=True)
+    keys = event.waitKeys(
+        maxWait=timing["response"], keyList=response_keys, timeStamped=True
+    )
 
     choice = "no_response"
     rt = None
@@ -259,7 +269,9 @@ def trial():
 
     # feedback
     if reward > 0:
-        feedback_reward = visual.TextStim(win, text=f"正确!\n你获得了 {reward} 分", height=0.08, color="green")
+        feedback_reward = visual.TextStim(
+            win, text=f"正确!\n你获得了 {reward} 分", height=0.08, color="green"
+        )
         feedback_reward.draw()
         total_point += reward
         correct_count += 1
@@ -292,7 +304,9 @@ def get_stim_size() -> float:
     stim_size = 2 * np.tan(np.deg2rad(fov / 2)) * monitor_distance
 
     # stim_size = stim_size / (58.7 * 0.017455)
-    stim_size = tools.monitorunittools.cm2pix(stim_size, win.monitor)  #  58.7 为 27 寸显示器宽度
+    stim_size = tools.monitorunittools.cm2pix(
+        stim_size, win.monitor
+    )  #  58.7 为 27 寸显示器宽度
 
     return stim_size  # 假设刺激大小与距离成比例
 
@@ -372,7 +386,9 @@ def run_exp(cfg: DictConfig | None):
 
 def entry(exp: Experiment | None = None):
     global win, clock, lsl_outlet, block_index, logger, pre
-    win = exp.win or visual.Window(monitor="testMonitor", pos=(0, 0), fullscr=True, color="grey", units="norm")
+    win = exp.win or visual.Window(
+        monitor="testMonitor", pos=(0, 0), fullscr=True, color="grey", units="norm"
+    )
 
     clock = exp.clock or core.Clock()
     logger = exp.logger or setup_default_logger()
@@ -384,7 +400,9 @@ def entry(exp: Experiment | None = None):
         while True:
             run_exp(exp.config.pre)
 
-            commit_text = "是否需要再次进行预实验?\n按 y 键再次进行预实验, 按 n 键结束预实验"
+            commit_text = (
+                "是否需要再次进行预实验?\n按 y 键再次进行预实验, 按 n 键结束预实验"
+            )
             prompt = visual.TextStim(
                 win,
                 text=commit_text,

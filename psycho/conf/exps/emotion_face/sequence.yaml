@@ -1,363 +1,322 @@
 0:
-  - label: 4
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-06.bmp
-  - label: 8
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-02.bmp
-  - label: 2
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-08.bmp
-  - label: 4
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-06.bmp
-  - label: 5
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-05.bmp
-  - label: 3
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-07.bmp
-  - label: 4
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-16.bmp
   - label: 9
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-01.bmp
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-20.bmp
   - label: 5
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-17.bmp
-  - label: 2
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-08.bmp
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-05.bmp
   - label: 6
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-18.bmp
-  - label: 7
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-03.bmp
-  - label: 1
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-13.bmp
-  - label: 5
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-17.bmp
-  - label: 9
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-01.bmp
-  - label: 7
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-03.bmp
-  - label: 8
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-20.bmp
-  - label: 7
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-19.bmp
-  - label: 8
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-20.bmp
-  - label: 8
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-20.bmp
-  - label: 5
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-05.bmp
-  - label: 2
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-14.bmp
-  - label: 8
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-02.bmp
-  - label: 6
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-18.bmp
-  - label: 7
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-19.bmp
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-17.bmp
   - label: 3
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-15.bmp
-  - label: 2
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-14.bmp
-  - label: 6
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-04.bmp
-  - label: 1
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-13.bmp
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-14.bmp
+  - label: 8
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-19.bmp
   - label: 3
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-15.bmp
-  - label: 0
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-10.bmp
-  - label: 6
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-04.bmp
-  - label: 3
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-07.bmp
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-07.bmp
+  - label: 8
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-02.bmp
   - label: 7
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-03.bmp
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-18.bmp
   - label: 4
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-16.bmp
-  - label: 2
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-14.bmp
-  - label: 5
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-17.bmp
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-15.bmp
   - label: 9
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-01.bmp
-  - label: 1
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-09.bmp
-  - label: 4
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-06.bmp
-  - label: 8
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-02.bmp
-  - label: 3
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-15.bmp
-  - label: 0
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-10.bmp
-  - label: 9
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-01.bmp
-  - label: 4
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-16.bmp
-  - label: 2
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-08.bmp
-  - label: 9
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-01.bmp
-  - label: 1
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-09.bmp
-  - label: 0
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-11.bmp
-  - label: 6
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-04.bmp
-  - label: 3
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-07.bmp
-  - label: 0
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-11.bmp
-  - label: 5
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-05.bmp
-  - label: 6
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-18.bmp
-  - label: 1
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-09.bmp
-  - label: 1
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-13.bmp
-  - label: 9
-    stim_path: emotion-face\hf8-nef87-df2\hf8-nef87-df2-01.bmp
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-20.bmp
   - label: 7
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-19.bmp
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-18.bmp
+  - label: 5
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-16.bmp
+  - label: 4
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-06.bmp
+  - label: 6
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-04.bmp
+  - label: 9
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-01.bmp
+  - label: 1
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-12.bmp
+  - label: 9
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-01.bmp
+  - label: 1
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-12.bmp
+  - label: 9
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-20.bmp
+  - label: 2
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-08.bmp
+  - label: 3
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-14.bmp
+  - label: 6
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-17.bmp
+  - label: 4
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-06.bmp
+  - label: 3
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-07.bmp
+  - label: 8
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-02.bmp
+  - label: 7
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-03.bmp
   - label: 0
-    stim_path: emotion-face\hm102-nem109-am18\hm102-nem109-am18-10.bmp
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-11.bmp
   - label: 0
-    stim_path: emotion-face\hm112-nem99-am37\hm112-nem99-am37-11.bmp
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-10.bmp
+  - label: 6
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-04.bmp
+  - label: 3
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-14.bmp
+  - label: 0
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-11.bmp
+  - label: 7
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-18.bmp
+  - label: 5
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-05.bmp
+  - label: 4
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-06.bmp
+  - label: 2
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-08.bmp
+  - label: 8
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-02.bmp
+  - label: 8
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-19.bmp
+  - label: 5
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-16.bmp
+  - label: 2
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-13.bmp
+  - label: 8
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-02.bmp
+  - label: 2
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-13.bmp
+  - label: 1
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-12.bmp
+  - label: 1
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-09.bmp
+  - label: 3
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-07.bmp
+  - label: 7
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-03.bmp
+  - label: 9
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-01.bmp
+  - label: 4
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-15.bmp
+  - label: 7
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-18.bmp
+  - label: 5
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-16.bmp
+  - label: 0
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-11.bmp
+  - label: 0
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-10.bmp
+  - label: 5
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-16.bmp
+  - label: 0
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-10.bmp
+  - label: 6
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-17.bmp
+  - label: 6
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-04.bmp
+  - label: 3
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-07.bmp
+  - label: 2
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-08.bmp
+  - label: 3
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-14.bmp
+  - label: 7
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-03.bmp
+  - label: 1
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-12.bmp
+  - label: 5
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-05.bmp
+  - label: 1
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-09.bmp
+  - label: 0
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-11.bmp
+  - label: 2
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-13.bmp
+  - label: 8
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-19.bmp
+  - label: 9
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-20.bmp
+  - label: 9
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-01.bmp
+  - label: 6
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-04.bmp
+  - label: 4
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-15.bmp
+  - label: 1
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-09.bmp
+  - label: 4
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-15.bmp
+  - label: 1
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-09.bmp
+  - label: 2
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-13.bmp
+  - label: 5
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-05.bmp
+  - label: 6
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-17.bmp
+  - label: 4
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-06.bmp
+  - label: 7
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-03.bmp
+  - label: 2
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-08.bmp
+  - label: 8
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-19.bmp
+  - label: 0
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-10.bmp
 1:
-  - label: 6
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-18.bmp
-  - label: 7
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-19.bmp
-  - label: 6
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-04.bmp
-  - label: 9
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-01.bmp
-  - label: 3
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-07.bmp
-  - label: 6
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-18.bmp
-  - label: 5
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-05.bmp
-  - label: 5
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-17.bmp
-  - label: 0
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-11.bmp
-  - label: 7
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-03.bmp
-  - label: 2
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-08.bmp
-  - label: 1
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-13.bmp
-  - label: 5
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-17.bmp
-  - label: 6
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-04.bmp
-  - label: 9
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-01.bmp
-  - label: 0
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-10.bmp
-  - label: 7
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-03.bmp
-  - label: 9
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-01.bmp
-  - label: 6
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-04.bmp
-  - label: 8
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-20.bmp
   - label: 4
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-06.bmp
-  - label: 1
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-09.bmp
-  - label: 1
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-13.bmp
-  - label: 5
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-05.bmp
-  - label: 8
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-20.bmp
-  - label: 3
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-07.bmp
-  - label: 8
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-20.bmp
-  - label: 8
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-02.bmp
-  - label: 8
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-02.bmp
-  - label: 0
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-11.bmp
-  - label: 7
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-19.bmp
-  - label: 4
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-16.bmp
-  - label: 8
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-02.bmp
-  - label: 3
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-15.bmp
-  - label: 9
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-01.bmp
-  - label: 9
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-01.bmp
-  - label: 2
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-08.bmp
-  - label: 0
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-11.bmp
-  - label: 4
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-16.bmp
-  - label: 5
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-05.bmp
-  - label: 2
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-08.bmp
-  - label: 2
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-14.bmp
-  - label: 9
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-01.bmp
-  - label: 3
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-15.bmp
-  - label: 0
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-10.bmp
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-15.bmp
   - label: 6
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-18.bmp
-  - label: 4
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-16.bmp
-  - label: 3
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-15.bmp
-  - label: 2
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-14.bmp
-  - label: 2
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-14.bmp
-  - label: 7
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-03.bmp
-  - label: 1
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-09.bmp
-  - label: 4
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-06.bmp
-  - label: 7
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-19.bmp
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-04.bmp
   - label: 0
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-10.bmp
-  - label: 1
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-09.bmp
-  - label: 4
-    stim_path: emotion-face\hm49-nem92-sam13\hm49-nem92-sam13-06.bmp
-  - label: 1
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-13.bmp
-  - label: 5
-    stim_path: emotion-face\hf61-nef96-saf16\hf61-nef96-saf16-17.bmp
-  - label: 3
-    stim_path: emotion-face\hm91-nem104-am10\hm91-nem104-am10-07.bmp
-2:
-  - label: 8
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-20.bmp
-  - label: 3
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-07.bmp
-  - label: 4
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-16.bmp
-  - label: 1
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-13.bmp
-  - label: 9
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-01.bmp
-  - label: 5
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-05.bmp
-  - label: 2
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-14.bmp
-  - label: 7
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-19.bmp
-  - label: 4
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-16.bmp
-  - label: 9
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-01.bmp
-  - label: 8
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-20.bmp
-  - label: 1
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-09.bmp
-  - label: 4
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-06.bmp
-  - label: 7
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-19.bmp
-  - label: 4
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-06.bmp
-  - label: 9
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-01.bmp
-  - label: 2
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-14.bmp
-  - label: 5
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-05.bmp
-  - label: 3
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-07.bmp
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-11.bmp
   - label: 6
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-04.bmp
-  - label: 8
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-02.bmp
-  - label: 6
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-18.bmp
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-04.bmp
   - label: 9
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-01.bmp
-  - label: 0
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-10.bmp
-  - label: 3
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-15.bmp
-  - label: 7
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-03.bmp
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-01.bmp
   - label: 8
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-02.bmp
-  - label: 7
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-03.bmp
-  - label: 0
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-10.bmp
-  - label: 7
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-19.bmp
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-19.bmp
+  - label: 3
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-14.bmp
+  - label: 8
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-02.bmp
+  - label: 3
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-14.bmp
   - label: 5
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-05.bmp
-  - label: 0
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-11.bmp
-  - label: 3
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-15.bmp
-  - label: 6
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-18.bmp
-  - label: 3
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-07.bmp
-  - label: 6
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-18.bmp
-  - label: 6
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-04.bmp
-  - label: 8
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-02.bmp
-  - label: 9
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-01.bmp
-  - label: 9
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-01.bmp
-  - label: 1
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-13.bmp
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-16.bmp
+  - label: 2
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-08.bmp
   - label: 7
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-03.bmp
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-03.bmp
+  - label: 3
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-07.bmp
   - label: 1
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-13.bmp
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-12.bmp
+  - label: 7
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-18.bmp
+  - label: 2
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-13.bmp
   - label: 5
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-17.bmp
-  - label: 2
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-14.bmp
-  - label: 2
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-08.bmp
-  - label: 6
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-04.bmp
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-16.bmp
+  - label: 3
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-07.bmp
   - label: 1
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-09.bmp
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-12.bmp
+  - label: 0
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-11.bmp
+  - label: 7
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-03.bmp
   - label: 4
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-16.bmp
-  - label: 0
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-10.bmp
-  - label: 0
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-11.bmp
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-15.bmp
+  - label: 7
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-18.bmp
+  - label: 5
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-05.bmp
   - label: 1
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-09.bmp
-  - label: 2
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-08.bmp
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-09.bmp
   - label: 0
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-11.bmp
-  - label: 3
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-15.bmp
-  - label: 8
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-20.bmp
-  - label: 5
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-17.bmp
-  - label: 4
-    stim_path: emotion-face\hm90-nef62-fm34\hm90-nef62-fm34-06.bmp
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-11.bmp
   - label: 2
-    stim_path: emotion-face\hf15-nef15-af3\hf15-nef15-af3-08.bmp
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-13.bmp
   - label: 5
-    stim_path: emotion-face\hf99-nef102-ff26\hf99-nef102-ff26-17.bmp
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-16.bmp
+  - label: 8
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-02.bmp
+  - label: 9
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-20.bmp
+  - label: 2
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-08.bmp
+  - label: 6
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-17.bmp
+  - label: 9
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-01.bmp
+  - label: 0
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-10.bmp
+  - label: 1
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-09.bmp
+  - label: 4
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-06.bmp
+  - label: 8
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-19.bmp
+  - label: 9
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-01.bmp
+  - label: 3
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-14.bmp
+  - label: 3
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-07.bmp
+  - label: 1
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-12.bmp
+  - label: 9
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-01.bmp
+  - label: 6
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-17.bmp
+  - label: 9
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-20.bmp
+  - label: 5
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-16.bmp
+  - label: 0
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-11.bmp
+  - label: 9
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-20.bmp
+  - label: 0
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-10.bmp
+  - label: 4
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-06.bmp
+  - label: 8
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-02.bmp
+  - label: 0
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-10.bmp
+  - label: 2
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-08.bmp
+  - label: 4
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-15.bmp
+  - label: 5
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-05.bmp
+  - label: 8
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-19.bmp
+  - label: 7
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-18.bmp
+  - label: 1
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-12.bmp
+  - label: 0
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-10.bmp
+  - label: 2
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-08.bmp
+  - label: 1
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-09.bmp
+  - label: 2
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-13.bmp
+  - label: 8
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-02.bmp
+  - label: 3
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-07.bmp
+  - label: 5
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-05.bmp
+  - label: 8
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-19.bmp
+  - label: 6
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-04.bmp
+  - label: 5
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-05.bmp
+  - label: 4
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-15.bmp
+  - label: 6
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-17.bmp
+  - label: 7
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-03.bmp
+  - label: 6
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-17.bmp
+  - label: 2
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-13.bmp
+  - label: 9
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-20.bmp
+  - label: 4
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-06.bmp
+  - label: 1
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-09.bmp
+  - label: 3
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-14.bmp
+  - label: 4
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-06.bmp
+  - label: 7
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-03.bmp
+  - label: 7
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-18.bmp
+  - label: 6
+    stim_path: emotion-face\hf112-nef89-saf38\hf112-nef89-saf38-04.bmp

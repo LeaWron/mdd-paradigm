@@ -1,6 +1,6 @@
 defaults:
-  - diat@stims: stims
-  - diat@stim_sequence: sequence
+  - iat@stims: stims
+  - iat@stim_sequence: sequence
 
 blocks_info:
   - n_trials: 10

@@ -2,7 +2,7 @@ default_order:
   - "questionnaires"
   - "resting"
   - "emotion_face"
-  - "diat"
+  - "iat"
   - "prt"
 # resting -> speech -> facial recognition -> sleep -> IAT -> prt
 

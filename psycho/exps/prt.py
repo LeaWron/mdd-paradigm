@@ -381,7 +381,22 @@ def entry(exp: Experiment | None = None):
 
     if exp.config is not None and "pre" in exp.config:
         pre = True
-        run_exp(exp.config.pre)
+        while True:
+            run_exp(exp.config.pre)
+
+            commit_text = "是否需要再次进行预实验?\n按 y 键再次进行预实验, 按 n 键结束预实验"
+            prompt = visual.TextStim(
+                win,
+                text=commit_text,
+                color="white",
+                height=0.1,
+                wrapWidth=2,
+            )
+            prompt.draw()
+            win.flip()
+            keys = event.waitKeys(keyList=["y", "n"])
+            if keys and keys[0] == "n":
+                break
         pre = False
 
     # 记录实验开始时间

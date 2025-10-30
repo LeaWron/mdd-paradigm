@@ -66,9 +66,7 @@ def send_marker(
     if lsl_outlet is None:
         return
     if not is_pre:
-        lsl_outlet.push_sample(
-            [marker], timestamp if timestamp is not None else local_clock()
-        )
+        lsl_outlet.push_sample([marker], timestamp if timestamp is not None else local_clock())
 
 
 # === session === #
@@ -192,6 +190,7 @@ def generate_trial_sequence(
     n_blocks: int,
     n_trials_per_block: int,
     max_seq_same: int = 2,
+    all_occur: bool = True,
     stim_list: list = None,
     stim_weights: list = None,
     seed: int = None,
@@ -199,9 +198,10 @@ def generate_trial_sequence(
     from collections import Counter, defaultdict
     from pprint import pprint
 
-    def check_seq(seq: list, max_seq_same: int) -> bool:
+    def check_seq(seq: list, max_seq_same: int, all_occur: bool) -> bool:
         current_count = 0
         prev_choice = None
+        appeared = set()
         for item in seq:
             if item == prev_choice:
                 current_count += 1
@@ -210,6 +210,9 @@ def generate_trial_sequence(
                 prev_choice = item
             if current_count > max_seq_same:
                 return False
+            appeared.add(item)
+        if all_occur and len(appeared) != len(stim_list):
+            return False
         return True
 
     if seed is not None:
@@ -220,10 +223,8 @@ def generate_trial_sequence(
     stim_sequences = defaultdict(list)
     for block_index in range(n_blocks):
         while True:
-            seq: list = rng.choice(
-                stim_list, size=n_trials_per_block, replace=True, p=stim_weights
-            ).tolist()
-            if check_seq(seq, max_seq_same):
+            seq: list = rng.choice(stim_list, size=n_trials_per_block, replace=True, p=stim_weights).tolist()
+            if check_seq(seq, max_seq_same, all_occur):
                 stim_sequences[block_index].extend(seq)
                 break
 
@@ -264,7 +265,7 @@ def save_csv_data(data: dict[str, list], file_name: str | Path):
         if len(v) < max_len:
             v.extend([None] * (max_len - len(v)))
 
-    df = pl.DataFrame(data)
+    df = pl.DataFrame(data, strict=False)
 
     if file_name.exists():
         with open(file_name, "a", encoding="utf-8", newline="") as f:

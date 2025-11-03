@@ -172,7 +172,7 @@ def test_generate_iat(
         mean = n_trials // len(all_kinds)
         while True:
             key_seq = np.random.choice(all_kinds, size=n_trials, replace=True)
-            if check_iat(key_seq, min(max_seq_same, max(0, mean - 1)), mean):
+            if check_iat(key_seq, min(max_seq_same, max(0, mean -1)), mean):
                 break
         seq = []
         for key in key_seq:

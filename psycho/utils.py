@@ -66,7 +66,9 @@ def send_marker(
     if lsl_outlet is None:
         return
     if not is_pre:
-        lsl_outlet.push_sample([marker], timestamp if timestamp is not None else local_clock())
+        lsl_outlet.push_sample(
+            [marker], timestamp if timestamp is not None else local_clock()
+        )
 
 
 # === session === #
@@ -223,7 +225,9 @@ def generate_trial_sequence(
     stim_sequences = defaultdict(list)
     for block_index in range(n_blocks):
         while True:
-            seq: list = rng.choice(stim_list, size=n_trials_per_block, replace=True, p=stim_weights).tolist()
+            seq: list = rng.choice(
+                stim_list, size=n_trials_per_block, replace=True, p=stim_weights
+            ).tolist()
             if check_seq(seq, max_seq_same, all_occur):
                 stim_sequences[block_index].extend(seq)
                 break

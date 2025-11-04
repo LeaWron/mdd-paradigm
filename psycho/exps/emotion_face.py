@@ -167,7 +167,9 @@ def trial():
     )
 
     core.wait(timing["stim"])
-    judge_stim = visual.TextStim(win, text="请判断这张图片中的人脸的情绪类别", color="white", wrapWidth=2)
+    judge_stim = visual.TextStim(
+        win, text="请判断这张图片中的人脸的情绪类别", color="white", wrapWidth=2
+    )
     judge_stim.draw()
     win.flip()
     on_set = clock.getTime()
@@ -213,7 +215,9 @@ def trial():
         fillColor=disabled_color,
         lineColor="white",
     )
-    button_text = visual.TextStim(win, text="确认", color="white", pos=(0, -0.5), height=0.1)
+    button_text = visual.TextStim(
+        win, text="确认", color="white", pos=(0, -0.5), height=0.1
+    )
 
     mouse = event.Mouse(win=win)
     # 选择中性的时候不打分
@@ -253,7 +257,9 @@ def post_trial():
 
 
 def rating_slider():
-    prompt = visual.TextStim(win, text=intensity_prompt, color="white", pos=(0, 0.4), wrapWidth=2)
+    prompt = visual.TextStim(
+        win, text=intensity_prompt, color="white", pos=(0, 0.4), wrapWidth=2
+    )
     slider = visual.Slider(
         win,
         ticks=intensity_ticks,
@@ -271,7 +277,15 @@ def rating_slider():
 
 
 def init_exp(config: DictConfig | None = None):
-    global n_blocks, n_trials_per_block, timing, response_map, intensity_prompt, intensity_ticks, intensity_tips, stim_sequence
+    global \
+        n_blocks, \
+        n_trials_per_block, \
+        timing, \
+        response_map, \
+        intensity_prompt, \
+        intensity_ticks, \
+        intensity_tips, \
+        stim_sequence
 
     n_blocks = config.n_blocks
     n_trials_per_block = config.n_trials_per_block
@@ -279,7 +293,9 @@ def init_exp(config: DictConfig | None = None):
 
     response_map = config.response_map
     intensity_prompt = config.intensity_prompt
-    intensity_ticks = list(range(config.intensity_ticks.start, config.intensity_ticks.end + 1))
+    intensity_ticks = list(
+        range(config.intensity_ticks.start, config.intensity_ticks.end + 1)
+    )
     intensity_tips = config.intensity_tips
 
     if "stim_sequence" in config:
@@ -327,7 +343,9 @@ def entry(exp: Experiment | None = None):
         while True:
             run_exp(exp.config.pre)
 
-            commit_text = "是否需要再次进行预实验?\n按 y 键再次进行预实验, 按 n 键结束预实验"
+            commit_text = (
+                "是否需要再次进行预实验?\n按 y 键再次进行预实验, 按 n 键结束预实验"
+            )
             prompt = visual.TextStim(
                 win,
                 text=commit_text,

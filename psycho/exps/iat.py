@@ -299,7 +299,9 @@ def trial():
     stim_correct_resp, on_set = show_stim()
     # 记录刺激
 
-    resp = event.waitKeys(maxWait=timing["max_wait_respond"], keyList=resp_keys, timeStamped=True)
+    resp = event.waitKeys(
+        maxWait=timing["max_wait_respond"], keyList=resp_keys, timeStamped=True
+    )
     correct = False
     # 反应时
     if resp is None:

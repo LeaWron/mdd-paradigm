@@ -44,8 +44,12 @@ class Session:
         self.before_duration = self.cfg.session.timing.before_wait
         self.after_rest_duration = self.cfg.session.timing.iei
 
-        event.globalKeys.add(key="escape", modifiers=["shift"], func=self.stop, name="quit")
-        event.globalKeys.add(key="p", modifiers=["shift"], func=self.pause, name="pause")
+        event.globalKeys.add(
+            key="escape", modifiers=["shift"], func=self.stop, name="quit"
+        )
+        event.globalKeys.add(
+            key="p", modifiers=["shift"], func=self.pause, name="pause"
+        )
 
         # 初始化 logger
         self._setup_logger()
@@ -83,7 +87,9 @@ class Session:
             for i in range(0, num_exps):
                 dlg.addField(
                     f"第 {i + 1} 个实验",
-                    choices=default_order[i : i + 1] + default_order[:i] + default_order[i + 1 :],
+                    choices=default_order[i : i + 1]
+                    + default_order[:i]
+                    + default_order[i + 1 :],
                 )
 
             ok_data = dlg.show()
@@ -98,7 +104,9 @@ class Session:
 
         # ok_data 顺序即为最终实验顺序
         order = list(ok_data.values()) if ok_data else default_order
-        exp_list.sort(key=lambda x: order.index(x.lower()) if x.lower() in order else num_exps)
+        exp_list.sort(
+            key=lambda x: order.index(x.lower()) if x.lower() in order else num_exps
+        )
         return exp_list
 
     def add_experiments(self, exp_names):
@@ -112,7 +120,9 @@ class Session:
         # 序号
         dlg.addField(label="Session ID *", key="session_id", required=True)
         # 日期
-        dlg.addFixedField(label="日期", initial=datetime.now().strftime("%Y-%m-%d"), key="date")
+        dlg.addFixedField(
+            label="日期", initial=datetime.now().strftime("%Y-%m-%d"), key="date"
+        )
         # 受试信息
         dlg.addField(label="受试信息", key="participant_id")
         # ..... 其他信息
@@ -227,7 +237,9 @@ class Session:
         send_marker(self.lsl_outlet, "SESSION_END")
 
     def pause(self):
-        pause_msg = visual.TextStim(self.win, text="暂停中，按 r 恢复", height=0.20, wrapWidth=2)
+        pause_msg = visual.TextStim(
+            self.win, text="暂停中，按 r 恢复", height=0.20, wrapWidth=2
+        )
         pause_start = self.trialClock.getTime()  # 记录暂停开始时间（系统时间）
 
         # 只用管理 win 和 clock 即可

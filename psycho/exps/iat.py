@@ -12,6 +12,9 @@ from psycho.utils import (
 )
 
 # TODO: 刺激词
+# TODO: 无效被试实现
+# TODO: 平均反应时间
+# TODO: 结束后的有效性计算和D值计算
 # === 实验参数 ===
 blocks_info = [
     {

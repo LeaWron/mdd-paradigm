@@ -6,7 +6,6 @@ defaults:
   - exps@exps.prt.pre: prt/pre
   - exps@exps.prt.full: prt/full
   - exps@exps.resting.full: resting/full
-  - exps@exps.questionnaires: questionnaires/config
 
 project_root: ${hydra:runtime.cwd}
 pkg_root: ${project_root}/psycho

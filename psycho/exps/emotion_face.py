@@ -177,7 +177,7 @@ def trial():
     keys = event.waitKeys(
         maxWait=timing["max_response"],
         keyList=list(response_map.keys()),
-        timeStamped=True,
+        timeStamped=clock,
     )
     resp_emotion = None
 

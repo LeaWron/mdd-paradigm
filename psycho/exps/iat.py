@@ -1,3 +1,4 @@
+import numpy as np
 from omegaconf import DictConfig
 from psychopy import core, event, visual
 
@@ -105,6 +106,17 @@ timing = {
     "rest": 3.0,  # 休息时间
 }
 
+limits = {
+    "lower": 0.3,  # 反应时下限，单位秒
+    "upper": 10,  # 反应时上限，单位秒
+}
+
+effective_threshold = 0.9  # 有效反应阈值，单位百分比(%), 需要有效反应的次数占总次数的比例
+warn_offset = 0.05  # 有效反应提示偏移，单位秒
+
+err_offset = 0.6  # 错误反应时偏移，单位秒
+
+
 # === 全局设置 ===
 win = None
 clock = None
@@ -168,6 +180,9 @@ data_to_save = {
     "choice": [],
     "rt": [],
     "correct_rate": [],
+    "mean_rt": [],
+    "effective": [],
+    "d_score": [],
 }
 
 one_trial_data = {key: None for key in data_to_save.keys()}
@@ -213,14 +228,34 @@ def post_block():
     correct_count = 0
 
     one_trial_data["correct_rate"] = correct_rate
+    # 正确试次的平均反应时
+    mean_rt = np.mean([rt for rt in one_block_data["rt"] if rt != float("inf")]).item()
+    one_trial_data["mean_rt"] = mean_rt
+
     update_trial(one_trial_data, one_block_data)
 
     visual.TextStim(
         win=win,
-        text=f"在这个任务中你的正确率为: {correct_rate * 100:.2f}%\n你有{int(timing['rest'])}秒休息时间\n你可以直接按空格键继续",
+        text=f"在这个任务中你的正确率为: {correct_rate * 100:.2f}%, 平均反应时为: {mean_rt * 1000:.2f}ms\n你有{int(timing['rest'])}秒休息时间\n你可以直接按空格键继续",
         height=0.1,
         wrapWidth=2,
     ).draw()
+
+    # 添加有效反应提示
+    if mean_rt < limits["lower"] + warn_offset:
+        visual.TextStim(
+            win=win,
+            text="你的反应速度有点快，可能会影响任务的效果",
+            height=0.1,
+            wrapWidth=2,
+        ).draw()
+    elif mean_rt > limits["upper"] - warn_offset:
+        visual.TextStim(
+            win=win,
+            text="你的反应速度有点慢，可能会影响任务的效果",
+            height=0.1,
+            wrapWidth=2,
+        ).draw()
     win.flip()
     event.waitKeys(keyList=continue_key)
 
@@ -299,9 +334,7 @@ def trial():
     stim_correct_resp, on_set = show_stim()
     # 记录刺激
 
-    resp = event.waitKeys(
-        maxWait=timing["max_wait_respond"], keyList=resp_keys, timeStamped=True
-    )
+    resp = event.waitKeys(maxWait=timing["max_wait_respond"], keyList=resp_keys, timeStamped=clock)
     correct = False
     # 反应时
     if resp is None:
@@ -316,7 +349,8 @@ def trial():
         logger.info(f"Correct: {stim_correct_resp}, rt: {one_trial_data['rt']:.3f}")
     else:
         one_trial_data["choice"] = resp[0][0]
-        one_trial_data["rt"] = resp[0][1] - on_set
+        # 错误试次用 inf 标记
+        one_trial_data["rt"] = float("inf")
         send_marker(lsl_outlet, "INCORRECT")
         logger.info(f"Incorrect: {stim_correct_resp}")
 
@@ -339,6 +373,66 @@ def post_trial():
     """trial 结束后"""
     win.flip()
     core.wait(0.1)
+
+
+def calculate_d_score(comp_rts: list[float], incomp_rts: list[float]) -> float:
+    """计算 d-score"""
+
+    # 错误反应用惩罚处理
+    # 排除极端值
+    def deal_rts(rts: list[float]) -> list[float]:
+        """处理反应时"""
+        d_rts = []
+        err_indices = []
+        for i, rt in enumerate(rts):
+            if rt == float("inf"):
+                err_indices.append(i)
+            elif rt < limits["lower"] or rt > limits["upper"]:
+                # 排除极端值
+                continue
+            d_rts.append(rt)
+        # 错误反应时用惩罚处理
+        mean_rt = np.mean(d_rts).item()
+        for _ in err_indices:
+            d_rts.append(mean_rt + err_offset)
+        return d_rts
+
+    comp_rts = deal_rts(comp_rts)
+    incomp_rts = deal_rts(incomp_rts)
+
+    mean_diff = np.mean(comp_rts) - np.mean(incomp_rts)
+    std_comp = np.var(comp_rts)
+    std_incomp = np.var(incomp_rts)
+    std_pooled: float = np.sqrt((len(comp_rts) - 1) * std_comp + (len(incomp_rts) - 1) * std_incomp / (len(comp_rts) + len(incomp_rts) - 2))
+
+    d_score = mean_diff / std_pooled
+    return d_score.item()
+
+
+def check_effective_and_calculate_d_score(data: dict[str, list]) -> float:
+    """检查该受试数据是否有效, 并计算 d-score"""
+    block_index_list = data["block_index"]
+
+    rts = []
+    for key_block in key_blocks:
+        if key_block not in block_index_list:
+            return False
+        start = block_index_list.index(key_block)
+        end = start + blocks_info[key_block]["n_trials"]  # [start, end)
+
+        rt_list = data["rt"][start:end]
+        rts.append(rt_list)
+
+        cnt = 0
+        for rt in rt_list:
+            if rt >= limits["lower"]:
+                cnt += 1
+
+        if 1.0 * cnt / len(rt_list) < effective_threshold:
+            return float("inf")
+
+    d_score = calculate_d_score(comp_rts=rts[0], incomp_rts=rts[1])
+    return d_score
 
 
 def show_prompt():
@@ -364,16 +458,28 @@ def show_prompt():
 
 
 def init_exp(config: DictConfig | None):
-    global blocks_info, key_blocks, start_prompt, timing, stims, stim_sequence
+    global blocks_info, key_blocks, start_prompt, timing, stims, stim_sequence, limits, effective_threshold, warn_offset, err_offset
 
     blocks_info = config.blocks_info
     key_blocks = config.key_blocks
     start_prompt = config.start_prompt
     timing = config.timing
+
+    # pre 和 full 的配置不同
     if "stims" in config:
         stims = config.stims
     if "stim_sequence" in config:
         stim_sequence = config.stim_sequence
+    if "limits" in config:
+        limits = config.limits
+    if "effective_threshold" in config:
+        effective_threshold = config.effective_threshold
+    if "warn_offset" in config:
+        warn_offset = config.warn_offset
+    else:
+        warn_offset = 0.0
+    if "err_offset" in config:
+        err_offset = config.err_offset
 
 
 def run_exp(cfg: DictConfig | None):
@@ -393,6 +499,19 @@ def run_exp(cfg: DictConfig | None):
         post_block()
 
         update_block(one_block_data, data_to_save)
+
+    # 记录 trial 数据
+    one_trial_data["block_index"] = -1
+    d_score = check_effective_and_calculate_d_score(data_to_save)
+    # 判断有效性
+    if d_score == float("inf"):
+        one_trial_data["effective"] = False
+    else:
+        one_trial_data["effective"] = True
+        one_trial_data["d_score"] = d_score
+
+    update_trial(one_trial_data, one_block_data)
+    update_block(one_block_data, data_to_save)
 
 
 def entry(exp: Experiment | None = None):

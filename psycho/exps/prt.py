@@ -244,7 +244,7 @@ def trial():
     logger.info(f"Correct face: {long_or_short}")
     one_trial_data["stim"] = long_or_short
     keys = event.waitKeys(
-        maxWait=timing["response"], keyList=response_keys, timeStamped=True
+        maxWait=timing["response"], keyList=response_keys, timeStamped=clock
     )
 
     choice = "no_response"

@@ -1,14 +1,13 @@
 import logging
 
 from omegaconf import DictConfig
-from psychopy import core, event, prefs, sound, visual
+from psychopy import core, event, sound, visual
 from pylsl import StreamOutlet
 
 from psycho.session import Experiment
 from psycho.utils import init_lsl, parse_stim_path, send_marker, setup_default_logger
 
-# === 偏好设置 ===
-prefs.hardware["audioDevice"] = "扬声器 (2- High Definition Audio Device)"
+# TODO: session 中 soundDevice 设置不会应用于实际的范式中
 
 # === 参数设置 ===
 n_blocks = 2

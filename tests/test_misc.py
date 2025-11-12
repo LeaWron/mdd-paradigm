@@ -166,7 +166,7 @@ def test_prev_frame():
     win.close()
 
 
-@pytest.mark.skip(reason="暂时不测试这个函数")
+# @pytest.mark.skip(reason="暂时不测试这个函数")
 def test_get_devices():
     from psychopy import monitors, sound
 

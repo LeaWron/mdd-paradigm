@@ -31,7 +31,7 @@ def check_iat(
     return True
 
 
-# @pytest.mark.skip(reason="已生成")
+@pytest.mark.skip(reason="已生成")
 def test_generate_iat(
     stim_path: str | Path = "../psycho/conf/exps/iat/stims.yaml",
     config_path: str | Path = "../psycho/conf/exps/iat/full.yaml",

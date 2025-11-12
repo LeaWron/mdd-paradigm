@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 
 import numpy as np
 import pyxdf
@@ -6,7 +6,7 @@ import pyxdf
 
 def parse_xdf(max_samples: int | None = None):
     xdf_path = Path(input("输入 xdf 文件路径:\n").strip('"'))
-    print(f"📂 文件: {xdf_path}")
+    print(f"文件: {xdf_path}")
     streams, header = pyxdf.load_xdf(xdf_path)
     print(f"包含 {len(streams)} 个数据流\n")
 

@@ -6,17 +6,21 @@ from datetime import datetime
 from pathlib import Path
 
 import hydra
+import psychopy
 from omegaconf import DictConfig, OmegaConf
-from psychopy import core, event, gui, prefs, visual
+from psychopy import core, event, gui, visual, sound
 
 from psycho.utils import init_lsl, send_marker, switch_keyboard_layout
 
 # 全局设置
-prefs.general["defaultTextFont"] = "Arial"
-prefs.general["defaultTextSize"] = 0.05
-prefs.general["defaultTextColor"] = "white"
+psychopy.prefs.general["defaultTextFont"] = "Arial"
+psychopy.prefs.general["defaultTextSize"] = 0.05
+psychopy.prefs.general["defaultTextColor"] = "white"
 
+sound_devices = sound.getDevices()
+psychopy.prefs.hardware["audioDevice"] = sound_devices[0] # hardware["audioDevice"]
 
+print(psychopy.prefs.general, psychopy.prefs.hardware)
 @dataclass
 class Experiment:
     win: visual.Window
@@ -272,4 +276,10 @@ def run_session(cfg: DictConfig):
 
 
 if __name__ == "__main__":
+    # gui 选择
+    select_audio = gui.Dlg("音频设备选择")
+    select_audio.addField(label="请选择", choices=sound_devices, key="audio_device", tip="默认为第一项")
+    ok_data = select_audio.show()
+    if select_audio.OK:
+        psychopy.prefs.hardware["audioDevice"] = ok_data["audio_device"]
     run_session()

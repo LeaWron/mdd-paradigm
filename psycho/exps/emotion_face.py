@@ -271,7 +271,9 @@ def rating_slider():
         color="white",
         pos=(0, 0),
         font="SimSun",
+        # font = "Open Sans",
     )
+
     # slider.setValue(slider.startValue)
     return prompt, slider
 

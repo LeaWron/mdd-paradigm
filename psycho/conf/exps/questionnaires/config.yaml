@@ -1,8 +1,0 @@
-defaults:
-  - questionnaires@questionnaires.phq9: phq9
-  - questionnaires@questionnaires.cdi: cdi
-  - questionnaires@questionnaires.gad7: gad7
-
-timing:
-  fixation: 0.5
-  iti: 0.5

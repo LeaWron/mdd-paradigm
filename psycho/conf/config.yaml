@@ -16,6 +16,10 @@ result_dir: ${output_dir}/results
 log_level: INFO
 debug: false
 
+labrecorder:
+  host: localhost
+  port: 22345
+
 hydra:
   run:
     dir: . # 不创建新的输出目录

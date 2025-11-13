@@ -11,7 +11,7 @@ phase_prompt: |
   即将进入预实验, 你将学习该实验如何进行
   每次你将看到一张黑白的人脸图片, 短暂延迟后图片消失
   你需要判断这张图片中的人脸的情绪是积极的、中性的还是消极的
-  方向键左代表积极, 方向键下代表中性, 方向键右代表消极
+  按 a 代表积极, s 代表中性, d 代表消极
   请尽快反应
   随后你需要判断这张图片中的人脸的情绪强度, 用鼠标拖动滑块后点击确认
   但是如果你认为图片是中性的, 那么将不会需要判断情绪强度
@@ -19,9 +19,9 @@ phase_prompt: |
   请按空格键继续
 
 response_map:
-  left: positive
-  down: neutral
-  right: negative
+  a: positive
+  s: neutral
+  d: negative
 
 intensity_prompt: "请选择情感的强度"
 intensity_ticks:

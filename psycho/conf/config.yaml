@@ -1,6 +1,5 @@
 defaults:
   - session: config
-  - exps@exps.iat.full: iat/full
   - exps@exps.emotion_face.pre: emotion_face/pre
   - exps@exps.emotion_face.full: emotion_face/full
   - exps@exps.prt.pre: prt/pre
@@ -11,6 +10,8 @@ project_root: ${hydra:runtime.cwd}
 pkg_root: ${project_root}/psycho
 exps_dir: ${pkg_root}/exps
 output_dir: ${project_root}/data
+# xdf 分析结果目录
+result_dir: ${output_dir}/results
 
 log_level: INFO
 debug: false

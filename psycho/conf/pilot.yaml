@@ -1,6 +1,5 @@
 defaults:
   - session: config
-  - exps@exps.iat.full: iat/pre
   - exps@exps.emotion_face.full: emotion_face/pre
   - exps@exps.prt.full: prt/pre
   - exps@exps.resting.full: resting/pre
@@ -12,6 +11,8 @@ output_dir: ${project_root}/temp
 
 log_level: INFO
 debug: false
+# 是否为测试运行, 否则为开发运行
+test: false
 
 hydra:
   run:

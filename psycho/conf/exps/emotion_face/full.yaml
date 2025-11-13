@@ -7,7 +7,7 @@ n_trials_per_block: 80
 timing:
   fixation: 0.5
   stim: 1.0
-  max_response: 1.0
+  max_response: 2.0
   rest: 20.0
 
 phase_prompt: |
@@ -16,9 +16,9 @@ phase_prompt: |
   请按空格键继续
 
 response_map:
-  left: positive
-  down: neutral
-  right: negative
+  a: positive
+  s: neutral
+  d: negative
 
 intensity_prompt: "请选择情感的强度"
 intensity_ticks:

@@ -1,9 +1,8 @@
 default_order:
   - "resting"
   - "emotion_face"
-  - "iat"
   - "prt"
-# resting -> speech -> facial recognition -> sleep -> IAT -> prt
+# resting -> speech -> facial recognition -> sleep -> prt
 
 timing:
   iei: 30

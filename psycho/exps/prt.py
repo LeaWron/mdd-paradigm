@@ -15,9 +15,12 @@ from psycho.utils import (
     update_trial,
 )
 
+# TODO: 脸的大小设置, 每个 trial 后都显示总积分
+# 需要在一次性能够看完
+
 # === 参数设置 ===
-n_blocks = 1
-n_trials_per_block = 10
+n_blocks = 3
+n_trials_per_block = 20
 
 timing = {
     "fixation": 0.5,
@@ -26,7 +29,7 @@ timing = {
     "response": 0.5,
     "iti": 0.5,
     "feedback": 0.5,
-    "rest": 30,
+    "rest": 5,
 }
 
 response_keys = ["s", "l"]
@@ -72,6 +75,7 @@ high_cache = 0
 low_cache = 0
 
 pre = False
+test = False
 
 # === 数据保存 ===
 data_to_save = {
@@ -287,6 +291,14 @@ def trial():
             color="red",
         )
         feedback_wrong.draw()
+    # 显示总分数
+    visual.TextStim(
+        win,
+        text=f"你当前的分数为 {total_point}",
+        height=0.08,
+        pos=(0, -0.2),
+        color="white",
+    ).draw()
     win.flip()
     core.wait(timing["feedback"])
 
@@ -332,9 +344,12 @@ def init_exp(config: DictConfig | None):
         reward_indice, \
         data_to_save
 
-    n_blocks = config.n_blocks
-    n_trials_per_block = config.n_trials_per_block
-    timing = config.timing
+    if not test:
+        logger.info("Running in dev mode")
+        n_blocks = config.n_blocks
+        n_trials_per_block = config.n_trials_per_block
+        timing = config.timing
+
     stim_folder = parse_stim_path(config.stim_folder)
     empty_face = stim_folder / "empty_face.png"
     short_mouth = stim_folder / "short_mouth.png"
@@ -385,7 +400,7 @@ def run_exp(cfg: DictConfig | None):
 
 
 def entry(exp: Experiment | None = None):
-    global win, clock, lsl_outlet, block_index, logger, pre
+    global win, clock, lsl_outlet, block_index, logger, pre, test
     win = exp.win or visual.Window(
         monitor="testMonitor", pos=(0, 0), fullscr=True, color="grey", units="norm"
     )
@@ -394,6 +409,8 @@ def entry(exp: Experiment | None = None):
     logger = exp.logger or setup_default_logger()
 
     lsl_outlet = exp.lsl_outlet or init_lsl("PRTMarker")  # 初始化 LSL
+
+    test = exp.test
 
     if exp.config is not None and "pre" in exp.config:
         pre = True

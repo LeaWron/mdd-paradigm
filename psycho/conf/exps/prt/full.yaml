@@ -21,7 +21,7 @@ timing:
   feedback: 0.5
   rest: 30
 
-fov: 20
+fov: 10
 monitor_distance: 60
 
 reward_high: 9

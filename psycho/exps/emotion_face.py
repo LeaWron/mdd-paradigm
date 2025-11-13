@@ -17,9 +17,13 @@ from psycho.utils import (
     update_trial,
 )
 
+# TODO: 判断时的交互
+# 预留的反应时间更长, 反应时提醒所有的按键对应什么属性
+# 没反应就不评分
+
 # === 参数设置 ===
-n_blocks = 1
-n_trials_per_block = 5
+n_blocks = 2
+n_trials_per_block = 15
 continue_keys = ["space"]
 
 timing = {
@@ -33,7 +37,7 @@ timing = {
 stim_folder = parse_stim_path("emotion-face")
 stim_items = list(stim_folder.glob("*.BMP"))
 
-response_map = {"left": "positive", "down": "neutral", "right": "negative"}
+response_map = {"a": "positive", "s": "neutral", "d": "negative"}
 
 
 intensity_prompt = "请选择情感的强度（1-9）, 1为最弱，9为最强"
@@ -50,6 +54,7 @@ trial_index = 0
 
 correct_count = 0
 pre = False
+test = False
 
 
 stim_sequence = generate_trial_sequence(
@@ -90,7 +95,7 @@ one_block_data = {key: [] for key in data_to_save.keys()}
 
 
 def pre_block():
-    text = f"当前 block 为第 {block_index + 1} 个 block\n记住左方向键为积极, 下方向键为中性, 右方向键为消极\n请按空格键开始"
+    text = f"当前 block 为第 {block_index + 1} 个 block\n记住按 a 为积极, s 为中性, d 为消极\n请按空格键开始"
     text_stim = visual.TextStim(win, text=text, color="white", wrapWidth=2)
     text_stim.draw()
     win.flip()
@@ -171,6 +176,14 @@ def trial():
         win, text="请判断这张图片中的人脸的情绪类别", color="white", wrapWidth=2
     )
     judge_stim.draw()
+    judge_prompt = visual.TextStim(
+        win,
+        text="按 a 为积极, s 为中性, d 为消极",
+        color="white",
+        pos=(0, -0.3),
+        wrapWidth=2,
+    )
+    judge_prompt.draw()
     win.flip()
     on_set = clock.getTime()
 
@@ -199,6 +212,7 @@ def trial():
         send_marker(lsl_outlet, "NORESPONSE", is_pre=pre)
 
         logger.info("NO RESPONSE")
+        return
 
     prompt, slider = rating_slider()
 
@@ -289,9 +303,11 @@ def init_exp(config: DictConfig | None = None):
         intensity_tips, \
         stim_sequence
 
-    n_blocks = config.n_blocks
-    n_trials_per_block = config.n_trials_per_block
-    timing = config.timing
+    if not test:
+        logger.info("Running in dev mode")
+        n_blocks = config.n_blocks
+        n_trials_per_block = config.n_trials_per_block
+        timing = config.timing
 
     response_map = config.response_map
     intensity_prompt = config.intensity_prompt
@@ -332,13 +348,14 @@ def run_exp(cfg: DictConfig | None):
 
 
 def entry(exp: Experiment | None = None):
-    global win, clock, lsl_outlet, logger, pre
+    global win, clock, lsl_outlet, logger, pre, test
     win = exp.win or visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
 
     clock = exp.clock or core.Clock()
     logger = exp.logger or setup_default_logger()
 
     lsl_outlet = exp.lsl_outlet or init_lsl("EmotionFaceMarker")  # 初始化 LSL
+    test = exp.test
 
     if exp.config is not None and "pre" in exp.config:
         pre = True

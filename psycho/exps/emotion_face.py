@@ -18,8 +18,7 @@ from psycho.utils import (
 )
 
 # TODO: 判断时的交互
-# 预留的反应时间更长, 反应时提醒所有的按键对应什么属性
-# 没反应就不评分
+# 没反应就不评分, 给出反馈
 
 # === 参数设置 ===
 n_blocks = 2
@@ -284,10 +283,9 @@ def rating_slider():
         style=["rating"],
         color="white",
         pos=(0, 0),
-        font="SimSun",
-        # font = "Open Sans",
+        font="Microsoft YaHei",
+        labelHeight=0.08,
     )
-
     # slider.setValue(slider.startValue)
     return prompt, slider
 
@@ -304,7 +302,7 @@ def init_exp(config: DictConfig | None = None):
         stim_sequence
 
     if not test:
-        logger.info("Running in dev mode")
+        logger.info("Run in real exp")
         n_blocks = config.n_blocks
         n_trials_per_block = config.n_trials_per_block
         timing = config.timing

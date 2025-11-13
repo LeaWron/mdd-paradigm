@@ -345,7 +345,8 @@ def init_exp(config: DictConfig | None):
         data_to_save
 
     if not test:
-        logger.info("Running in dev mode")
+        logger.info("Run in real exp")
+
         n_blocks = config.n_blocks
         n_trials_per_block = config.n_trials_per_block
         timing = config.timing

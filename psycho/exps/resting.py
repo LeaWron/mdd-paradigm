@@ -31,7 +31,7 @@ block_cfg = {
 continue_keys = ["space"]
 notification = parse_stim_path("notification.wav")
 
-
+test = False
 # === 全局参数 ===
 win = None
 clock = None
@@ -86,8 +86,10 @@ def init_exp(config: DictConfig | None = None):
     def read_config(cfg: DictConfig):
         global n_blocks, timing, phase, block_cfg, notification
         if cfg is not None:
-            n_blocks = cfg.n_blocks
-            timing = cfg.timing
+            if not test:
+                logger.info("Run in real exp")
+                n_blocks = cfg.n_blocks
+                timing = cfg.timing
             phase = cfg.phase
             block_cfg = cfg
             notification = parse_stim_path(cfg.notification)
@@ -108,12 +110,13 @@ def run_exp(cfg: DictConfig | None):
 
 
 def entry(exp: Experiment | None = None):
-    global win, lsl_outlet, clock, logger
+    global win, lsl_outlet, clock, logger, test
     win = exp.win or visual.Window(fullscr=True, color="grey", units="norm")
     clock = exp.clock or core.Clock()
     logger = exp.logger if exp.logger is not None else setup_default_logger()
 
     lsl_outlet = exp.lsl_outlet or init_lsl("RestingStateMarker")
+    test = exp.test
     # 预实验
     if exp.config is not None and "pre" in exp.config:
         run_exp(exp.config.pre)

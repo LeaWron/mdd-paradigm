@@ -13,9 +13,7 @@ from psychopy import core, event, gui, sound, visual
 
 from psycho.utils import init_lsl, send_marker, switch_keyboard_layout
 
-# TODO: 直接给 labrecorder 发送命令来 start/stop 记录
-# TODO: 暂停功能的实现
-
+# TODO: 字体大小统一
 # 全局设置
 psychopy.prefs.general["defaultTextFont"] = "Arial"
 psychopy.prefs.general["defaultTextSize"] = 0.05
@@ -55,7 +53,7 @@ class Session:
         self.before_duration = self.cfg.session.timing.before_wait
         self.after_rest_duration = self.cfg.session.timing.iei
 
-        if "labrecorder" in self.cfg:
+        if "labrecorder" in self.cfg and ("test" not in self.cfg or self.cfg.test):
             self.labrecorder_connection = socket.create_connection(
                 (self.cfg.labrecorder.host, self.cfg.labrecorder.port)
             )
@@ -186,7 +184,7 @@ class Session:
             if hasattr(self, "labrecorder_connection"):
                 # 文件名格式: {root}/{session_id}.xdf
                 root = Path(self.cfg.output_dir) / self.session_info["date"]
-                file_name_cmd = f"filename {{root:{root}}} {{template:%s}} {{session:{self.session_info['session_id']}}}"
+                file_name_cmd = f"filename {{root:{root}}} {{template:%s}} {{session:{self.session_info['session_id']}}}.xdf"
                 self.labrecorder_connection.sendall(file_name_cmd.encode("utf-8"))
 
                 self.labrecorder_connection.sendall(b"update\n")
@@ -274,7 +272,7 @@ class Session:
         send_marker(self.lsl_outlet, "SESSION_END")
         if hasattr(self, "labrecorder_connection"):
             self.labrecorder_connection.sendall(b"stop\n")
-        core.quit()
+        # core.quit()
 
     def pause(self):
         pause_start = self.trialClock.getTime()  # 记录暂停开始时间（系统时间）

@@ -14,7 +14,9 @@ from pyxdf import load_xdf
 
 
 # TODO: 使用其他库来解析 xdf 文件
-def parse_xdf(xdf_file_path: str, output_dir: Path = "../results"):
+# 根据 examples 里的 xdf 来更新不同流的名称
+
+def parse_xdf(xdf_file_path: Path, output_dir: Path = "../results"):
     """
     解析XDF文件中的多模态生物信号数据并生成波形图
 
@@ -296,7 +298,7 @@ def analyze_multimodal_data(results):
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
 def main(cfg: DictConfig):
-    xdf_file_path = Path(input("请输入XDF文件路径:\n")).resolve()
+    xdf_file_path = Path(input("请输入XDF文件路径:\n").strip('"')).resolve()
 
     OmegaConf.resolve(cfg)
     result_dir = Path(cfg.result_dir)

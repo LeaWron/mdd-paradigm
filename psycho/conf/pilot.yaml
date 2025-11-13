@@ -14,6 +14,10 @@ debug: false
 # 是否为测试运行, 否则为开发运行
 test: false
 
+labrecorder:
+  host: localhost
+  port: 22345
+
 hydra:
   run:
     dir: . # 不创建新的输出目录

@@ -1,5 +1,5 @@
 import pytest
-from psychopy import core, event, gui, prefs, visual
+from psychopy import core, event, gui, visual
 
 
 def test_misc():
@@ -166,7 +166,7 @@ def test_prev_frame():
     win.close()
 
 
-# @pytest.mark.skip(reason="暂时不测试这个函数")
+@pytest.mark.skip(reason="暂时不测试这个函数")
 def test_get_devices():
     from psychopy import monitors, sound
 
@@ -203,3 +203,22 @@ def test_get_trial_sequence():
 
     for block_index, seq in stim_sequences.items():
         print(f"Block {block_index}: {seq}")
+
+
+@pytest.mark.skip(reason="暂时不测试这个函数")
+def test_get_audio_device():
+    import sounddevice as sd
+
+    devices = sd.query_devices()
+    hostapis = sd.query_hostapis()
+
+    clean = []
+    for d in devices:
+        if d["max_output_channels"] <= 0:
+            continue
+        api_name = hostapis[d["hostapi"]]["name"]
+        if any(skip in api_name for skip in ["MME", "DirectSound", "ASIO", "WDM-KS"]):
+            continue
+        clean.append(f"{d['name']}")
+
+    print(clean)

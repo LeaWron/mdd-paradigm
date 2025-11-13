@@ -286,5 +286,22 @@ def setup_default_logger():
     return logging.getLogger("default")
 
 
+def get_audio_devices():
+    import sounddevice as sd
+
+    devices = sd.query_devices()
+    hostapis = sd.query_hostapis()
+
+    clean = []
+    for d in devices:
+        if d["max_output_channels"] <= 0:
+            continue
+        api_name = hostapis[d["hostapi"]]["name"]
+        if any(skip in api_name for skip in ["MME", "DirectSound", "ASIO", "WDM-KS"]):
+            continue
+        clean.append(f"{d['name']}")
+    return sorted(list(set(clean)))
+
+
 if __name__ == "__main__":
     pass

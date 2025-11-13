@@ -9,20 +9,20 @@ from pathlib import Path
 import hydra
 import psychopy
 from omegaconf import DictConfig, OmegaConf
-from psychopy import core, event, gui, sound, visual
+from psychopy import core, event, gui, visual
 
-from psycho.utils import init_lsl, send_marker, switch_keyboard_layout
+from psycho.utils import (
+    get_audio_devices,
+    init_lsl,
+    send_marker,
+    switch_keyboard_layout,
+)
 
 # TODO: 字体大小统一
 # 全局设置
 psychopy.prefs.general["defaultTextFont"] = "Arial"
 psychopy.prefs.general["defaultTextSize"] = 0.05
 psychopy.prefs.general["defaultTextColor"] = "white"
-
-sound_devices = sound.getDevices()
-psychopy.prefs.hardware["audioDevice"] = sound_devices[0]  # hardware["audioDevice"]
-
-print(psychopy.prefs.general, psychopy.prefs.hardware)
 
 
 @dataclass
@@ -305,6 +305,8 @@ class Session:
 def run_session(cfg: DictConfig):
     # 切换到英文输入法
     switch_keyboard_layout()
+    # 初始化音频设备
+    init_audio_device()
 
     OmegaConf.resolve(cfg)
     if cfg.debug:
@@ -319,7 +321,8 @@ def run_session(cfg: DictConfig):
     session.start(with_lsl=False)
 
 
-if __name__ == "__main__":
+def init_audio_device():
+    sound_devices = get_audio_devices()
     # gui 选择
     select_audio = gui.Dlg("音频设备选择")
     select_audio.addField(
@@ -327,5 +330,9 @@ if __name__ == "__main__":
     )
     ok_data = select_audio.show()
     if select_audio.OK:
+        print(ok_data)
         psychopy.prefs.hardware["audioDevice"] = ok_data["audio_device"]
+
+
+if __name__ == "__main__":
     run_session()

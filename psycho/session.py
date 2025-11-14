@@ -9,7 +9,6 @@ from pathlib import Path
 import hydra
 import psychopy
 from omegaconf import DictConfig, OmegaConf
-from psychopy import core, event, gui, visual
 
 from psycho.utils import (
     get_audio_devices,
@@ -18,11 +17,14 @@ from psycho.utils import (
     switch_keyboard_layout,
 )
 
-# TODO: 字体大小统一
 # 全局设置
 psychopy.prefs.general["defaultTextFont"] = "Arial"
 psychopy.prefs.general["defaultTextSize"] = 0.05
 psychopy.prefs.general["defaultTextColor"] = "white"
+from psychopy import core, event, gui, visual  # noqa: E402
+
+# TODO: 字体大小统一
+# TODO: 新范式
 
 
 @dataclass

@@ -17,9 +17,6 @@ from psycho.utils import (
     update_trial,
 )
 
-# TODO: 判断时的交互
-# 没反应就不评分, 给出反馈
-
 # === 参数设置 ===
 n_blocks = 2
 n_trials_per_block = 15
@@ -211,6 +208,11 @@ def trial():
         send_marker(lsl_outlet, "NORESPONSE", is_pre=pre)
 
         logger.info("NO RESPONSE")
+        visual.TextStim(
+            win, text="你没有及时进行评价, 请集中精神", color="white", wrapWidth=2
+        ).draw()
+        win.flip()
+        core.wait(1.0)
         return
 
     prompt, slider = rating_slider()

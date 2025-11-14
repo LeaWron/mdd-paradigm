@@ -7,8 +7,6 @@ from pylsl import StreamOutlet
 from psycho.session import Experiment
 from psycho.utils import init_lsl, parse_stim_path, send_marker, setup_default_logger
 
-# TODO: session 中 soundDevice 设置不会应用于实际的范式中
-
 # === 参数设置 ===
 n_blocks = 2
 phase = ["eye_close", "eye_open"]

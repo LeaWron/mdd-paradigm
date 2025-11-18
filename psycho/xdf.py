@@ -1557,6 +1557,66 @@ def inspect_xdf(xdf_file_path: Path, output_path: Path):
 
     print(f"\nJSON 已导出到: {json_path}")
 
+# TODO: show xdf raw
+def show_xdf(xdf_file_path: Path, output_path: Path):
+    if not xdf_file_path.exists():
+        raise FileNotFoundError(f"文件不存在: {xdf_file_path}")
+
+    print(f"读取 XDF 文件: {xdf_file_path}\n")
+
+    streams, header = load_xdf(str(xdf_file_path), dejitter_timestamps=False)
+
+
+    # 用于导出 JSON 的结构
+    json_dict = {"streams": []}
+
+    # ----------------------------
+    # 打印 Stream 信息并构建 JSON
+    # ----------------------------
+    print("====== Stream 列表 ======")
+    for idx, stream in enumerate(streams):
+        info = stream["info"]
+
+        name = info.get("name", ["<unknown>"])[0]
+        stype = info.get("type", ["<unknown>"])[0]
+        srate = info.get("sample_rate", ["<unknown>"])[0]
+        channels = info.get("channel_count", ["<unknown>"])[0]
+
+        print(f"[{idx}] {name}")
+        print(f"  类型(type):        {stype}")
+        print(f"  采样率(sample_rate): {srate}")
+        print(f"  通道数(channels):   {channels}")
+        print("  其他元数据(info):")
+        for key, value in info.items():
+            if key in ["name", "type", "sample_rate", "channel_count"]:
+                continue
+            print(f"    {key}: {value}")
+
+        print("-" * 50)
+
+        # 写入 JSON 结构
+        json_dict["streams"].append(
+            {
+                "index": idx,
+                "name": name,
+                "type": stype,
+                "sample_rate": srate,
+                "channel_count": channels,
+                "full_info": info,
+            }
+        )
+
+    # ----------------------------
+    # 导出 JSON
+    # ----------------------------
+    json_path = output_path
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(json_dict, f, ensure_ascii=False, indent=4)
+
+    print(f"\nJSON 已导出到: {json_path}")
+
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
 def main(cfg: DictConfig):
@@ -1566,6 +1626,9 @@ def main(cfg: DictConfig):
 
     result_dir = Path(cfg.result_dir) / xdf_file_path.stem
     result_dir.mkdir(parents=True, exist_ok=True)
+
+    if "show" in cfg and cfg.show:
+        show_xdf(xdf_file_path, result_dir / "result.json")
 
     if "inspect" in cfg and cfg.inspect:
         inspect_xdf(xdf_file_path, result_dir / "inspect.json")

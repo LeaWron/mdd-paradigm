@@ -4,6 +4,9 @@ import sys
 import threading
 from pathlib import Path
 import serial
+import time
+from pylsl import StreamOutlet
+from psycho.utils import init_lsl, send_marker
 
 sys.path.append(os.getenv("MVCAM_COMMON_RUNENV") + "/Samples/Python/MvImport")
 from MvCameraControl_class import *  # noqa
@@ -12,7 +15,7 @@ from CameraParams_header import *
 # 全局变量控制录像线程
 g_bExit = False
 ser: serial.Serial = None
-
+lsl_outlet: StreamOutlet = None
 
 # 为线程定义一个函数
 def work_thread(cam, pData, nDataSize):
@@ -24,25 +27,30 @@ def work_thread(cam, pData, nDataSize):
     while True:
         ret = cam.MV_CC_GetImageBuffer(stOutFrame, 1000)
         if None != stOutFrame.pBufAddr and 0 == ret:
+            cur_time_stamp = int(round(time.time() * 1000))
             print(
-                "get one frame: Width[%d], Height[%d], nFrameNum[%d]"
+                "get one frame: Width[%d], Height[%d], nFrameNum[%d] nFrameLen[%d] fram_time_stamp[%d] host_time_stamp[%d]"
                 % (
                     stOutFrame.stFrameInfo.nWidth,
                     stOutFrame.stFrameInfo.nHeight,
                     stOutFrame.stFrameInfo.nFrameNum,
+                    stOutFrame.stFrameInfo.nFrameLen,
+                    stOutFrame.stFrameInfo.nHostTimeStamp,
+                    cur_time_stamp
                 )
             )
             stInputFrameInfo.pData = cast(stOutFrame.pBufAddr, POINTER(c_ubyte))
             stInputFrameInfo.nDataLen = stOutFrame.stFrameInfo.nFrameLen
             # ch:输入一帧数据到录像接口|en:Input a frame of data to the video interface
             ret = cam.MV_CC_InputOneFrame(stInputFrameInfo)
+            send_marker(lsl_outlet, cur_time_stamp)
             if ret != 0:
                 print("input one frame fail! nRet [Ox%x]" % ret)
             nRet = cam.MV_CC_FreeImageBuffer(stOutFrame)
         else:
             print("no data[0x%x]" % ret)
-            if g_bExit == True:
-                break
+        if g_bExit is True:
+            break
 
 
 def send_lowlevel_trigger():
@@ -56,8 +64,8 @@ def send_highlevel_trigger():
 
 
 def init_camera():
-    global ser
-    ser = serial.Serial(port="COM3", baudrate=9600, timeout=1)
+    global lsl_outlet
+    lsl_outlet = init_lsl("CameraMaker")
 
 
 def startRecord(save_dir: Path = None, file_name: str = None):
@@ -130,37 +138,37 @@ def startRecord(save_dir: Path = None, file_name: str = None):
 
     # ===================== 配置硬件触发 =====================
     # 设置触发模式为 on (外触发模式)
-    ret = cam.MV_CC_SetEnumValueByString("TriggerMode", "On")  # 1=On
+    ret = cam.MV_CC_SetEnumValueByString("TriggerMode", "Off")  # 1=On
     if ret != 0:
         print("Set TriggerMode failed! ret = 0x%x" % ret)
         return None, None
-    # 设置触发源为Line2
-    ret = cam.MV_CC_SetEnumValueByString("TriggerSource", "Line2")  # 2=Line2
-    if ret != 0:
-        print("Set TriggerSource failed! ret = 0x%x" % ret)
-        return None, None
-    # 设置触发沿为 LevelLow
-    ret = cam.MV_CC_SetEnumValueByString("TriggerActivation", "LevelLow")  # 0=LevelLow
-    if ret != 0:
-        print("Set TriggerActivation failed! ret = 0x%x" % ret)
-        return None, None
-
-    # 设置触发延迟
-    ret = cam.MV_CC_SetFloatValue("TriggerDelay", 0)
-    if ret != 0:
-        print("Set TriggerDelay failed! ret = 0x%x" % ret)
-        return None, None
-
-    # 切换 LineSelector 为 Line2
-    ret = cam.MV_CC_SetEnumValueByString("LineSelector", "Line2")
-    if ret != 0:
-        print("Set LineSelector failed! ret = 0x%x" % ret)
-        return None, None
-    # 设置Line2 滤波时间(us)、误触发可适当加大
-    ret = cam.MV_CC_SetIntValueEx("LineDebouncerTime", 50)
-    if ret != 0:
-        print("Set LineDebouncerTime failed! ret = 0x%x" % ret)
-        return None, None
+    # # 设置触发源为Line2
+    # ret = cam.MV_CC_SetEnumValueByString("TriggerSource", "Line2")  # 2=Line2
+    # if ret != 0:
+    #     print("Set TriggerSource failed! ret = 0x%x" % ret)
+    #     return None, None
+    # # 设置触发沿为 LevelLow
+    # ret = cam.MV_CC_SetEnumValueByString("TriggerActivation", "LevelLow")  # 0=LevelLow
+    # if ret != 0:
+    #     print("Set TriggerActivation failed! ret = 0x%x" % ret)
+    #     return None, None
+    #
+    # # 设置触发延迟
+    # ret = cam.MV_CC_SetFloatValue("TriggerDelay", 0)
+    # if ret != 0:
+    #     print("Set TriggerDelay failed! ret = 0x%x" % ret)
+    #     return None, None
+    #
+    # # 切换 LineSelector 为 Line2
+    # ret = cam.MV_CC_SetEnumValueByString("LineSelector", "Line2")
+    # if ret != 0:
+    #     print("Set LineSelector failed! ret = 0x%x" % ret)
+    #     return None, None
+    # # 设置Line2 滤波时间(us)、误触发可适当加大
+    # ret = cam.MV_CC_SetIntValueEx("LineDebouncerTime", 50)
+    # if ret != 0:
+    #     print("Set LineDebouncerTime failed! ret = 0x%x" % ret)
+    #     return None, None
 
     # ======================================================
 
@@ -182,7 +190,7 @@ def startRecord(save_dir: Path = None, file_name: str = None):
     ret = cam.MV_CC_GetEnumValue("PixelFormat", st_enum_value)
     if ret != 0:
         print("Get pixel format failed! ret = 0x%x" % ret)
-    en_pixel_type = st_enum_value.nCurValue
+    en_pixel_type = MvGvspPixelType(st_enum_value.nCurValue)
 
     st_float_value = MVCC_FLOATVALUE()
     memset(byref(st_float_value), 0, sizeof(st_float_value))
@@ -207,6 +215,7 @@ def startRecord(save_dir: Path = None, file_name: str = None):
     if file_name is None:
         file_name = "video.avi"
     save_path = save_dir / file_name  # 修改为您需要的路径
+    record_param.strFilePath = save_path.as_posix().encode("utf-8")
 
     # 确保目录存在
     save_path.parent.mkdir(parents=True, exist_ok=True)
@@ -228,15 +237,18 @@ def startRecord(save_dir: Path = None, file_name: str = None):
     g_bExit = False
     record_thread = threading.Thread(target=work_thread, args=(cam, None, None))
     record_thread.start()
+    send_marker(lsl_outlet, "StartRecording")
     return cam, record_thread
 
 
 def stopRecord(cam, record_thread):
     global g_bExit
-    send_highlevel_trigger()
+    # send_highlevel_trigger()
     # 停止录像
+    input()
     g_bExit = True
     record_thread.join()
+    send_marker(lsl_outlet, "StopRecording")
 
     ret = cam.MV_CC_StopRecord()
     if ret != 0:
@@ -255,8 +267,7 @@ def stopRecord(cam, record_thread):
 
 
 def close_camera():
-    global ser
-    ser.close()
+    pass
 
 
 def main():

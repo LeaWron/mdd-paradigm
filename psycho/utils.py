@@ -67,7 +67,7 @@ def send_marker(
         return
     if not is_pre:
         lsl_outlet.push_sample(
-            [marker], timestamp if timestamp is not None else local_clock()
+            [str(marker)], timestamp if timestamp is not None else local_clock()
         )
 
 

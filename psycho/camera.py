@@ -2,11 +2,13 @@ import ctypes
 import os
 import sys
 import threading
-from pathlib import Path
-import serial
 import time
+from pathlib import Path
+
+import serial
 from pylsl import StreamOutlet
-from psycho.utils import init_lsl, send_marker
+
+from psycho.utils import init_lsl, send_marker, setup_default_logger
 
 sys.path.append(os.getenv("MVCAM_COMMON_RUNENV") + "/Samples/Python/MvImport")
 from MvCameraControl_class import *  # noqa
@@ -16,6 +18,8 @@ from CameraParams_header import *
 g_bExit = False
 ser: serial.Serial = None
 lsl_outlet: StreamOutlet = None
+logger = setup_default_logger()
+
 
 # 为线程定义一个函数
 def work_thread(cam, pData, nDataSize):
@@ -28,16 +32,8 @@ def work_thread(cam, pData, nDataSize):
         ret = cam.MV_CC_GetImageBuffer(stOutFrame, 1000)
         if None != stOutFrame.pBufAddr and 0 == ret:
             cur_time_stamp = int(round(time.time() * 1000))
-            print(
-                "get one frame: Width[%d], Height[%d], nFrameNum[%d] nFrameLen[%d] fram_time_stamp[%d] host_time_stamp[%d]"
-                % (
-                    stOutFrame.stFrameInfo.nWidth,
-                    stOutFrame.stFrameInfo.nHeight,
-                    stOutFrame.stFrameInfo.nFrameNum,
-                    stOutFrame.stFrameInfo.nFrameLen,
-                    stOutFrame.stFrameInfo.nHostTimeStamp,
-                    cur_time_stamp
-                )
+            logger.debug(
+                f"get one frame: Width[{stOutFrame.stFrameInfo.nWidth}], Height[{stOutFrame.stFrameInfo.nHeight}], nFrameNum[{stOutFrame.stFrameInfo.nFrameNum}] nFrameLen[{stOutFrame.stFrameInfo.nFrameLen}] fram_time_stamp[{stOutFrame.stFrameInfo.nHostTimeStamp}] host_time_stamp[{cur_time_stamp}]"
             )
             stInputFrameInfo.pData = cast(stOutFrame.pBufAddr, POINTER(c_ubyte))
             stInputFrameInfo.nDataLen = stOutFrame.stFrameInfo.nFrameLen
@@ -45,10 +41,10 @@ def work_thread(cam, pData, nDataSize):
             ret = cam.MV_CC_InputOneFrame(stInputFrameInfo)
             send_marker(lsl_outlet, cur_time_stamp)
             if ret != 0:
-                print("input one frame fail! nRet [Ox%x]" % ret)
+                logger.error(f"input one frame fail! nRet [0x{ret:08x}]")
             nRet = cam.MV_CC_FreeImageBuffer(stOutFrame)
         else:
-            print("no data[0x%x]" % ret)
+            logger.debug(f"no data[0x{ret:08x}]")
         if g_bExit is True:
             break
 
@@ -72,7 +68,7 @@ def startRecord(save_dir: Path = None, file_name: str = None):
     # 初始化SDK
     ret = MvCamera.MV_CC_Initialize()
     if ret != 0:
-        print("Initialize SDK failed! ret = 0x%x" % ret)
+        logger.error(f"Initialize SDK failed! ret [0x{ret:08x}]")
         return None, None
 
     # 枚举设备
@@ -80,11 +76,11 @@ def startRecord(save_dir: Path = None, file_name: str = None):
     tlayer_type = MV_USB_DEVICE
     ret = MvCamera.MV_CC_EnumDevices(tlayer_type, device_list)
     if ret != 0:
-        print("Enum devices failed! ret = 0x%x" % ret)
+        logger.error(f"Enum devices failed! ret [0x{ret:08x}]")
         return None, None
 
     if device_list.nDeviceNum == 0:
-        print("No camera found!")
+        logger.error("No camera found!")
         return None, None
 
     for i in range(0, device_list.nDeviceNum):
@@ -92,7 +88,7 @@ def startRecord(save_dir: Path = None, file_name: str = None):
             device_list.pDeviceInfo[i], POINTER(MV_CC_DEVICE_INFO)
         ).contents
         if mvcc_dev_info.nTLayerType == MV_USB_DEVICE:
-            print("\nu3v device: [%d]" % i)
+            logger.info(f"\nu3v device: [{i}]")
             strModeName = "".join(
                 [
                     chr(c)
@@ -100,7 +96,7 @@ def startRecord(save_dir: Path = None, file_name: str = None):
                     if c != 0
                 ]
             )
-            print("device model name: %s" % strModeName)
+            logger.info(f"device model name: [{strModeName}]")
 
             strSerialNumber = "".join(
                 [
@@ -109,12 +105,12 @@ def startRecord(save_dir: Path = None, file_name: str = None):
                     if c != 0
                 ]
             )
-            print("user serial number: %s" % strSerialNumber)
+            logger.info(f"user serial number: [{strSerialNumber}]")
     # 选择第一个设备
     nConnectionNum = input("please input the number of the device to connect:")
 
     if int(nConnectionNum) >= device_list.nDeviceNum:
-        print("intput error!")
+        logger.error("intput error!")
         return None, None
     # 选择设备
     st_device_list = cast(
@@ -126,13 +122,13 @@ def startRecord(save_dir: Path = None, file_name: str = None):
     # 创建句柄
     ret = cam.MV_CC_CreateHandle(st_device_list)
     if ret != 0:
-        print("Create handle failed! ret = 0x%x" % ret)
+        logger.error(f"Create handle failed! ret [0x{ret:08x}]")
         return None, None
 
     # 打开设备
     ret = cam.MV_CC_OpenDevice(MV_ACCESS_Exclusive, 0)
     if ret != 0:
-        print("Open device failed! ret = 0x%x" % ret)
+        logger.error(f"Open device failed! ret [0x{ret:08x}]")
         cam.MV_CC_DestroyHandle()
         return None, None
 
@@ -140,34 +136,34 @@ def startRecord(save_dir: Path = None, file_name: str = None):
     # 设置触发模式为 on (外触发模式)
     ret = cam.MV_CC_SetEnumValueByString("TriggerMode", "Off")  # 1=On
     if ret != 0:
-        print("Set TriggerMode failed! ret = 0x%x" % ret)
+        logger.error(f"Set TriggerMode failed! ret [0x{ret:08x}]")
         return None, None
     # # 设置触发源为Line2
     # ret = cam.MV_CC_SetEnumValueByString("TriggerSource", "Line2")  # 2=Line2
     # if ret != 0:
-    #     print("Set TriggerSource failed! ret = 0x%x" % ret)
+    #     logger.error(f"Set TriggerSource failed! ret [0x{ret:08x}]")
     #     return None, None
     # # 设置触发沿为 LevelLow
     # ret = cam.MV_CC_SetEnumValueByString("TriggerActivation", "LevelLow")  # 0=LevelLow
     # if ret != 0:
-    #     print("Set TriggerActivation failed! ret = 0x%x" % ret)
+    #     logger.error(f"Set TriggerActivation failed! ret [0x{ret:08x}]")
     #     return None, None
     #
     # # 设置触发延迟
     # ret = cam.MV_CC_SetFloatValue("TriggerDelay", 0)
     # if ret != 0:
-    #     print("Set TriggerDelay failed! ret = 0x%x" % ret)
+    #     logger.error(f"Set TriggerDelay failed! ret [0x{ret:08x}]")
     #     return None, None
     #
     # # 切换 LineSelector 为 Line2
     # ret = cam.MV_CC_SetEnumValueByString("LineSelector", "Line2")
     # if ret != 0:
-    #     print("Set LineSelector failed! ret = 0x%x" % ret)
+    #     logger.error(f"Set LineSelector failed! ret [0x{ret:08x}]")
     #     return None, None
     # # 设置Line2 滤波时间(us)、误触发可适当加大
     # ret = cam.MV_CC_SetIntValueEx("LineDebouncerTime", 50)
     # if ret != 0:
-    #     print("Set LineDebouncerTime failed! ret = 0x%x" % ret)
+    #     logger.error(f"Set LineDebouncerTime failed! ret [0x{ret:08x}]")
     #     return None, None
 
     # ======================================================
@@ -177,26 +173,30 @@ def startRecord(save_dir: Path = None, file_name: str = None):
     memset(byref(st_param), 0, sizeof(st_param))
     ret = cam.MV_CC_GetIntValue("Width", st_param)
     if ret != 0:
-        print("Get width failed! ret = 0x%x" % ret)
+        logger.error(f"Get width failed! ret [0x{ret:08x}]")
+        return None, None
     n_width = st_param.nCurValue
 
     ret = cam.MV_CC_GetIntValue("Height", st_param)
     if ret != 0:
-        print("Get height failed! ret = 0x%x" % ret)
+        logger.error(f"Get height failed! ret [0x{ret:08x}]")
+        return None, None
     n_height = st_param.nCurValue
 
     st_enum_value = MVCC_ENUMVALUE()
     memset(byref(st_enum_value), 0, sizeof(st_enum_value))
     ret = cam.MV_CC_GetEnumValue("PixelFormat", st_enum_value)
     if ret != 0:
-        print("Get pixel format failed! ret = 0x%x" % ret)
+        logger.error(f"Get pixel format failed! ret [0x{ret:08x}]")
+        return None, None
     en_pixel_type = MvGvspPixelType(st_enum_value.nCurValue)
 
     st_float_value = MVCC_FLOATVALUE()
     memset(byref(st_float_value), 0, sizeof(st_float_value))
     ret = cam.MV_CC_GetFloatValue("ResultingFrameRate", st_float_value)
     if ret != 0:
-        print("Get frame rate failed! ret = 0x%x" % ret)
+        logger.error(f"Get frame rate failed! ret [0x{ret:08x}]")
+        return None, None
     f_frame_rate = st_float_value.fCurValue
 
     # 设置录像参数
@@ -223,12 +223,12 @@ def startRecord(save_dir: Path = None, file_name: str = None):
     # 开始录像
     ret = cam.MV_CC_StartRecord(record_param)
     if ret != 0:
-        print("Start record failed! ret = 0x%x" % ret)
+        logger.error(f"Start record failed! ret [0x{ret:08x}]")
         return None, None
     # 开始取流
     ret = cam.MV_CC_StartGrabbing()
     if ret != 0:
-        print("Start grabbing failed! ret = 0x%x" % ret)
+        logger.error(f"Start grabbing failed! ret [0x{ret:08x}]")
         return None, None
 
     # send_lowlevel_trigger()
@@ -252,18 +252,18 @@ def stopRecord(cam, record_thread):
 
     ret = cam.MV_CC_StopRecord()
     if ret != 0:
-        print("Stop record failed! ret = 0x%x" % ret)
+        logger.error(f"Stop record failed! ret [0x{ret:08x}]")
 
     # 停止取流
     ret = cam.MV_CC_StopGrabbing()
     if ret != 0:
-        print("Stop grabbing failed! ret = 0x%x" % ret)
+        logger.error(f"Stop grabbing failed! ret [0x{ret:08x}]")
 
     # 关闭设备
     cam.MV_CC_CloseDevice()
     cam.MV_CC_DestroyHandle()
     MvCamera.MV_CC_Finalize()
-    print("Camera resources released.")
+    logger.info("Camera resources released.")
 
 
 def close_camera():

@@ -126,7 +126,7 @@ def post_block():
 
 
 def pre_trial():
-    fixation = visual.TextStim(win, text="+", color="white", height=0.4, wrapWidth=2)
+    fixation = visual.TextStim(win, text="+", color="white", height=0.2, wrapWidth=2)
     fixation.draw()
     win.flip()
     core.wait(timing["fixation"])
@@ -330,7 +330,9 @@ def run_exp(cfg: DictConfig | None):
             text=cfg.phase_prompt,
             color="white",
             height=0.06,
-            wrapWidth=2,
+            wrapWidth=1,
+            pos=(0, 0),
+            alignText="left",
         )
         prompt.draw()
         win.flip()

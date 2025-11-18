@@ -23,7 +23,7 @@ psychopy.prefs.general["defaultTextSize"] = 0.05
 psychopy.prefs.general["defaultTextColor"] = "white"
 from psychopy import core, event, gui, visual  # noqa: E402
 
-# TODO: 字体大小统一
+# TODO: prompt 格式优化, 尝试左对齐
 # TODO: 新范式
 
 

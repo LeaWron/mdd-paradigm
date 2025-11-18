@@ -223,9 +223,11 @@ def test_get_audio_device():
 
     print(clean)
 
+
 @pytest.mark.skip(reason="暂时不测试这个函数")
 def test_send_serial():
     import serial
+
     ser = serial.Serial(port="COM3", baudrate=9600, timeout=1)
     # 低电平触发
     ser.rts = True

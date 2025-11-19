@@ -54,6 +54,10 @@ timing = {
     "recognition": {
         "stim": 0.5,
         "max_resp": 3.0,  # 识别任务最大反应时间
+        "iti": {
+            "low": 1.5,
+            "high": 1.7,
+        },
     },
 }
 
@@ -108,7 +112,7 @@ def draw_fixation(time: float = None):
     fix = visual.TextStim(win, text="+", color="white", height=0.2)
     fix.draw()
     win.flip()
-    core.wait(time or timing["fixation"])
+    core.wait(time or timing["encoding"]["fixation"])
 
 
 def run_encoding_phase():
@@ -137,13 +141,15 @@ def run_encoding_phase():
         one_trial_data["trial_start_time"] = clock.getTime()
 
         # 间隔
-        draw_fixation(get_isi(timing["iti"]["low"], timing["iti"]["high"]))
+        draw_fixation(
+            get_isi(timing["encoding"]["iti"]["low"], timing["encoding"]["iti"]["high"])
+        )
 
         # Stimulus
         text_stim = visual.TextStim(win, text=trial["word"], color="white", height=0.15)
         text_stim.draw()
         win.flip()
-        core.wait(timing["encoding_stim"])
+        core.wait(timing["encoding"]["stim"])
 
         draw_fixation()
 
@@ -162,7 +168,7 @@ def run_encoding_phase():
         onset_time = clock.getTime()
 
         keys = event.waitKeys(
-            maxWait=timing["encoding_resp"],
+            maxWait=timing["encoding"]["response"],
             keyList=list(encoding_map.keys()),
             timeStamped=clock,
         )
@@ -204,7 +210,7 @@ def run_distractor_phase():
         text_stim = visual.TextStim(win, text=str(i), color="yellow", height=0.3)
         text_stim.draw()
         win.flip()
-        core.wait(timing["distractor_step"])  # 节奏控制
+        core.wait(timing["distractor"]["step"])  # 节奏控制
 
         # 简单的记录，虽不需要详细分析但保持格式一致
         update_trial(one_trial_data, one_block_data)
@@ -219,6 +225,9 @@ def run_distractor_phase():
 
 # TODO: 实现输入和记录
 # 是否限制词库来辅助回忆
+# 输入拼音, 然后按空格确认
+# 需要筛选词语, 保证拼音匹配
+# 或者隐藏窗口后输入,通过gui收集
 
 
 def run_recall_phase():
@@ -230,37 +239,107 @@ def run_recall_phase():
         "任务三：回忆任务\n\n"
         "请尽可能多地回忆刚才你在[任务一]见到的词。\n"
         "并通过键盘输入。\n"
-        f"限时 {timing['recall_duration']} 秒。\n\n"
+        f"限时 {timing['recall']['duration']} 秒。\n\n"
         "准备好后按空格键开始计时。"
     )
     show_prompt(intro_text)
 
     send_marker(lsl_outlet, "RECALL_START", is_pre=pre)
 
-    timer = core.CountdownTimer(timing["recall_duration"])
+    # 存储所有提交的词
+    submitted_words = []
 
+    # 初始化文本框：单行模式，居中
+    textbox = visual.TextBox2(
+        win,
+        text="",
+        font="Microsoft YaHei",
+        units="norm",
+        pos=(0, 0),  # 屏幕正中央
+        size=(1.0, 0.15),
+        letterHeight=0.08,
+        color="white",
+        alignment="center",
+        editable=True,
+        borderColor="white",
+        borderWidth=2,
+        padding=0.02,
+    )
+
+    timer = core.CountdownTimer(timing["recall"]["duration"])
+
+    # 界面元素
+    tip_msg = visual.TextStim(
+        win,
+        text="请输入词汇并按回车提交",
+        pos=(0, 0.3),
+        height=0.05,
+        font="Microsoft YaHei",
+        color="grey",
+    )
+    count_msg = visual.TextStim(
+        win, text="已提交: 0", pos=(0, -0.3), height=0.05, font="Microsoft YaHei"
+    )
+    timer_msg = visual.TextStim(win, text="", pos=(0.7, 0.8), height=0.05)
+
+    event.clearEvents()
+
+    # 主循环
     while timer.getTime() > 0:
         time_left = int(timer.getTime())
-        msg = visual.TextStim(
-            win, text=f"请回忆...\n\n剩余时间: {time_left} 秒", color="white"
-        )
-        msg.draw()
-        win.flip()
+        timer_msg.text = f"剩余时间: {time_left}s"
 
-        # ESC 跳过
+        # 检查退出
         if event.getKeys(keyList=["escape"]):
             break
-        core.wait(0.1)
+
+        # === 核心逻辑：检查是否包含换行符 ===
+        # TextBox2 在 editable=True 时会捕获键盘输入。
+        # 当用户按回车时，text 属性里会出现 '\n'。
+        if "\n" in textbox.text:
+            # 提取内容
+            raw_text = textbox.text
+            # 清理前后的空白和换行符
+            word = raw_text.strip()
+
+            if word:  # 如果不是空行
+                submitted_words.append(word)
+                # 可选：这里发送一个 marker 表示提交了一个词
+                send_marker(lsl_outlet, "RECALL_SUBMIT", is_pre=pre)
+
+            # 立即清空文本框
+            textbox.text = ""
+            # 重置光标等内部状态
+            textbox.reset()
+
+            # 更新计数显示
+            count_msg.text = f"已提交: {len(submitted_words)}"
+
+        # 绘制界面
+        tip_msg.draw()
+        count_msg.draw()
+        timer_msg.draw()
+        textbox.draw()
+        win.flip()
 
     send_marker(lsl_outlet, "RECALL_END", is_pre=pre)
 
-    # 记录一行数据表示完成
+    # 保存数据
+    # 将列表连接成字符串保存，或者你想怎么存都行
+    final_string = ";".join(submitted_words)
+
     one_trial_data["phase"] = phase_name
-    one_trial_data["response"] = "Recall Phase Completed"
+    one_trial_data["response"] = final_string
+    # 为了方便分析，也可以记录回忆出的词的数量
+    one_trial_data["stim_word"] = f"COUNT:{len(submitted_words)}"
+
     update_trial(one_trial_data, one_block_data)
     update_block(one_block_data, data_to_save)
 
-    show_prompt("回忆时间到！\n请停止回忆。\n按空格键进入下一阶段。")
+    logger.info(f"Recall Phase Completed. Words: {submitted_words}")
+    show_prompt(
+        f"回忆阶段结束！\n你一共提交了 {len(submitted_words)} 个词。\n按空格键进入下一阶段。"
+    )
 
 
 def run_recognition_phase():
@@ -295,12 +374,17 @@ def run_recognition_phase():
         one_trial_data["correct_answer"] = trial["correct"]
         one_trial_data["trial_start_time"] = clock.getTime()
 
-        draw_fixation(get_isi(timing["iti"]["low"], timing["iti"]["high"]))
+        draw_fixation(
+            get_isi(
+                timing["recognition"]["iti"]["low"],
+                timing["recognition"]["iti"]["high"],
+            )
+        )
 
         text_stim = visual.TextStim(win, text=trial["word"], color="white", height=0.15)
         text_stim.draw()
         win.flip()
-        core.wait(timing["recognition_stim"])
+        core.wait(timing["recognition"]["stim"])
 
         draw_fixation()
 
@@ -316,7 +400,7 @@ def run_recognition_phase():
 
         keys = event.waitKeys(
             keyList=list(recognition_map.keys()),
-            maxWait=timing["recognition_max_resp"],
+            maxWait=timing["recognition"]["max_resp"],
             timeStamped=clock,
         )
 

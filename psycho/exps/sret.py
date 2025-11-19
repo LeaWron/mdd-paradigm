@@ -18,117 +18,53 @@ from psycho.utils import (
 # TODO: 中文词
 # TODO: hydra 配置
 # TODO: 生成序列
+# 刺激以伪随机顺序呈现，连续呈现的相同效价的词语不超过两个。
 
-positive_words = [
-    "Admired",
-    "Adorable",
-    "Alive",
-    "Beautiful",
-    "Bold",
-    "Bright",
-    "Capable",
-    "Carefree",
-    "Confident",
-    "Cute",
-    "Devoted",
-    "Dignified",
-    "Elated",
-    "Engaged",
-    "Famous",
-    "Festive",
-    "Friendly",
-    "Gentle",
-    "Grateful",
-    "Happy",
-    "Honest",
-    "Hopeful",
-    "Inspired",
-    "Jolly",
-    "Joyful",
-    "Lively",
-    "Loyal",
-    "Lucky",
-    "Masterful",
-    "Outstanding",
-    "Proud",
-    "Satisfied",
-    "Silly",
-    "Surprised",
-    "Terrific",
-    "Thoughtful",
-    "Untroubled",
-    "Useful",
-    "Vigorous",
-    "Wise",
+# 在数据采集开始前，参与者使用情感中性的词语完成了三次练习试验
+
+positive_words = ["美丽", "勇敢", "聪明", "有能力"]
+
+negative_words = ["害怕", "孤独", "易怒", "痛苦"]
+
+# TODO:需要在实际实验前用适当的形容词替换这个列表
+distractor_words = [
+    f"干扰{i}" for i in range(1, len(negative_words) + len(positive_words) + 1)
 ]
 
-negative_words = [
-    "Afraid",
-    "Alone",
-    "Angry",
-    "Anguished",
-    "Bored",
-    "Brutal",
-    "Burdened",
-    "Cruel",
-    "Crushed",
-    "Defeated",
-    "Depressed",
-    "Disgusted",
-    "Disloyal",
-    "Displeased",
-    "Distressed",
-    "Dreadful",
-    "Fearful",
-    "Frustrated",
-    "Guilty",
-    "Helpless",
-    "Hostile",
-    "Insane",
-    "Insecure",
-    "Lonely",
-    "Lost",
-    "Morbid",
-    "Obnoxious",
-    "Rejected",
-    "Rude",
-    "Scared",
-    "Shamed",
-    "Sinful",
-    "Stupid",
-    "Terrible",
-    "Terrified",
-    "Troubled",
-    "Unhappy",
-    "Upset",
-    "Useless",
-    "Violent",
-]
-
-# TODO:需要在实际实验前用另外80个匹配的形容词替换这个列表
-distractor_words = [f"Distractor_{i}" for i in range(1, 81)]
-
-# === 全局配置 ===
 continue_keys = ["space"]
-# SRET 特定参数
+# === 全局配置 ===
+
 timing = {
-    "encoding_stim": 0.5,
-    "fixation": 1.8,
-    "question": 1.8,
-    "encoding_resp": 2.5,
-    "distractor_step": 1.0,  # 倒数计时的步长
-    "recall_duration": 120.0,  # 回忆任务给予的时间（秒）
-    "recognition_max_resp": 3.0,  # 识别任务最大反应时间
-    "iti": {
-        "low": 1.5,
-        "high": 1.7,
+    "encoding": {
+        "stim": 0.5,
+        "fixation": 1.8,
+        "question": 1.8,
+        "response": 2.5,
+        "iti": {
+            "low": 1.5,
+            "high": 1.7,
+        },
+    },
+    "distractor": {
+        "step": 1.0,  # 倒数计时的步长
+    },
+    "recall": {
+        "duration": 20.0,  # 回忆任务给予的时间（秒）
+    },
+    "recognition": {
+        "stim": 0.5,
+        "max_resp": 3.0,  # 识别任务最大反应时间
+        "iti": {
+            "low": 1.5,
+            "high": 1.7,
+        },
     },
 }
 
-# 编码阶段: "这个词描述你吗？" -> 1=Yes, 2=No
 encoding_map = {"f": "yes", "j": "no"}
-# 识别阶段: "这个词刚才出现过吗？" -> 1=Old(见过), 2=New(没见过)
 recognition_map = {"f": "old", "j": "new"}
+
+phase_names = ["Encoding", "Distractor", "Recall", "Recognition"]
 
 # === 全局变量 ===
 win = None
@@ -161,11 +97,13 @@ one_block_data = {key: [] for key in data_to_save.keys()}  # 这里的 block 指
 
 
 def show_prompt(text, duration=None, wait_key=True):
-    stim = visual.TextStim(win, text=text, color="white", wrapWidth=2, height=0.08)
+    stim = visual.TextStim(
+        win, text=text, color="white", wrapWidth=1.2, height=0.06, alignText="left"
+    )
     stim.draw()
     win.flip()
     if wait_key:
-        event.waitKeys(duration, keyList=continue_keys)
+        event.waitKeys(duration or float("inf"), keyList=continue_keys)
     elif duration:
         core.wait(duration)
 
@@ -174,13 +112,13 @@ def draw_fixation(time: float = None):
     fix = visual.TextStim(win, text="+", color="white", height=0.2)
     fix.draw()
     win.flip()
-    core.wait(time or timing["fixation"])
+    core.wait(time or timing["encoding"]["fixation"])
 
 
 def run_encoding_phase():
     phase_name = "Encoding"
-    one_trial_data["phase"].append(phase_name)
-    one_trial_data["phase_start_time"].append(clock.getTime())
+    one_trial_data["phase"] = phase_name
+    one_trial_data["phase_start_time"] = clock.getTime()
 
     show_prompt(
         f"任务一：自我描述判断\n\n屏幕将呈现一系列形容词。\n如果该词语符合对你自己的描述，请按{list(encoding_map.keys())[0]}键\n如果不符合，请按{list(encoding_map.keys())[1]}键。\n\n按空格键开始。"
@@ -203,21 +141,23 @@ def run_encoding_phase():
         one_trial_data["trial_start_time"] = clock.getTime()
 
         # 间隔
-        draw_fixation(get_isi(timing["iti"]["low"], timing["iti"]["high"]))
+        draw_fixation(
+            get_isi(timing["encoding"]["iti"]["low"], timing["encoding"]["iti"]["high"])
+        )
 
         # Stimulus
         text_stim = visual.TextStim(win, text=trial["word"], color="white", height=0.15)
         text_stim.draw()
-        core.wait(timing["encoding_stim"])
         win.flip()
+        core.wait(timing["encoding"]["stim"])
 
         draw_fixation()
 
         prompt_stim = visual.TextStim(
             win,
             text="符合我(f)   不符合我(j)",
-            pos=(0, -0.5),
-            height=0.06,
+            pos=(0, 0),
+            height=0.08,
             color="white",
         )
 
@@ -228,7 +168,7 @@ def run_encoding_phase():
         onset_time = clock.getTime()
 
         keys = event.waitKeys(
-            maxWait=timing["encoding_resp"],
+            maxWait=timing["encoding"]["response"],
             keyList=list(encoding_map.keys()),
             timeStamped=clock,
         )
@@ -245,7 +185,7 @@ def run_encoding_phase():
         one_trial_data["response"] = resp
         one_trial_data["rt"] = rt
 
-        one_trial_data["trial_end_time"].append(clock.getTime())
+        one_trial_data["trial_end_time"] = clock.getTime()
         # 保存该 trial 数据
         update_trial(one_trial_data, one_block_data)
         logger.info(f"Encoding Trial {idx}: {trial['word']} -> {resp}")
@@ -270,7 +210,7 @@ def run_distractor_phase():
         text_stim = visual.TextStim(win, text=str(i), color="yellow", height=0.3)
         text_stim.draw()
         win.flip()
-        core.wait(timing["distractor_step"])  # 节奏控制
+        core.wait(timing["distractor"]["step"])  # 节奏控制
 
         # 简单的记录，虽不需要详细分析但保持格式一致
         update_trial(one_trial_data, one_block_data)
@@ -284,6 +224,12 @@ def run_distractor_phase():
 
 
 # TODO: 实现输入和记录
+# 是否限制词库来辅助回忆
+# 输入拼音, 然后按空格确认
+# 需要筛选词语, 保证拼音匹配
+# 或者隐藏窗口后输入,通过gui收集
+
+
 def run_recall_phase():
     """
     一个简单的 TextBox 收集所有输入。
@@ -293,37 +239,107 @@ def run_recall_phase():
         "任务三：回忆任务\n\n"
         "请尽可能多地回忆刚才你在[任务一]见到的词。\n"
         "并通过键盘输入。\n"
-        "限时 2 分钟。\n\n"
+        f"限时 {timing['recall']['duration']} 秒。\n\n"
         "准备好后按空格键开始计时。"
     )
     show_prompt(intro_text)
 
     send_marker(lsl_outlet, "RECALL_START", is_pre=pre)
 
-    timer = core.CountdownTimer(timing["recall_duration"])
+    # 存储所有提交的词
+    submitted_words = []
 
+    # 初始化文本框：单行模式，居中
+    textbox = visual.TextBox2(
+        win,
+        text="",
+        font="Microsoft YaHei",
+        units="norm",
+        pos=(0, 0),  # 屏幕正中央
+        size=(1.0, 0.15),
+        letterHeight=0.08,
+        color="white",
+        alignment="center",
+        editable=True,
+        borderColor="white",
+        borderWidth=2,
+        padding=0.02,
+    )
+
+    timer = core.CountdownTimer(timing["recall"]["duration"])
+
+    # 界面元素
+    tip_msg = visual.TextStim(
+        win,
+        text="请输入词汇并按回车提交",
+        pos=(0, 0.3),
+        height=0.05,
+        font="Microsoft YaHei",
+        color="grey",
+    )
+    count_msg = visual.TextStim(
+        win, text="已提交: 0", pos=(0, -0.3), height=0.05, font="Microsoft YaHei"
+    )
+    timer_msg = visual.TextStim(win, text="", pos=(0.7, 0.8), height=0.05)
+
+    event.clearEvents()
+
+    # 主循环
     while timer.getTime() > 0:
         time_left = int(timer.getTime())
-        msg = visual.TextStim(
-            win, text=f"请回忆...\n\n剩余时间: {time_left} 秒", color="white"
-        )
-        msg.draw()
-        win.flip()
+        timer_msg.text = f"剩余时间: {time_left}s"
 
-        # 同样允许 ESC 强退
+        # 检查退出
         if event.getKeys(keyList=["escape"]):
             break
-        core.wait(0.1)
+
+        # === 核心逻辑：检查是否包含换行符 ===
+        # TextBox2 在 editable=True 时会捕获键盘输入。
+        # 当用户按回车时，text 属性里会出现 '\n'。
+        if "\n" in textbox.text:
+            # 提取内容
+            raw_text = textbox.text
+            # 清理前后的空白和换行符
+            word = raw_text.strip()
+
+            if word:  # 如果不是空行
+                submitted_words.append(word)
+                # 可选：这里发送一个 marker 表示提交了一个词
+                send_marker(lsl_outlet, "RECALL_SUBMIT", is_pre=pre)
+
+            # 立即清空文本框
+            textbox.text = ""
+            # 重置光标等内部状态
+            textbox.reset()
+
+            # 更新计数显示
+            count_msg.text = f"已提交: {len(submitted_words)}"
+
+        # 绘制界面
+        tip_msg.draw()
+        count_msg.draw()
+        timer_msg.draw()
+        textbox.draw()
+        win.flip()
 
     send_marker(lsl_outlet, "RECALL_END", is_pre=pre)
 
-    # 记录一行数据表示完成
+    # 保存数据
+    # 将列表连接成字符串保存，或者你想怎么存都行
+    final_string = ";".join(submitted_words)
+
     one_trial_data["phase"] = phase_name
-    one_trial_data["response"] = "Recall Phase Completed"
+    one_trial_data["response"] = final_string
+    # 为了方便分析，也可以记录回忆出的词的数量
+    one_trial_data["stim_word"] = f"COUNT:{len(submitted_words)}"
+
     update_trial(one_trial_data, one_block_data)
     update_block(one_block_data, data_to_save)
 
-    show_prompt("回忆时间到！\n请停止回忆。\n按空格键进入下一阶段。")
+    logger.info(f"Recall Phase Completed. Words: {submitted_words}")
+    show_prompt(
+        f"回忆阶段结束！\n你一共提交了 {len(submitted_words)} 个词。\n按空格键进入下一阶段。"
+    )
 
 
 def run_recognition_phase():
@@ -358,14 +374,24 @@ def run_recognition_phase():
         one_trial_data["correct_answer"] = trial["correct"]
         one_trial_data["trial_start_time"] = clock.getTime()
 
-        draw_fixation()
-
-        text_stim = visual.TextStim(win, text=trial["word"], color="white", height=0.15)
-        prompt_stim = visual.TextStim(
-            win, text="见过(f)   没见过(j)", pos=(0, -0.5), height=0.06, color="white"
+        draw_fixation(
+            get_isi(
+                timing["recognition"]["iti"]["low"],
+                timing["recognition"]["iti"]["high"],
+            )
         )
 
+        text_stim = visual.TextStim(win, text=trial["word"], color="white", height=0.15)
         text_stim.draw()
+        win.flip()
+        core.wait(timing["recognition"]["stim"])
+
+        draw_fixation()
+
+        prompt_stim = visual.TextStim(
+            win, text="见过(f)   没见过(j)", pos=(0, 0), height=0.08, color="white"
+        )
+
         prompt_stim.draw()
         win.flip()
 
@@ -374,7 +400,7 @@ def run_recognition_phase():
 
         keys = event.waitKeys(
             keyList=list(recognition_map.keys()),
-            maxWait=timing["recognition_max_resp"],
+            maxWait=timing["recognition"]["max_resp"],
             timeStamped=clock,
         )
 
@@ -402,6 +428,10 @@ def run_recognition_phase():
         )
 
     update_block(one_block_data, data_to_save)
+
+
+def init_exp():
+    pass
 
 
 def run_exp():
@@ -450,7 +480,16 @@ def entry(exp: Experiment | None = None):
 
 
 def main():
-    entry()
+    class MockExp:
+        def __init__(self):
+            self.win = None
+            self.clock = None
+            self.logger = None
+            self.lsl_outlet = None
+            self.test = True
+            self.config = None
+
+    entry(MockExp())
 
 
 if __name__ == "__main__":

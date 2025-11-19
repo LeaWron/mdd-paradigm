@@ -1,12 +1,15 @@
-import ctypes
 import os
 import sys
 import threading
 import time
+import time
 from pathlib import Path
+
 
 import serial
 from pylsl import StreamOutlet
+
+from psycho.utils import init_lsl, send_marker, setup_default_logger
 
 from psycho.utils import init_lsl, send_marker, setup_default_logger
 
@@ -45,6 +48,7 @@ def work_thread(cam, pData, nDataSize):
             nRet = cam.MV_CC_FreeImageBuffer(stOutFrame)
         else:
             logger.debug(f"no data[0x{ret:08x}]")
+            logger.debug(f"no data[0x{ret:08x}]")
         if g_bExit is True:
             break
 
@@ -59,12 +63,10 @@ def send_highlevel_trigger():
     ser.rts = False
 
 
-def init_camera():
+def init_camera(save_dir: Path = None, file_name: str = None):
     global lsl_outlet
     lsl_outlet = init_lsl("CameraMaker")
 
-
-def startRecord(save_dir: Path = None, file_name: str = None):
     # 初始化SDK
     ret = MvCamera.MV_CC_Initialize()
     if ret != 0:
@@ -129,8 +131,9 @@ def startRecord(save_dir: Path = None, file_name: str = None):
     ret = cam.MV_CC_OpenDevice(MV_ACCESS_Exclusive, 0)
     if ret != 0:
         logger.error(f"Open device failed! ret [0x{ret:08x}]")
+        logger.error(f"Open device failed! ret [0x{ret:08x}]")
         cam.MV_CC_DestroyHandle()
-        return None, None
+        return None
 
     # ===================== 配置硬件触发 =====================
     # 设置触发模式为 on (外触发模式)
@@ -232,20 +235,26 @@ def startRecord(save_dir: Path = None, file_name: str = None):
         return None, None
 
     # send_lowlevel_trigger()
+    return cam
+
+
+def init_record_thread(cam):
     # 创建并启动录像线程
     global g_bExit
     g_bExit = False
     record_thread = threading.Thread(target=work_thread, args=(cam, None, None))
+    return record_thread
+
+
+def start_record(cam, record_thread: threading.Thread):
     record_thread.start()
     send_marker(lsl_outlet, "StartRecording")
-    return cam, record_thread
 
 
-def stopRecord(cam, record_thread):
+def stopRecord(cam, record_thread: threading.Thread):
     global g_bExit
     # send_highlevel_trigger()
     # 停止录像
-    input()
     g_bExit = True
     record_thread.join()
     send_marker(lsl_outlet, "StopRecording")
@@ -253,12 +262,14 @@ def stopRecord(cam, record_thread):
     ret = cam.MV_CC_StopRecord()
     if ret != 0:
         logger.error(f"Stop record failed! ret [0x{ret:08x}]")
+        logger.error(f"Stop record failed! ret [0x{ret:08x}]")
 
     # 停止取流
     ret = cam.MV_CC_StopGrabbing()
     if ret != 0:
         logger.error(f"Stop grabbing failed! ret [0x{ret:08x}]")
 
+def close_camera(cam):
     # 关闭设备
     cam.MV_CC_CloseDevice()
     cam.MV_CC_DestroyHandle()
@@ -271,9 +282,11 @@ def close_camera():
 
 
 def main():
-    init_camera()
-    cam, record_thread = startRecord()
+    cam = init_camera()
     if cam is not None:
+        record_thread = init_record_thread(cam)
+        start_record(cam, record_thread)
+        input("Press any key to stop recording...")
         stopRecord(cam, record_thread)
     else:
         MvCamera.MV_CC_Finalize()

@@ -1,0 +1,11 @@
+defaults:
+  - exps/sret/pre
+  - _self_
+timing:
+  rest: 300 # 60 * 5
+  max_wait: 5
+
+phase_prompt: |
+  接下来是正式实验, 实验方式与预实验相同
+  仅有实验次数不同
+  请按空格键继续

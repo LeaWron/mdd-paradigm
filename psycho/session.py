@@ -10,6 +10,13 @@ import hydra
 import psychopy
 from omegaconf import DictConfig, OmegaConf
 
+from psycho.camera import (
+    close_camera,
+    init_camera,
+    init_record_thread,
+    start_record,
+    stopRecord,
+)
 from psycho.utils import (
     get_audio_devices,
     init_lsl,
@@ -23,8 +30,11 @@ psychopy.prefs.general["defaultTextSize"] = 0.05
 psychopy.prefs.general["defaultTextColor"] = "white"
 from psychopy import core, event, gui, visual  # noqa: E402
 
+USE_CAMERA = False
+
 # TODO: prompt 格式优化, 尝试左对齐
 # TODO: 新范式
+# TODO: NIRStar SDK 集成
 
 
 @dataclass
@@ -48,6 +58,13 @@ class Session:
         self.globalClock = core.Clock()
         self.trialClock = core.Clock()
 
+        self.camera = None
+        if USE_CAMERA:
+            self.camera = init_camera()
+            if self.camera is None:
+                self.logger.error("Failed to initialize camera.")
+                core.quit()
+
         self.continue_keys = ["space"]
         self.lsl_proc = None
         self.lsl_outlet = None
@@ -55,6 +72,7 @@ class Session:
         self.before_duration = self.cfg.session.timing.before_wait
         self.after_rest_duration = self.cfg.session.timing.iei
 
+        self.labrecorder_connection = None
         if "labrecorder" in self.cfg and ("test" not in self.cfg or self.cfg.test):
             self.labrecorder_connection = socket.create_connection(
                 (self.cfg.labrecorder.host, self.cfg.labrecorder.port)
@@ -181,9 +199,11 @@ class Session:
             self.lsl_proc = multiprocessing.Process(target=self._lsl_recv)
             self.lsl_proc.start()
 
+        if self.camera is not None:
+            self.record_thread = init_record_thread(self.camera)
         try:
             self.lsl_outlet = init_lsl("ParadigmMarker")
-            if hasattr(self, "labrecorder_connection"):
+            if self.labrecorder_connection is not None:
                 # 文件名格式: {root}/{session_id}.xdf
                 root = Path(self.cfg.output_dir) / self.session_info["date"]
                 file_name_cmd = f"filename {{root:{root}}} {{template:%s}} {{session:{self.session_info['session_id']}}}.xdf"
@@ -208,8 +228,10 @@ class Session:
                 if "space" == keys[0][0]:
                     break
 
-            if hasattr(self, "labrecorder_connection"):
+            if self.labrecorder_connection is not None:
                 self.labrecorder_connection.sendall(b"start\n")
+            if self.camera is not None:
+                start_record(self.camera, self.record_thread)
             send_marker(self.lsl_outlet, "SESSION_START")
 
             self.win.flip()
@@ -272,11 +294,15 @@ class Session:
             self.win.close()
 
         send_marker(self.lsl_outlet, "SESSION_END")
-        if hasattr(self, "labrecorder_connection"):
+        if self.labrecorder_connection is not None:
             self.labrecorder_connection.sendall(b"stop\n")
+        if self.camera is not None:
+            stopRecord(self.camera, self.record_thread)
+            close_camera(self.camera)
         # core.quit()
 
     def pause(self):
+        """暂停会话, 功能未实现"""
         pause_start = self.trialClock.getTime()  # 记录暂停开始时间（系统时间）
 
         # 只用管理 win 和 clock 即可
@@ -307,8 +333,8 @@ class Session:
 def run_session(cfg: DictConfig):
     # 切换到英文输入法
     switch_keyboard_layout()
-    # 初始化音频设备
-    init_audio_device()
+    # 初始化音视频设备
+    init_audio_video_device()
 
     OmegaConf.resolve(cfg)
     if cfg.debug:
@@ -323,17 +349,22 @@ def run_session(cfg: DictConfig):
     session.start(with_lsl=False)
 
 
-def init_audio_device():
+def init_audio_video_device():
     sound_devices = get_audio_devices()
     # gui 选择
-    select_audio = gui.Dlg("音频设备选择")
-    select_audio.addField(
+    select_audio_vedio = gui.Dlg("音视频设备选择")
+    select_audio_vedio.addField(
         label="请选择", choices=sound_devices, key="audio_device", tip="默认为第一项"
     )
-    ok_data = select_audio.show()
-    if select_audio.OK:
-        print(ok_data)
+    select_audio_vedio.addField(
+        label="是否使用视频设备", initial=False, key="use_video"
+    )
+    ok_data = select_audio_vedio.show()
+    if select_audio_vedio.OK:
         psychopy.prefs.hardware["audioDevice"] = ok_data["audio_device"]
+        if ok_data["use_video"]:
+            global USE_CAMERA
+            USE_CAMERA = True
 
 
 if __name__ == "__main__":

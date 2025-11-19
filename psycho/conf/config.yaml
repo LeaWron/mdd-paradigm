@@ -1,3 +1,4 @@
+# TODO: 通过继承优化结构
 defaults:
   - session: config
   - exps@exps.emotion_face.pre: emotion_face/pre
@@ -5,6 +6,8 @@ defaults:
   - exps@exps.prt.pre: prt/pre
   - exps@exps.prt.full: prt/full
   - exps@exps.resting.full: resting/full
+  - exps@exps.sret.full: sret/full
+  - exps@exps.sret.pre: sret/pre
 
 project_root: ${hydra:runtime.cwd}
 pkg_root: ${project_root}/psycho

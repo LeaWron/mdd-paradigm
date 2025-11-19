@@ -32,10 +32,9 @@ from psychopy import core, event, gui, visual  # noqa: E402
 
 USE_CAMERA = False
 
-USE_CAMERA = False
-
 # TODO: prompt 格式优化, 尝试左对齐
 # TODO: 新范式
+# TODO: NIRStar SDK 集成
 
 
 @dataclass
@@ -73,6 +72,7 @@ class Session:
         self.before_duration = self.cfg.session.timing.before_wait
         self.after_rest_duration = self.cfg.session.timing.iei
 
+        self.labrecorder_connection = None
         if "labrecorder" in self.cfg and ("test" not in self.cfg or self.cfg.test):
             self.labrecorder_connection = socket.create_connection(
                 (self.cfg.labrecorder.host, self.cfg.labrecorder.port)
@@ -200,10 +200,10 @@ class Session:
             self.lsl_proc.start()
 
         if self.camera is not None:
-            record_thread = init_record_thread(self.camera)
+            self.record_thread = init_record_thread(self.camera)
         try:
             self.lsl_outlet = init_lsl("ParadigmMarker")
-            if hasattr(self, "labrecorder_connection"):
+            if self.labrecorder_connection is not None:
                 # 文件名格式: {root}/{session_id}.xdf
                 root = Path(self.cfg.output_dir) / self.session_info["date"]
                 file_name_cmd = f"filename {{root:{root}}} {{template:%s}} {{session:{self.session_info['session_id']}}}.xdf"
@@ -228,10 +228,10 @@ class Session:
                 if "space" == keys[0][0]:
                     break
 
-            if hasattr(self, "labrecorder_connection"):
+            if self.labrecorder_connection is not None:
                 self.labrecorder_connection.sendall(b"start\n")
             if self.camera is not None:
-                start_record(self.camera, record_thread)
+                start_record(self.camera, self.record_thread)
             send_marker(self.lsl_outlet, "SESSION_START")
 
             self.win.flip()
@@ -294,8 +294,11 @@ class Session:
             self.win.close()
 
         send_marker(self.lsl_outlet, "SESSION_END")
-        if hasattr(self, "labrecorder_connection"):
+        if self.labrecorder_connection is not None:
             self.labrecorder_connection.sendall(b"stop\n")
+        if self.camera is not None:
+            stopRecord(self.camera, self.record_thread)
+            close_camera(self.camera)
         # core.quit()
 
     def pause(self):

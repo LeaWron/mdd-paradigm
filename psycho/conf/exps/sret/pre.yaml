@@ -1,0 +1,71 @@
+timing:
+  encoding:
+    stim: 0.5
+    fixation: 1.8
+    question: 1.8
+    response: 2.5
+    iti:
+      low: 1.5
+      high: 1.7
+  distractor:
+    step: 1.0
+  recall:
+    duration: 20.0
+  recognition:
+    stim: 0.5
+    iti: 1.5
+    response: 3.0
+
+phase:
+  - "Encoding"
+  - "Distractor"
+  - "Recall"
+  - "Recognition"
+
+prompts:
+  encoding:
+    prompt: |
+      任务一：自我描述判断
+
+      屏幕将呈现一系列词语
+      如果该词语符合对你自己的描述，请按 f 键
+      如果不符合，请按 j 键
+
+      按空格键开始
+    marker: ENCODING
+  distractor:
+    prompt: |
+      任务二：倒数任务
+
+      屏幕上将出现数字
+      请跟随数字的节奏，在心中默数
+
+      按空格键开始
+    marker: DISTRACTOR
+  recall:
+    prompt: |
+      任务三：回忆任务
+
+      请尽可能多地回忆刚才你在[任务一]见到的词
+      并通过键盘输入
+      限时 20 秒
+
+      准备好后按空格键开始计时
+    marker: RECALL
+  recognition:
+    prompt: |
+      任务四：再认任务
+
+      屏幕将出现一系列形容词
+      如果这个词在[任务一]中出现过，请按 f 键
+      否则请按 j 键
+
+      按空格键开始
+    marker: RECOGNITION
+
+phase_prompt: |
+  即将进入预实验, 你将学习该实验如何进行
+
+  每个任务都有一个提示, 你需要根据提示进行操作
+
+  请按空格键继续

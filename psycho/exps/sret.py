@@ -18,48 +18,49 @@ from psycho.utils import (
 # TODO: 中文词
 # TODO: hydra 配置
 # TODO: 生成序列
+# 刺激以伪随机顺序呈现，连续呈现的相同效价的词语不超过两个。
 
-positive_words = [
-    "Admired",
-    "Adorable",
-    "Alive",
-    "Beautiful",
-]
+# 在数据采集开始前，参与者使用情感中性的词语完成了三次练习试验
 
-negative_words = [
-    "Afraid",
-    "Alone",
-    "Angry",
-    "Anguished",
-]
+positive_words = ["美丽", "勇敢", "聪明", "有能力"]
 
-# TODO:需要在实际实验前用另外80个匹配的形容词替换这个列表
+negative_words = ["害怕", "孤独", "易怒", "痛苦"]
+
+# TODO:需要在实际实验前用适当的形容词替换这个列表
 distractor_words = [
-    f"Distractor_{i}" for i in range(1, len(negative_words) + len(positive_words) + 1)
+    f"干扰{i}" for i in range(1, len(negative_words) + len(positive_words) + 1)
 ]
 
-# === 全局配置 ===
 continue_keys = ["space"]
-# SRET 特定参数
+# === 全局配置 ===
+
 timing = {
-    "encoding_stim": 0.5,
-    "fixation": 1.8,
-    "question": 1.8,
-    "encoding_resp": 2.5,
-    "distractor_step": 1.0,  # 倒数计时的步长
-    "recall_duration": 20.0,  # 回忆任务给予的时间（秒）
-    "recognition_stim": 0.5,
-    "recognition_max_resp": 3.0,  # 识别任务最大反应时间
-    "iti": {
-        "low": 1.5,
-        "high": 1.7,
+    "encoding": {
+        "stim": 0.5,
+        "fixation": 1.8,
+        "question": 1.8,
+        "response": 2.5,
+        "iti": {
+            "low": 1.5,
+            "high": 1.7,
+        },
+    },
+    "distractor": {
+        "step": 1.0,  # 倒数计时的步长
+    },
+    "recall": {
+        "duration": 20.0,  # 回忆任务给予的时间（秒）
+    },
+    "recognition": {
+        "stim": 0.5,
+        "max_resp": 3.0,  # 识别任务最大反应时间
     },
 }
 
-# 编码阶段: "这个词描述你吗？" -> 1=Yes, 2=No
 encoding_map = {"f": "yes", "j": "no"}
-# 识别阶段: "这个词刚才出现过吗？" -> 1=Old(见过), 2=New(没见过)
 recognition_map = {"f": "old", "j": "new"}
+
+phase_names = ["Encoding", "Distractor", "Recall", "Recognition"]
 
 # === 全局变量 ===
 win = None
@@ -226,7 +227,7 @@ def run_recall_phase():
     """
     phase_name = "Recall"
     intro_text = (
-        f"任务三：回忆任务\n\n"
+        "任务三：回忆任务\n\n"
         "请尽可能多地回忆刚才你在[任务一]见到的词。\n"
         "并通过键盘输入。\n"
         f"限时 {timing['recall_duration']} 秒。\n\n"
@@ -343,6 +344,10 @@ def run_recognition_phase():
         )
 
     update_block(one_block_data, data_to_save)
+
+
+def init_exp():
+    pass
 
 
 def run_exp():

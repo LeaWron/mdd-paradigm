@@ -76,8 +76,15 @@ def switch_keyboard_layout(layout: str = "en-US"):
     # 加载 user32.dll
     user32 = ctypes.WinDLL("user32", use_last_error=True)
 
-    # HKL 对应输入法标识符：0x04090409 = en-US 键盘布局
-    HKL_NEXT = 0x04090409
+    match layout:
+        case "en-US":
+            # HKL 对应输入法标识符：0x04090409 = en-US 键盘布局
+            HKL_NEXT = 0x04090409
+        case "zh-CN":
+            # HKL 对应输入法标识符：0x08040804 = zh-CN 键盘布局
+            HKL_NEXT = 0x08040804
+        case _:
+            raise ValueError(f"不支持的键盘布局 {layout}")
 
     # 切换输入法
     user32.ActivateKeyboardLayout(HKL_NEXT, 0)

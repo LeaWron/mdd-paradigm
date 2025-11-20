@@ -34,7 +34,6 @@ USE_CAMERA = False
 
 # TODO: prompt 格式优化, 尝试左对齐
 # TODO: 新范式
-# TODO: NIRStar SDK 集成
 
 
 @dataclass

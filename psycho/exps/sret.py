@@ -11,6 +11,7 @@ from psycho.utils import (
     save_csv_data,
     send_marker,
     setup_default_logger,
+    switch_keyboard_layout,
     update_block,
     update_trial,
 )
@@ -225,9 +226,7 @@ def run_distractor_phase():
 
 # TODO: 实现输入和记录
 # 是否限制词库来辅助回忆
-# 输入拼音, 然后按空格确认
 # 需要筛选词语, 保证拼音匹配
-# 或者隐藏窗口后输入,通过gui收集
 
 
 def run_recall_phase():
@@ -249,13 +248,12 @@ def run_recall_phase():
     # 存储所有提交的词
     submitted_words = []
 
-    # 初始化文本框：单行模式，居中
     textbox = visual.TextBox2(
         win,
         text="",
-        font="Microsoft YaHei",
+        font="Microsoft YaHei",  # 用微软雅黑
         units="norm",
-        pos=(0, 0),  # 屏幕正中央
+        pos=(0, 0),
         size=(1.0, 0.15),
         letterHeight=0.08,
         color="white",
@@ -275,7 +273,7 @@ def run_recall_phase():
         pos=(0, 0.3),
         height=0.05,
         font="Microsoft YaHei",
-        color="grey",
+        color="white",
     )
     count_msg = visual.TextStim(
         win, text="已提交: 0", pos=(0, -0.3), height=0.05, font="Microsoft YaHei"
@@ -283,6 +281,7 @@ def run_recall_phase():
     timer_msg = visual.TextStim(win, text="", pos=(0.7, 0.8), height=0.05)
 
     event.clearEvents()
+    switch_keyboard_layout("zh-CN")
 
     # 主循环
     while timer.getTime() > 0:
@@ -323,6 +322,7 @@ def run_recall_phase():
         win.flip()
 
     send_marker(lsl_outlet, "RECALL_END", is_pre=pre)
+    switch_keyboard_layout()
 
     # 保存数据
     # 将列表连接成字符串保存，或者你想怎么存都行
@@ -430,20 +430,26 @@ def run_recognition_phase():
     update_block(one_block_data, data_to_save)
 
 
-def init_exp():
-    pass
+def init_exp(config: DictConfig | None):
+    global timing, phase_names
+
+    timing = config["timing"]
+    phase_names = config["phase_names"]
+
+    if not test:
+        pass
 
 
-def run_exp():
+def run_exp(cfg: DictConfig | None):
+    if cfg is not None:
+        init_exp(cfg)
+
     # 1. 编码任务
     run_encoding_phase()
-
     # 2. 干扰任务 (倒数)
     run_distractor_phase()
-
     # 3. 回忆任务
     run_recall_phase()
-
     # 4. 识别任务
     run_recognition_phase()
 
@@ -465,7 +471,7 @@ def entry(exp: Experiment | None = None):
     one_trial_data["exp_start_time"] = clock.getTime()
     send_marker(lsl_outlet, "EXPERIMENT_START", is_pre=pre)
 
-    run_exp()
+    run_exp(exp.config.full if exp.config else None)
 
     send_marker(lsl_outlet, "EXPERIMENT_END", is_pre=pre)
     one_trial_data["exp_end_time"] = clock.getTime()
@@ -489,6 +495,7 @@ def main():
             self.test = True
             self.config = None
 
+    switch_keyboard_layout()
     entry(MockExp())
 
 

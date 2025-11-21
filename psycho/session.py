@@ -32,9 +32,6 @@ from psychopy import core, event, gui, visual  # noqa: E402
 
 USE_CAMERA = False
 
-# TODO: prompt 格式优化, 尝试左对齐
-# TODO: 新范式
-
 
 @dataclass
 class Experiment:

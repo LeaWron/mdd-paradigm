@@ -6,6 +6,7 @@ from psychopy import core, event, visual
 
 from psycho.session import Experiment
 from psycho.utils import (
+    generate_trial_sequence,
     get_isi,
     init_lsl,
     save_csv_data,
@@ -16,37 +17,37 @@ from psycho.utils import (
     update_trial,
 )
 
-# TODO: 中文词
-# TODO: hydra 配置
 # TODO: 生成序列
 # 刺激以伪随机顺序呈现，连续呈现的相同效价的词语不超过两个。
 
 # 在数据采集开始前，参与者使用情感中性的词语完成了三次练习试验
 
+# === 参数设置 ===
 positive_words = ["美丽", "勇敢", "聪明", "有能力"]
 
 negative_words = ["害怕", "孤独", "易怒", "痛苦"]
 
-# TODO:需要在实际实验前用适当的形容词替换这个列表
 distractor_words = [
     f"干扰{i}" for i in range(1, len(negative_words) + len(positive_words) + 1)
 ]
 
+stim_sequence = {}
+
 continue_keys = ["space"]
-# === 全局配置 ===
 
 timing = {
     "encoding": {
         "stim": 0.5,
-        "fixation": 1.8,
-        "question": 1.8,
+        "fixation": 1,
+        "question": 1,
         "response": 2.5,
         "iti": {
-            "low": 1.5,
-            "high": 1.7,
+            "low": 1,
+            "high": 1.5,
         },
     },
     "distractor": {
+        "start_num": 10,
         "step": 1.0,  # 倒数计时的步长
     },
     "recall": {
@@ -54,10 +55,10 @@ timing = {
     },
     "recognition": {
         "stim": 0.5,
-        "max_resp": 3.0,  # 识别任务最大反应时间
+        "response": 3.0,  # 识别任务最大反应时间
         "iti": {
-            "low": 1.5,
-            "high": 1.7,
+            "low": 1.2,
+            "high": 1.5,
         },
     },
 }
@@ -65,7 +66,32 @@ timing = {
 encoding_map = {"f": "yes", "j": "no"}
 recognition_map = {"f": "old", "j": "new"}
 
-phase_names = ["Encoding", "Distractor", "Recall", "Recognition"]
+phase_names = {
+    "encoding": "Encoding",
+    "distractor": "Distractor",
+    "recall": "Recall",
+    "recognition": "Recognition",
+}
+
+prompts = {
+    "encoding": {
+        "prompt": f"任务一：自我描述判断\n\n屏幕将呈现一系列形容词。\n如果该词语符合对你自己的描述，请按{list(encoding_map.keys())[0]}键\n如果不符合，请按{list(encoding_map.keys())[1]}键。\n\n按空格键开始。",
+        "marker": "ENCODING",
+    },
+    "distractor": {
+        "prompt": "任务二：倒数任务\n\n屏幕上将出现数字。\n请跟随数字的节奏，在心中默数。\n\n按空格键开始。",
+        "marker": "DISTRACTOR",
+    },
+    "recall": {
+        "prompt": f"任务三：回忆任务\n\n请尽可能多地回忆刚才你在[任务一]见到的词。\n并通过键盘输入。\n限时 {timing['recall']['duration']} 秒。\n\n准备好后按空格键开始计时。",
+        "marker": "RECALL",
+    },
+    "recognition": {
+        "prompt": f"任务四：再认任务\n\n屏幕将出现一系列形容词。\n如果这个词刚才出现过，请按{list(recognition_map.keys())[0]}键。\n如果这个词是新出现的，请按{list(recognition_map.keys())[1]}键。\n\n按空格键开始。",
+        "marker": "RECOGNITION",
+    },
+}
+
 
 # === 全局变量 ===
 win = None
@@ -86,17 +112,25 @@ data_to_save = {
     "trial_end_time": [],
     "trial_index": [],
     "stim_word": [],
-    "stim_type": [],  # Positive/Negative/Distractor
+    "stim_type": [],
     "response": [],
-    "rt": [],  # 仅计算认可的值
-    "correct_answer": [],  # 用于识别任务 (old/new)
-    "is_correct": [],  # 仅用于识别任务
+    "rt": [],
+    "endorse_count": [],
+    # 仅用于回忆任务
+    "recalled_words": [],
+    "recalled_all": [],
+    "recall_count": [],
+    # 用于识别任务
+    "correct_answer": [],
+    "is_correct": [],
+    "recog_count": [],
 }
 
 one_trial_data = {key: None for key in data_to_save.keys()}
 one_block_data = {key: [] for key in data_to_save.keys()}  # 这里的 block 指代 phase
 
 
+# === 工具函数 ===
 def show_prompt(text, duration=None, wait_key=True):
     stim = visual.TextStim(
         win, text=text, color="white", wrapWidth=1.2, height=0.06, alignText="left"
@@ -109,37 +143,42 @@ def show_prompt(text, duration=None, wait_key=True):
         core.wait(duration)
 
 
-def draw_fixation(time: float = None):
+def draw_fixation(time: float):
     fix = visual.TextStim(win, text="+", color="white", height=0.2)
     fix.draw()
     win.flip()
-    core.wait(time or timing["encoding"]["fixation"])
+    core.wait(time)
+
+
+def init_encoding_phase():
+    global stim_sequence
+    if "encoding" not in stim_sequence:
+        candidates = positive_words + negative_words
+        stim_sequence["encoding"] = generate_trial_sequence(
+            n_blocks=1,
+            n_trials_per_block=len(candidates),
+            stim_list=candidates,
+        )[0]
 
 
 def run_encoding_phase():
-    phase_name = "Encoding"
-    one_trial_data["phase"] = phase_name
+    send_marker(lsl_outlet, f"{prompts['encoding']['marker']}_START", is_pre=pre)
+    one_trial_data["phase"] = phase_names["encoding"]
     one_trial_data["phase_start_time"] = clock.getTime()
 
-    show_prompt(
-        f"任务一：自我描述判断\n\n屏幕将呈现一系列形容词。\n如果该词语符合对你自己的描述，请按{list(encoding_map.keys())[0]}键\n如果不符合，请按{list(encoding_map.keys())[1]}键。\n\n按空格键开始。"
-    )
+    show_prompt(prompts["encoding"]["prompt"])
 
-    # 准备刺激：40积极 + 40消极
-    trials = []
-    for w in positive_words:
-        trials.append({"word": w, "type": "positive"})
-    for w in negative_words:
-        trials.append({"word": w, "type": "negative"})
+    trials = stim_sequence["encoding"]
 
-    random.shuffle(trials)
+    endorse_count = 0
 
     for idx, trial in enumerate(trials):
-        one_trial_data["phase"] = phase_name
         one_trial_data["trial_index"] = idx
-        one_trial_data["stim_word"] = trial["word"]
-        one_trial_data["stim_type"] = trial["type"]
         one_trial_data["trial_start_time"] = clock.getTime()
+        one_trial_data["stim_word"] = trial
+        one_trial_data["stim_type"] = (
+            "postive" if trial in positive_words else "negative"
+        )
 
         # 间隔
         draw_fixation(
@@ -147,18 +186,18 @@ def run_encoding_phase():
         )
 
         # Stimulus
-        text_stim = visual.TextStim(win, text=trial["word"], color="white", height=0.15)
+        text_stim = visual.TextStim(win, text=trial, color="white", height=0.15)
         text_stim.draw()
         win.flip()
         core.wait(timing["encoding"]["stim"])
 
-        draw_fixation()
+        draw_fixation(timing["encoding"]["fixation"])
 
         prompt_stim = visual.TextStim(
             win,
             text="符合我(f)   不符合我(j)",
             pos=(0, 0),
-            height=0.08,
+            height=0.1,
             color="white",
         )
 
@@ -179,74 +218,69 @@ def run_encoding_phase():
 
         if keys:
             key, timestamp = keys[0]
-            rt = timestamp - onset_time
             resp = encoding_map[key]
-            send_marker(lsl_outlet, f"RESPONSE_{resp.upper()}", is_pre=pre)
+            if resp == "yes":
+                rt = timestamp - onset_time
+                endorse_count += 1
+                one_trial_data["rt"] = rt
+            send_marker(lsl_outlet, "RESPONSE", is_pre=pre)
 
         one_trial_data["response"] = resp
-        one_trial_data["rt"] = rt
 
         one_trial_data["trial_end_time"] = clock.getTime()
         # 保存该 trial 数据
         update_trial(one_trial_data, one_block_data)
-        logger.info(f"Encoding Trial {idx}: {trial['word']} -> {resp}")
+        logger.info(f"Encoding Trial {idx}: {trial} -> {resp}")
 
+    one_trial_data["endorse_count"] = endorse_count
+    one_trial_data["phase_end_time"] = clock.getTime()
+    send_marker(lsl_outlet, f"{prompts['encoding']['marker']}_END", is_pre=pre)
+
+    update_trial(one_trial_data, one_block_data)
     update_block(one_block_data, data_to_save)
 
 
 def run_distractor_phase():
-    phase_name = "Distractor"
-    show_prompt(
-        "任务二：倒数任务\n\n屏幕上将出现数字。\n请跟随数字的节奏，在心中默数。\n\n按空格键开始。"
-    )
+    send_marker(lsl_outlet, f"{prompts['distractor']['marker']}_START", is_pre=pre)
+    show_prompt(prompts["distractor"]["prompt"])
 
-    start_num = 50
+    start_num = timing["distractor"]["start_num"]
     # 记录一次 Distractor 作为一个 trial 或者仅仅记录 log
-    send_marker(lsl_outlet, "DISTRACTOR_START", is_pre=pre)
+    one_trial_data["phase"] = phase_names["distractor"]
+    one_trial_data["phase_start_time"] = clock.getTime()
 
     for i in range(start_num, 0, -1):
-        one_trial_data["phase"] = phase_name
-        one_trial_data["stim_word"] = str(i)
-
         text_stim = visual.TextStim(win, text=str(i), color="yellow", height=0.3)
         text_stim.draw()
         win.flip()
         core.wait(timing["distractor"]["step"])  # 节奏控制
 
-        # 简单的记录，虽不需要详细分析但保持格式一致
-        update_trial(one_trial_data, one_block_data)
-
         # 允许按 ESC 退出
         if event.getKeys(keyList=["escape"]):
             break
+    one_trial_data["phase_end_time"] = clock.getTime()
+    send_marker(lsl_outlet, f"{prompts['distractor']['marker']}_END", is_pre=pre)
 
+    update_trial(one_trial_data, one_block_data)
     update_block(one_block_data, data_to_save)
-    send_marker(lsl_outlet, "DISTRACTOR_END", is_pre=pre)
 
 
 # TODO: 实现输入和记录
 # 是否限制词库来辅助回忆
 # 需要筛选词语, 保证拼音匹配
-
-
 def run_recall_phase():
-    """
-    一个简单的 TextBox 收集所有输入。
-    """
-    phase_name = "Recall"
-    intro_text = (
-        "任务三：回忆任务\n\n"
-        "请尽可能多地回忆刚才你在[任务一]见到的词。\n"
-        "并通过键盘输入。\n"
-        f"限时 {timing['recall']['duration']} 秒。\n\n"
-        "准备好后按空格键开始计时。"
-    )
-    show_prompt(intro_text)
+    send_marker(lsl_outlet, f"{prompts['recall']['marker']}_START", is_pre=pre)
+    phase_name = phase_names["recall"]
+    show_prompt(prompts["recall"]["prompt"])
 
-    send_marker(lsl_outlet, "RECALL_START", is_pre=pre)
+    one_trial_data["phase"] = phase_name
+    one_trial_data["phase_start_time"] = clock.getTime()
+    # [ ] 测试是否需要取消全屏
+    # win.fullscr = False
 
     # 存储所有提交的词
     submitted_words = []
+    submitted_words_set = set()
 
     textbox = visual.TextBox2(
         win,
@@ -258,6 +292,7 @@ def run_recall_phase():
         letterHeight=0.08,
         color="white",
         alignment="center",
+        placeholder="请输入词汇并按回车提交",
         editable=True,
         borderColor="white",
         borderWidth=2,
@@ -270,14 +305,15 @@ def run_recall_phase():
     tip_msg = visual.TextStim(
         win,
         text="请输入词汇并按回车提交",
-        pos=(0, 0.3),
+        pos=(0, -0.3),
         height=0.05,
         font="Microsoft YaHei",
         color="white",
     )
     count_msg = visual.TextStim(
-        win, text="已提交: 0", pos=(0, -0.3), height=0.05, font="Microsoft YaHei"
+        win, text="已提交: 0", pos=(0, 0.3), height=0.05, font="Microsoft YaHei"
     )
+    # 右上角显示剩余时间
     timer_msg = visual.TextStim(win, text="", pos=(0.7, 0.8), height=0.05)
 
     event.clearEvents()
@@ -292,86 +328,85 @@ def run_recall_phase():
         if event.getKeys(keyList=["escape"]):
             break
 
-        # === 核心逻辑：检查是否包含换行符 ===
         # TextBox2 在 editable=True 时会捕获键盘输入。
-        # 当用户按回车时，text 属性里会出现 '\n'。
+        # 当按回车时，text 字段里会出现 '\n'。
         if "\n" in textbox.text:
-            # 提取内容
             raw_text = textbox.text
-            # 清理前后的空白和换行符
             word = raw_text.strip()
 
             if word:  # 如果不是空行
                 submitted_words.append(word)
-                # 可选：这里发送一个 marker 表示提交了一个词
-                send_marker(lsl_outlet, "RECALL_SUBMIT", is_pre=pre)
+                submitted_words_set.add(word)
 
-            # 立即清空文本框
+                # [ ] 是否需要这里发送一个 marker 表示提交了一个词
+                send_marker(lsl_outlet, "RECALL_SUBMIT", is_pre=pre)
+                if word in submitted_words_set:
+                    # [ ] 是否需要记录重复提交的词, 是否要给出提醒
+                    logger.warning(f"重复提交了词: {word}")
+
             textbox.text = ""
-            # 重置光标等内部状态
             textbox.reset()
 
             # 更新计数显示
             count_msg.text = f"已提交: {len(submitted_words)}"
 
-        # 绘制界面
         tip_msg.draw()
         count_msg.draw()
         timer_msg.draw()
         textbox.draw()
         win.flip()
 
-    send_marker(lsl_outlet, "RECALL_END", is_pre=pre)
+    send_marker(lsl_outlet, f"{prompts['recall']['marker']}_END", is_pre=pre)
     switch_keyboard_layout()
 
-    # 保存数据
-    # 将列表连接成字符串保存，或者你想怎么存都行
-    final_string = ";".join(submitted_words)
+    # win.fullscr = True
 
-    one_trial_data["phase"] = phase_name
-    one_trial_data["response"] = final_string
-    # 为了方便分析，也可以记录回忆出的词的数量
-    one_trial_data["stim_word"] = f"COUNT:{len(submitted_words)}"
+    one_trial_data["recalled_words"] = ";".join(
+        submitted_words_set & set(positive_words + negative_words)
+    )
+    one_trial_data["recalled_all"] = ";".join(submitted_words)
+    one_trial_data["recall_count"] = len(submitted_words)
+    one_trial_data["phase_end_time"] = clock.getTime()
+
+    send_marker(lsl_outlet, f"{prompts['recall']['marker']}_END", is_pre=pre)
+    logger.info(f"Recall Phase Completed. Words: {submitted_words}")
 
     update_trial(one_trial_data, one_block_data)
     update_block(one_block_data, data_to_save)
 
-    logger.info(f"Recall Phase Completed. Words: {submitted_words}")
     show_prompt(
         f"回忆阶段结束！\n你一共提交了 {len(submitted_words)} 个词。\n按空格键进入下一阶段。"
     )
 
 
+def init_recognition_phase():
+    global stim_sequence
+    if "recognition" not in stim_sequence:
+        stim_list = positive_words + negative_words + distractor_words
+        stim_sequence["recognition"] = generate_trial_sequence(
+            n_blocks=1,
+            n_trials_per_block=len(stim_list),
+            stim_list=stim_list,
+        )[0]
+
+
 def run_recognition_phase():
-    phase_name = "Recognition"
-    show_prompt(
-        f"任务四：再认任务\n\n屏幕将出现一系列形容词。\n如果这个词刚才出现过，请按{list(recognition_map.keys())[0]}键。\n如果这个词是新出现的，请按{list(recognition_map.keys())[1]}键。\n\n按空格键开始。"
-    )
+    send_marker(lsl_outlet, f"{prompts['recognition']['marker']}_START", is_pre=pre)
 
-    # 构造刺激：80个旧词 + 80个新词
-    old_words = positive_words + negative_words
-    new_words = distractor_words
+    phase_name = phase_names["recognition"]
+    one_trial_data["phase"] = phase_name
+    one_trial_data["phase_start_time"] = clock.getTime()
+    show_prompt(prompts["recognition"]["prompt"])
 
-    trials = []
-    for w in old_words:
-        trials.append(
-            {
-                "word": w,
-                "type": "old_positive" if w in positive_words else "old_negative",
-                "correct": "old",
-            }
-        )
-    for w in new_words:
-        trials.append({"word": w, "type": "distractor", "correct": "new"})
+    trials = stim_sequence["recognition"]
 
-    random.shuffle(trials)
+    old_stim_list = positive_words + negative_words
+    recog_count = 0
 
     for idx, trial in enumerate(trials):
-        one_trial_data["phase"] = phase_name
         one_trial_data["trial_index"] = idx
-        one_trial_data["stim_word"] = trial["word"]
-        one_trial_data["stim_type"] = trial["type"]
-        one_trial_data["correct_answer"] = trial["correct"]
+        one_trial_data["stim_word"] = trial
+        one_trial_data["stim_type"] = "old" if trial in old_stim_list else "new"
         one_trial_data["trial_start_time"] = clock.getTime()
 
         draw_fixation(
@@ -381,15 +416,20 @@ def run_recognition_phase():
             )
         )
 
-        text_stim = visual.TextStim(win, text=trial["word"], color="white", height=0.15)
+        text_stim = visual.TextStim(win, text=trial, color="white", height=0.15)
         text_stim.draw()
         win.flip()
         core.wait(timing["recognition"]["stim"])
 
-        draw_fixation()
+        draw_fixation(
+            get_isi(
+                timing["recognition"]["iti"]["low"],
+                timing["recognition"]["iti"]["high"],
+            )
+        )
 
         prompt_stim = visual.TextStim(
-            win, text="见过(f)   没见过(j)", pos=(0, 0), height=0.08, color="white"
+            win, text="见过(f)   没见过(j)", pos=(0, 0), height=0.1, color="white"
         )
 
         prompt_stim.draw()
@@ -400,7 +440,7 @@ def run_recognition_phase():
 
         keys = event.waitKeys(
             keyList=list(recognition_map.keys()),
-            maxWait=timing["recognition"]["max_resp"],
+            maxWait=timing["recognition"]["response"],
             timeStamped=clock,
         )
 
@@ -411,39 +451,81 @@ def run_recognition_phase():
         if keys:
             key, timestamp = keys[0]
             rt = timestamp - onset_time
+            one_trial_data["rt"] = rt
             resp_val = recognition_map[key]
-            is_correct = resp_val == trial["correct"]
+            is_correct = resp_val == one_trial_data["stim_type"]
             send_marker(lsl_outlet, "RESPONSE", is_pre=pre)
         else:
-            resp_val = "miss"
-            send_marker(lsl_outlet, "MISS", is_pre=pre)
+            resp_val = "noresp"
+            send_marker(lsl_outlet, "NORESPONSE", is_pre=pre)
 
         one_trial_data["response"] = resp_val
-        one_trial_data["rt"] = rt
         one_trial_data["is_correct"] = is_correct
 
-        update_trial(one_trial_data, one_block_data)
-        logger.info(
-            f"Recog Trial {idx}: {trial['word']} (Truth:{trial['correct']}) -> Resp:{resp_val}, Correct:{is_correct}"
-        )
+        if is_correct and resp_val == "old":
+            one_trial_data["correct_answer"] = trial
+            recog_count += 1
 
+        one_trial_data["trial_end_time"] = clock.getTime()
+        logger.info(
+            f"Recog Trial {idx}: {trial} (Truth:{one_trial_data['stim_type']}) -> Resp:{resp_val}, Correct:{is_correct}"
+        )
+        update_trial(one_trial_data, one_block_data)
+
+    one_trial_data["recog_count"] = recog_count
+    one_trial_data["phase_end_time"] = clock.getTime()
+    send_marker(lsl_outlet, f"{prompts['recognition']['marker']}_END", is_pre=pre)
+
+    update_trial(one_trial_data, one_block_data)
     update_block(one_block_data, data_to_save)
 
 
 def init_exp(config: DictConfig | None):
-    global timing, phase_names
+    global timing, phase_names, prompts, stim_sequence, data_to_save
 
-    timing = config["timing"]
     phase_names = config["phase_names"]
+    prompts = config["prompts"]
 
     if not test:
-        pass
+        timing = config["timing"]
+    if "stim_sequence" in config:
+        stim_sequence = config.stim_sequence
+    if "stims" in config:
+        global positive_words, negative_words, distractor_words
+
+        if not test:
+            positive_words = config.stims["positive"]
+            negative_words = config.stims["negative"]
+            distractor_words = config.stims["distractor"]
+        else:
+            total_stims = config.stims["neutral"]
+            len_total_stims = len(total_stims)
+            positive_words = total_stims[: len_total_stims // 4]
+            negative_words = total_stims[len_total_stims // 4 : len_total_stims // 2]
+            distractor_words = total_stims[len_total_stims // 2 :]
+
+    for key in data_to_save.keys():
+        data_to_save[key].clear()
 
 
 def run_exp(cfg: DictConfig | None):
     if cfg is not None:
         init_exp(cfg)
+        prompt = visual.TextStim(
+            win,
+            text=cfg.phase_prompt,
+            color="white",
+            height=0.06,
+            wrapWidth=1.2,
+            pos=(0, 0),
+            alignText="left",
+        )
+        prompt.draw()
+        win.flip()
+        event.waitKeys(keyList=continue_keys)
 
+    init_encoding_phase()
+    init_recognition_phase()
     # 1. 编码任务
     run_encoding_phase()
     # 2. 干扰任务 (倒数)
@@ -465,7 +547,26 @@ def entry(exp: Experiment | None = None):
 
     # 是否需要预实验
     if exp.config is not None and "pre" in exp.config:
-        pass
+        pre = True
+        while True:
+            run_exp(exp.config.pre)
+
+            commit_text = (
+                "是否需要再次进行预实验?\n按 y 键再次进行预实验, 按 n 键结束预实验"
+            )
+            prompt = visual.TextStim(
+                win,
+                text=commit_text,
+                color="white",
+                height=0.1,
+                wrapWidth=2,
+            )
+            prompt.draw()
+            win.flip()
+            keys = event.waitKeys(keyList=["y", "n"])
+            if keys and keys[0] == "n":
+                break
+        pre = False
 
     logger.info("实验开始")
     one_trial_data["exp_start_time"] = clock.getTime()
@@ -494,6 +595,7 @@ def main():
             self.lsl_outlet = None
             self.test = True
             self.config = None
+            self.session_info = None
 
     switch_keyboard_layout()
     entry(MockExp())

@@ -1,9 +1,29 @@
 defaults:
+  - sret@stim_sequence: sequence
+  - sret@stims: stims
   - exps/sret/pre
   - _self_
+
 timing:
-  rest: 300 # 60 * 5
-  max_wait: 5
+  encoding:
+    stim: 0.5
+    fixation: 1.8
+    question: 1.8
+    response: 2.5
+    iti:
+      low: 1.5
+      high: 1.7
+  distractor:
+    start_num: 50
+    step: 1.0
+  recall:
+    duration: 20.0
+  recognition:
+    stim: 0.5
+    iti:
+      low: 1.5
+      high: 1.7
+    response: 3.0
 
 phase_prompt: |
   接下来是正式实验, 实验方式与预实验相同

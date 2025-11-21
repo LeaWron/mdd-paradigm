@@ -1,26 +1,29 @@
 timing:
   encoding:
     stim: 0.5
-    fixation: 1.8
-    question: 1.8
+    fixation: 0.5
+    question: 0.5
     response: 2.5
     iti:
-      low: 1.5
-      high: 1.7
+      low: 0.5
+      high: 1
   distractor:
+    start_num: 5
     step: 1.0
   recall:
     duration: 20.0
   recognition:
     stim: 0.5
-    iti: 1.5
+    iti:
+      low: 1
+      high: 1.2
     response: 3.0
 
-phase:
-  - "Encoding"
-  - "Distractor"
-  - "Recall"
-  - "Recognition"
+phase_names:
+  encoding: "Encoding"
+  distractor: "Distractor"
+  recall: "Recall"
+  recognition: "Recognition"
 
 prompts:
   encoding:

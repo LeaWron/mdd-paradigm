@@ -17,7 +17,8 @@ from psycho.utils import (
 
 # TODO: 脸的大小设置, 每个 trial 后都显示总积分
 # 需要在一次性能够看完
-# 反馈的颜色调整
+# 反馈的颜色调整, 用 smartInputPro 中的颜色
+# 正确: #51d237, 错误: #c31818
 
 # === 参数设置 ===
 n_blocks = 3

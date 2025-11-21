@@ -9,9 +9,12 @@ from pylsl import StreamOutlet
 
 from psycho.utils import init_lsl, send_marker, setup_default_logger
 
-sys.path.append(os.getenv("MVCAM_COMMON_RUNENV") + "/Samples/Python/MvImport")
-from MvCameraControl_class import *  # noqa
-from CameraParams_header import *
+HAS_MV_CAMERA = os.getenv("MVCAM_COMMON_RUNENV") is not None
+
+if HAS_MV_CAMERA:
+    sys.path.append(os.getenv("MVCAM_COMMON_RUNENV") + "/Samples/Python/MvImport")
+    from MvCameraControl_class import *  # noqa
+    from CameraParams_header import *
 
 # 全局变量控制录像线程
 g_bExit = False

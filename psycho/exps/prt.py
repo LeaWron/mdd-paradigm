@@ -17,6 +17,7 @@ from psycho.utils import (
 
 # TODO: 脸的大小设置, 每个 trial 后都显示总积分
 # 需要在一次性能够看完
+# 反馈的颜色调整
 
 # === 参数设置 ===
 n_blocks = 3
@@ -140,7 +141,8 @@ def pre_block():
         win,
         color="white",
         text=text,
-        height=0.06,
+        height=0.1,
+        wrapWidth=2,
     )
     msg.draw()
     win.flip()
@@ -181,7 +183,7 @@ def post_block():
         win,
         text=f"第 {block_index + 1} 个区块结束\n你目前已有 {total_point} 分\n你有 {timing['rest']} 秒休息时间\n你可以直接按空格键继续",
         color="white",
-        height=0.06,
+        height=0.1,
         wrapWidth=2,
     )
     msg.draw()
@@ -191,7 +193,7 @@ def post_block():
 
 def pre_trial():
     # fixation
-    fixation = visual.TextStim(win, text="+", height=0.4, color="white")
+    fixation = visual.TextStim(win, text="+", height=0.2, color="white")
     fixation.draw()
     win.flip()
     core.wait(timing["fixation"])
@@ -274,20 +276,20 @@ def trial():
     # feedback
     if reward > 0:
         feedback_reward = visual.TextStim(
-            win, text=f"正确!\n你获得了 {reward} 分", height=0.08, color="green"
+            win, text=f"正确!\n你获得了 {reward} 分", height=0.1, color="green"
         )
         feedback_reward.draw()
         total_point += reward
         correct_count += 1
     elif reward == 0:
-        feedback_no = visual.TextStim(win, text="正确!", height=0.08, color="white")
+        feedback_no = visual.TextStim(win, text="正确!", height=0.1, color="white")
         feedback_no.draw()
         correct_count += 1
     elif reward < 0:
         feedback_wrong = visual.TextStim(
             win,
             text="错误!",
-            height=0.08,
+            height=0.1,
             color="red",
         )
         feedback_wrong.draw()
@@ -295,7 +297,7 @@ def trial():
     visual.TextStim(
         win,
         text=f"你当前的分数为 {total_point}",
-        height=0.08,
+        height=0.1,
         pos=(0, -0.2),
         color="white",
     ).draw()
@@ -383,7 +385,9 @@ def run_exp(cfg: DictConfig | None):
             text=cfg.phase_prompt,
             color="white",
             height=0.06,
-            wrapWidth=2,
+            wrapWidth=1.2,
+            pos=(0, 0),
+            alignText="left",
         )
         prompt.draw()
         win.flip()

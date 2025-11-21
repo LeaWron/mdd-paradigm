@@ -35,15 +35,7 @@ def work_thread(cam, pData, nDataSize):
         if None != stOutFrame.pBufAddr and 0 == ret:
             cur_time_stamp = int(round(time.time() * 1000))
             logger.debug(
-                f"get one frame: Width[{stOutFrame.stFrameInfo.nWidth}], Height[{stOutFrame.stFrameInfo.nHeight}], nFrameNum[{stOutFrame.stFrameInfo.nFrameNum}], nFrameLen[{stOutFrame.stFrameInfo.nFrameLen}], fram_time_stamp[{stOutFrame.stFrameInfo.nHostTimeStamp}], host_time_stamp[{cur_time_stamp}]"
-                % (
-                    stOutFrame.stFrameInfo.nWidth,
-                    stOutFrame.stFrameInfo.nHeight,
-                    stOutFrame.stFrameInfo.nFrameNum,
-                    stOutFrame.stFrameInfo.nFrameLen,
-                    stOutFrame.stFrameInfo.nHostTimeStamp,
-                    cur_time_stamp,
-                )
+                f"get one frame: Width[{stOutFrame.stFrameInfo.nWidth}], Height[{stOutFrame.stFrameInfo.nHeight}], nFrameNum[{stOutFrame.stFrameInfo.nFrameNum}] nFrameLen[{stOutFrame.stFrameInfo.nFrameLen}] fram_time_stamp[{stOutFrame.stFrameInfo.nHostTimeStamp}] host_time_stamp[{cur_time_stamp}]"
             )
             stInputFrameInfo.pData = cast(stOutFrame.pBufAddr, POINTER(c_ubyte))
             stInputFrameInfo.nDataLen = stOutFrame.stFrameInfo.nFrameLen
@@ -51,9 +43,10 @@ def work_thread(cam, pData, nDataSize):
             ret = cam.MV_CC_InputOneFrame(stInputFrameInfo)
             send_marker(lsl_outlet, cur_time_stamp)
             if ret != 0:
-                logger.error(f"input one frame fail! ret [0x{ret:08x}]")
+                logger.error(f"input one frame fail! nRet [0x{ret:08x}]")
             nRet = cam.MV_CC_FreeImageBuffer(stOutFrame)
         else:
+            logger.debug(f"no data[0x{ret:08x}]")
             logger.debug(f"no data[0x{ret:08x}]")
         if g_bExit is True:
             break
@@ -96,7 +89,7 @@ def init_camera(save_dir: Path = None, file_name: str = None):
             device_list.pDeviceInfo[i], POINTER(MV_CC_DEVICE_INFO)
         ).contents
         if mvcc_dev_info.nTLayerType == MV_USB_DEVICE:
-            logger.info(f"u3v device: [{i}]")
+            logger.info(f"\nu3v device: [{i}]")
             strModeName = "".join(
                 [
                     chr(c)
@@ -104,7 +97,7 @@ def init_camera(save_dir: Path = None, file_name: str = None):
                     if c != 0
                 ]
             )
-            logger.info(f"device model name: {strModeName}")
+            logger.info(f"device model name: [{strModeName}]")
 
             strSerialNumber = "".join(
                 [
@@ -113,7 +106,7 @@ def init_camera(save_dir: Path = None, file_name: str = None):
                     if c != 0
                 ]
             )
-            logger.info(f"user serial number: {strSerialNumber}")
+            logger.info(f"user serial number: [{strSerialNumber}]")
     # 选择第一个设备
     nConnectionNum = input("please input the number of the device to connect:")
 
@@ -136,6 +129,7 @@ def init_camera(save_dir: Path = None, file_name: str = None):
     # 打开设备
     ret = cam.MV_CC_OpenDevice(MV_ACCESS_Exclusive, 0)
     if ret != 0:
+        logger.error(f"Open device failed! ret [0x{ret:08x}]")
         logger.error(f"Open device failed! ret [0x{ret:08x}]")
         cam.MV_CC_DestroyHandle()
         return None
@@ -266,6 +260,7 @@ def stopRecord(cam, record_thread: threading.Thread):
 
     ret = cam.MV_CC_StopRecord()
     if ret != 0:
+        logger.error(f"Stop record failed! ret [0x{ret:08x}]")
         logger.error(f"Stop record failed! ret [0x{ret:08x}]")
 
     # 停止取流

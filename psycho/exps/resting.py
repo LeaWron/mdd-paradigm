@@ -62,7 +62,7 @@ def block():
 
 
 def post_block():
-    fixation = visual.TextStim(win, text="+", color="white", height=0.1, wrapWidth=2)
+    fixation = visual.TextStim(win, text="+", color="white", height=0.2, wrapWidth=2)
     fixation.draw()
     win.flip()
     core.wait(0.5)

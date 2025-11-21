@@ -1557,65 +1557,120 @@ def inspect_xdf(xdf_file_path: Path, output_path: Path):
 
     print(f"\nJSON 已导出到: {json_path}")
 
-# TODO: show xdf raw
+
+class NumpyEncoder(json.JSONEncoder):
+    """
+    专门用来处理 Numpy 数据类型的 JSON 编码器。
+    没有这个，json.dump 会对着 numpy array 崩溃。
+    """
+
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
+
+def save_as_json(data, output_path):
+    """
+    将数据转储为 JSON。
+    警告：如果数据量巨大，这会生成一个非常大的文本文件。
+    """
+    print(f"正在写入 JSON 文件: {output_path} ...")
+    try:
+        with open(output_path, "w", encoding="utf-8") as f:
+            # indent=4 是为了让你这种人类能看懂，但这会增加文件大小
+            json.dump(data, f, cls=NumpyEncoder, indent=4, ensure_ascii=False)
+        print("写入成功。")
+    except Exception as e:
+        print(f"Error: 写入 JSON 失败。原因: {e}")
+
+
 def show_xdf(xdf_file_path: Path, output_path: Path):
+    """
+    加载并分析 XDF 文件，然后导出为 JSON。
+
+    Args:
+        file_path (str): .xdf 文件的路径
+    """
+
     if not xdf_file_path.exists():
-        raise FileNotFoundError(f"文件不存在: {xdf_file_path}")
+        print(f"Error: 文件 '{xdf_file_path}' 不存在。")
+        return
 
-    print(f"读取 XDF 文件: {xdf_file_path}\n")
+    print(f"正在加载文件: {xdf_file_path} ...")
 
-    streams, header = load_xdf(str(xdf_file_path), dejitter_timestamps=False)
+    try:
+        streams, file_header = load_xdf(xdf_file_path)
+    except Exception as e:
+        print(f"Error: 解析 XDF 失败。原因: {e}")
+        return
 
+    print(f"加载完成。找到 {len(streams)} 个数据流。\n")
+    print("=" * 60)
 
-    # 用于导出 JSON 的结构
-    json_dict = {"streams": []}
+    # 准备导出到 JSON 的数据结构
+    export_data = {"file_header": file_header, "streams": []}
 
-    # ----------------------------
-    # 打印 Stream 信息并构建 JSON
-    # ----------------------------
-    print("====== Stream 列表 ======")
-    for idx, stream in enumerate(streams):
+    for i, stream in enumerate(streams):
         info = stream["info"]
+        # 之前这里有个愚蠢的错误，time_series 和 time_stamps 搞混了，已修复
+        time_series = stream["time_series"]
+        time_stamps = stream["time_stamps"]
 
-        name = info.get("name", ["<unknown>"])[0]
-        stype = info.get("type", ["<unknown>"])[0]
-        srate = info.get("sample_rate", ["<unknown>"])[0]
-        channels = info.get("channel_count", ["<unknown>"])[0]
+        # 提取元数据
+        stream_name = info["name"][0]
+        stream_type = info["type"][0]
+        channel_count = int(info["channel_count"][0])
+        nominal_srate = float(info["nominal_srate"][0])
+        source_id = info.get("source_id", ["N/A"])[0]
 
-        print(f"[{idx}] {name}")
-        print(f"  类型(type):        {stype}")
-        print(f"  采样率(sample_rate): {srate}")
-        print(f"  通道数(channels):   {channels}")
-        print("  其他元数据(info):")
-        for key, value in info.items():
-            if key in ["name", "type", "sample_rate", "channel_count"]:
-                continue
-            print(f"    {key}: {value}")
+        # 打印到控制台供快速查看
+        print(f"流 #{i + 1}: {stream_name}")
+        print(f"  类型 (Type):       {stream_type}")
+        print(f"  通道数 (Channels): {channel_count}")
+        print(f"  采样率 (Hz):       {nominal_srate}")
 
-        print("-" * 50)
+        stream_data_export = {
+            "id": i + 1,
+            "info": {
+                "name": stream_name,
+                "type": stream_type,
+                "channel_count": channel_count,
+                "nominal_srate": nominal_srate,
+                "source_id": source_id,
+                # info 中还包含 XML 格式的详细描述，有时很有用
+                "desc": info.get("desc", None),
+            },
+            "data": [],
+            "timestamps": [],
+        }
 
-        # 写入 JSON 结构
-        json_dict["streams"].append(
-            {
-                "index": idx,
-                "name": name,
-                "type": stype,
-                "sample_rate": srate,
-                "channel_count": channels,
-                "full_info": info,
-            }
-        )
+        if isinstance(time_series, (np.ndarray, list)):
+            data = np.array(time_series)
+            timestamps_arr = np.array(time_stamps)
 
-    # ----------------------------
-    # 导出 JSON
-    # ----------------------------
-    json_path = output_path
-    json_path.parent.mkdir(parents=True, exist_ok=True)
+            print(f"  数据形状 (Shape):  {data.shape}")
+            if data.size > 0:
+                duration = timestamps_arr[-1] - timestamps_arr[0]
+                print(f"  持续时间 (秒):     {duration:.2f}")
 
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(json_dict, f, ensure_ascii=False, indent=4)
+                # 将数据放入导出结构
+                # 注意：如果数据量极大，这步操作会消耗大量内存
+                stream_data_export["data"] = data
+                stream_data_export["timestamps"] = timestamps_arr
+        else:
+            print("  [无数据]")
 
-    print(f"\nJSON 已导出到: {json_path}")
+        export_data["streams"].append(stream_data_export)
+        print("-" * 60)
+
+    # 执行保存
+    save_as_json(export_data, output_path.with_suffix(".json"))
+    print("\n任务结束。")
 
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
@@ -1627,11 +1682,11 @@ def main(cfg: DictConfig):
     result_dir = Path(cfg.result_dir) / xdf_file_path.stem
     result_dir.mkdir(parents=True, exist_ok=True)
 
-    if "show" in cfg and cfg.show:
-        show_xdf(xdf_file_path, result_dir / "result.json")
-
     if "inspect" in cfg and cfg.inspect:
         inspect_xdf(xdf_file_path, result_dir / "inspect.json")
+        return
+    if "show" in cfg and cfg.show:
+        show_xdf(xdf_file_path, result_dir / "result.json")
         return
     analyze_xdf_data(xdf_file_path, result_dir)
 

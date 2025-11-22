@@ -1,7 +1,7 @@
 defaults:
   - sret@stim_sequence: sequence
   - sret@stims: stims
-  - exps/sret/pre
+  - sret/pre
   - _self_
 
 timing:
@@ -15,17 +15,27 @@ timing:
       high: 1.7
   distractor:
     start_num: 50
-    step: 1.0
   recall:
-    duration: 20.0
+    duration: 300
   recognition:
-    stim: 0.5
     iti:
       low: 1.5
       high: 1.7
-    response: 3.0
+
+prompts:
+  recall:
+    prompt: |
+      任务三：回忆任务
+
+      请尽可能多地回忆刚才你在[任务一]见到的词
+      并通过键盘输入
+      限时 ${...timing.recall.duration} 秒
+
+      准备好后按空格键开始计时
 
 phase_prompt: |
   接下来是正式实验, 实验方式与预实验相同
-  仅有实验次数不同
+
+  仅有实验次数和所使用的词语不同
+
   请按空格键继续

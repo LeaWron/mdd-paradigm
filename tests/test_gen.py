@@ -200,3 +200,118 @@ def test_generate_emotion_face(
 
     with open(Path(seq_save_path).with_suffix(".yaml"), "w", encoding="utf-8") as f:
         yaml.dump(dict(sequence), f, allow_unicode=True, indent=2)
+
+
+def check_sret_seq_encoding(
+    seq: list[str],
+    positive_stim: list[str],
+    negative_stim: list[str],
+    max_seq_same: int = 1,
+):
+    cnt = 0
+    pre = None
+    for item in seq:
+        if item in positive_stim:
+            if pre == "positive":
+                cnt += 1
+            else:
+                cnt = 1
+            pre = "positive"
+        elif item in negative_stim:
+            if pre == "negative":
+                cnt += 1
+            else:
+                cnt = 1
+            pre = "negative"
+        if cnt > max_seq_same:
+            return False
+    return True
+
+
+def check_sret_seq_recognition(
+    seq: list[dict],
+    old_stim: list[str],
+    new_stim: list[str],
+    max_seq_same: int = 1,
+):
+    pre = None
+    cnt = 0
+    for item in seq:
+        if item in old_stim:
+            if pre == "old":
+                cnt += 1
+            else:
+                cnt = 1
+            pre = "old"
+        elif item in new_stim:
+            if pre == "new":
+                cnt += 1
+            else:
+                cnt = 1
+            pre = "new"
+        if cnt > max_seq_same:
+            return False
+    return True
+
+
+@pytest.mark.skip(reason="已生成")
+def test_generate_sret(
+    max_seq_same: int = 2,
+    stim_path: str | Path = "../psycho/conf/exps/sret/stims.yaml",
+    seq_save_path: str | Path = "./temp_sret_sequence",
+):
+    with open(Path(__file__).resolve().parent / stim_path, encoding="utf-8") as f:
+        stim_list: dict[str, list[str]] = yaml.safe_load(f)
+
+    sequence = defaultdict(list)
+
+    # encoding phase
+    phase = "encoding"
+    positive_stim = stim_list["positive"]
+    negative_stim = stim_list["negative"]
+
+    candidate = positive_stim + negative_stim
+    print("try generate encoding sequence")
+    count = 0
+    while True:
+        np.random.shuffle(candidate)
+        if check_sret_seq_encoding(
+            candidate,
+            positive_stim,
+            negative_stim,
+            max_seq_same,
+        ):
+            break
+        count += 1
+        if count % 100000 == 0:
+            print(f"try {count} times")
+
+    sequence[phase] = candidate
+
+    # recoginition phase
+    phase = "recognition"
+    distractor = stim_list["distractor"]
+
+    old_stim = positive_stim + negative_stim
+    new_stim = distractor
+
+    candidate = old_stim + new_stim
+    print("try generate recognition sequence")
+    count = 0
+    while True:
+        np.random.shuffle(candidate)
+        if check_sret_seq_recognition(
+            candidate,
+            old_stim,
+            new_stim,
+            max_seq_same + 1,
+        ):
+            break
+        count += 1
+        if count % 100000 == 0:
+            print(f"try {count} times")
+
+    sequence[phase] = candidate
+
+    with open(Path(seq_save_path).with_suffix(".yaml"), "w", encoding="utf-8") as f:
+        yaml.dump(dict(sequence), f, allow_unicode=True, indent=2)

@@ -15,7 +15,7 @@ from psycho.utils import (
     update_trial,
 )
 
-# TODO: 脸的大小设置, 每个 trial 后都显示总积分
+# [ ]: 脸的大小设置, 每个 trial 后都显示总积分
 # 需要在一次性能够看完
 
 # === 参数设置 ===

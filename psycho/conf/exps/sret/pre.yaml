@@ -11,7 +11,7 @@ timing:
     start_num: 5
     step: 1.0
   recall:
-    duration: 20.0
+    duration: 20
   recognition:
     stim: 0.5
     iti:
@@ -51,7 +51,7 @@ prompts:
 
       请尽可能多地回忆刚才你在[任务一]见到的词
       并通过键盘输入
-      限时 20 秒
+      限时 ${...timing.recall.duration} 秒
 
       准备好后按空格键开始计时
     marker: RECALL

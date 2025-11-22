@@ -235,3 +235,46 @@ def test_send_serial():
     # 高电平
     ser.rts = False
     ser.close()
+
+
+@pytest.mark.skip(reason="暂时不测试这个函数")
+def test_sret_stimulus():
+    from pathlib import Path
+
+    import yaml
+
+    path = (
+        Path(__file__).parent.parent
+        / "psycho"
+        / "conf"
+        / "exps"
+        / "sret"
+        / "stims.yaml"
+    )
+
+    with open(path, encoding="utf-8") as f:
+        stims = yaml.safe_load(f)
+    positive_stim = stims["positive"]
+    negative_stim = stims["negative"]
+    distractor = stims["distractor"]
+
+    positive_set = set(positive_stim)
+    negative_set = set(negative_stim)
+    distractor_set = set(distractor)
+
+    print(
+        f"positive_set: {len(positive_set)}, negative_set: {len(negative_set)}, distractor_set: {len(distractor_set)}"
+    )
+
+    if positive_set.isdisjoint(distractor_set):
+        print(
+            "positive_set and distractor_set are disjoint:",
+            positive_set & distractor_set,
+        )
+    if negative_set.isdisjoint(distractor_set):
+        print(
+            "negative_set and distractor_set are disjoint:",
+            negative_set & distractor_set,
+        )
+
+    print(positive_set & distractor_set)

@@ -16,6 +16,9 @@ if HAS_MV_CAMERA:
     from MvCameraControl_class import *  # noqa
     from CameraParams_header import *
 
+# [ ] 增益等的设置
+# 应该是通过 setEnum 来设置
+
 # 全局变量控制录像线程
 g_bExit = False
 ser: serial.Serial = None

@@ -334,7 +334,9 @@ def run_session(cfg: DictConfig):
 
     OmegaConf.resolve(cfg)
     if cfg.debug:
-        print(cfg)
+        with open("temp_debug.yaml", "w", encoding="utf-8") as f:
+            f.write(OmegaConf.to_yaml(cfg))
+            print("temp_debug.yaml 已生成")
     session = Session(cfg)
     session.add_session_info()
 

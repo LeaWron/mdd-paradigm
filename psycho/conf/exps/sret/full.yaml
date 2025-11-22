@@ -1,7 +1,7 @@
 defaults:
   - sret@stim_sequence: sequence
   - sret@stims: stims
-  - sret/pre
+  - sret/pre@_here_
   - _self_
 
 timing:

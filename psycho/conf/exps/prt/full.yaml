@@ -1,6 +1,8 @@
 defaults:
+  - prt/pre@_here_
   - prt@stim_sequence: sequence
   - prt@reward_indice: reward_indice
+  - _self_
 
 n_blocks: 3
 n_trials_per_block: 90

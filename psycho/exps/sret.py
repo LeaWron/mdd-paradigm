@@ -17,11 +17,6 @@ from psycho.utils import (
     update_trial,
 )
 
-# TODO: 生成序列
-# 刺激以伪随机顺序呈现，连续呈现的相同效价的词语不超过两个。
-
-# 在数据采集开始前，参与者使用情感中性的词语完成了三次练习试验
-
 # === 参数设置 ===
 positive_words = ["美丽", "勇敢", "聪明", "有能力"]
 
@@ -265,7 +260,7 @@ def run_distractor_phase():
     update_block(one_block_data, data_to_save)
 
 
-# TODO: 实现输入和记录
+# [x]: 实现输入和记录
 # 是否限制词库来辅助回忆
 # 需要筛选词语, 保证拼音匹配
 def run_recall_phase():

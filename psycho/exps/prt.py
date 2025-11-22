@@ -17,8 +17,6 @@ from psycho.utils import (
 
 # TODO: 脸的大小设置, 每个 trial 后都显示总积分
 # 需要在一次性能够看完
-# 反馈的颜色调整, 用 smartInputPro 中的颜色
-# 正确: #51d237, 错误: #c31818
 
 # === 参数设置 ===
 n_blocks = 3
@@ -47,7 +45,7 @@ high_reward_prob = 0.8
 low_reward_prob = 1 - high_reward_prob
 
 
-fov = 20  # 视场角, 单位: degree
+fov = 10  # 视场角, 单位: degree
 monitor_distance = 60  # 显示器与人眼距离（单位：厘米）
 
 reward_low = 1
@@ -277,7 +275,11 @@ def trial():
     # feedback
     if reward > 0:
         feedback_reward = visual.TextStim(
-            win, text=f"正确!\n你获得了 {reward} 分", height=0.1, color="green"
+            win,
+            text=f"正确!\n你获得了 {reward} 分",
+            height=0.1,
+            color="#51d237",
+            colorSpace="rgb",
         )
         feedback_reward.draw()
         total_point += reward
@@ -291,7 +293,8 @@ def trial():
             win,
             text="错误!",
             height=0.1,
-            color="red",
+            color="#eb5555",
+            colorSpace="rgb",
         )
         feedback_wrong.draw()
     # 显示总分数
@@ -462,7 +465,7 @@ def entry(exp: Experiment | None = None):
 
 
 def main():
-    entry()
+    entry(Experiment(None, None, None, None, None, None))
 
 
 if __name__ == "__main__":

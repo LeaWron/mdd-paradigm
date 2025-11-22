@@ -16,6 +16,9 @@ wheels/
 # data
 data/
 
+# temp
+temp*
+
 # hydra
 output/
 session.log

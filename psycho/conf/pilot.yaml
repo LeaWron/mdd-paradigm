@@ -12,10 +12,9 @@ output_dir: ${project_root}/temp
 
 log_level: INFO
 debug: false
-# 是否为测试运行, 否则为开发运行
-test: false
 
 labrecorder:
+  use: true
   host: localhost
   port: 22345
 

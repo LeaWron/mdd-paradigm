@@ -1,3 +1,6 @@
+defaults:
+  - /exps/sret/stims@stims
+
 timing:
   encoding:
     stim: 0.5

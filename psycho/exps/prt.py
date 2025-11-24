@@ -350,7 +350,7 @@ def init_exp(config: DictConfig | None):
         reward_indice, \
         data_to_save
 
-    if not test:
+    if pre or test is False:
         logger.info("Run in real exp")
 
         n_blocks = config.n_blocks

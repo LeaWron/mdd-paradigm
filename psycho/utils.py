@@ -62,6 +62,7 @@ def send_marker(
         lsl_outlet (StreamOutlet): LSL 输出流
         marker (str): 要发送的 marker 字符串
         timestamp (float | None, optional): 时间戳. Defaults to None.
+        is_pre (bool, optional): 预实验时不发送 marker. Defaults to False.
     """
     if lsl_outlet is None:
         return

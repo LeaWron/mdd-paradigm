@@ -303,7 +303,7 @@ def init_exp(config: DictConfig | None = None):
         intensity_tips, \
         stim_sequence
 
-    if not test:
+    if pre or test is False:
         logger.info("Run in real exp")
         n_blocks = config.n_blocks
         n_trials_per_block = config.n_trials_per_block

@@ -2,6 +2,7 @@ import importlib
 import logging
 import multiprocessing
 import socket
+import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -69,7 +70,7 @@ class Session:
         self.after_rest_duration = self.cfg.session.timing.iei
 
         self.labrecorder_connection = None
-        if "labrecorder" in self.cfg and ("test" not in self.cfg or self.cfg.test):
+        if "labrecorder" in self.cfg and self.cfg.labrecorder.use:
             self.labrecorder_connection = socket.create_connection(
                 (self.cfg.labrecorder.host, self.cfg.labrecorder.port)
             )
@@ -226,6 +227,7 @@ class Session:
 
             if self.labrecorder_connection is not None:
                 self.labrecorder_connection.sendall(b"start\n")
+                time.sleep(5)
             if self.camera is not None:
                 start_record(self.camera, self.record_thread)
             send_marker(self.lsl_outlet, "SESSION_START")
@@ -290,11 +292,11 @@ class Session:
             self.win.close()
 
         send_marker(self.lsl_outlet, "SESSION_END")
-        if self.labrecorder_connection is not None:
-            self.labrecorder_connection.sendall(b"stop\n")
         if self.camera is not None:
             stopRecord(self.camera, self.record_thread)
             close_camera(self.camera)
+        if self.labrecorder_connection is not None:
+            self.labrecorder_connection.sendall(b"stop\n")
         # core.quit()
 
     def pause(self):

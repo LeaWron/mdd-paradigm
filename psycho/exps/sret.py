@@ -481,17 +481,17 @@ def init_exp(config: DictConfig | None):
     phase_names = config["phase_names"]
     prompts = config["prompts"]
 
-    if not test:
+    if pre or test is False:
         timing = config["timing"]
     if "stim_sequence" in config:
         stim_sequence = config.stim_sequence
     if "stims" in config:
         global positive_words, negative_words, distractor_words
 
-        if not test:
-            positive_words = config.stims["positive"]
-            negative_words = config.stims["negative"]
-            distractor_words = config.stims["distractor"]
+        if not pre:
+            positive_words = config.stims["positive"][:10]
+            negative_words = config.stims["negative"][:10]
+            distractor_words = config.stims["distractor"][:len(positive_words)+len(negative_words)]
         else:
             total_stims = config.stims["neutral"]
             len_total_stims = len(total_stims)

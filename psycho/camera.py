@@ -48,7 +48,13 @@ def work_thread(cam, pData, nDataSize):
             stInputFrameInfo.nDataLen = stOutFrame.stFrameInfo.nFrameLen
             # ch:输入一帧数据到录像接口|en:Input a frame of data to the video interface
             ret = cam.MV_CC_InputOneFrame(stInputFrameInfo)
-            send_marker(lsl_outlet, {"frame_id": stOutFrame.stFrameInfo.nFrameNum, "host_timestamp": cur_time_stamp})
+            send_marker(
+                lsl_outlet,
+                {
+                    "frame_id": stOutFrame.stFrameInfo.nFrameNum,
+                    "host_timestamp": cur_time_stamp,
+                },
+            )
             if ret != 0:
                 logger.error(f"input one frame fail! nRet [0x{ret:08x}]")
             nRet = cam.MV_CC_FreeImageBuffer(stOutFrame)

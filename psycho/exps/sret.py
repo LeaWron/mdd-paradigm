@@ -275,7 +275,6 @@ def run_recall_phase():
 
     win.setMouseVisible(visibility=True)
 
-
     # 存储所有提交的词
     submitted_words = []
     submitted_words_set = set()
@@ -493,9 +492,10 @@ def init_exp(config: DictConfig | None):
         stim_sequence = config.stim_sequence
         if test:
             import numpy as np
+
             for k, v in stim_sequence.items():
                 np.random.shuffle(v)
-                stim_sequence[k] = v[:len(v)//4]
+                stim_sequence[k] = v[: len(v) // 4]
 
     if "stims" in config:
         global positive_words, negative_words, distractor_words

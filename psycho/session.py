@@ -80,7 +80,6 @@ class Session:
             key="p", modifiers=["shift"], func=self.pause, name="pause"
         )
 
-
     def _setup_logger(self):
         logging.basicConfig(
             level=logging.DEBUG if self.cfg.debug else logging.INFO,
@@ -89,10 +88,14 @@ class Session:
         self.logger = logging.getLogger(__name__)
 
     def setup_camera(self):
-        self.camera = init_camera(save_dir=self.cfg.output_dir + "videos", file_name=f"{self.session_info['save_path']}_video.avi")
+        self.camera = init_camera(
+            save_dir=self.cfg.output_dir + "videos",
+            file_name=f"{self.session_info['save_path']}_video.avi",
+        )
         if self.camera is None:
             self.logger.error("Failed to initialize camera.")
             core.quit()
+
     def discover_experiments(self):
         files = list(self.exps_dir.glob("*.py"))
         exps = [
@@ -233,7 +236,9 @@ class Session:
 
             sleep_time = 5
             for i in range(sleep_time, 0, -1):
-                text_stim = visual.TextStim(self.win, text=str(i), color="white", height=0.3)
+                text_stim = visual.TextStim(
+                    self.win, text=str(i), color="white", height=0.3
+                )
                 text_stim.draw()
                 self.win.flip()
                 core.wait(1)

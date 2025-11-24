@@ -10,7 +10,7 @@ eye_close:
   marker: "EYE_CLOSE"
 
 eye_open:
-  prompt: "请睁眼, 直到再次听到如下提示音"
+  prompt: "请保持睁眼状态, 直到再次听到如下提示音"
   marker: "EYE_OPEN"
 
 notification: "notification.wav"

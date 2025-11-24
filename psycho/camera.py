@@ -19,6 +19,10 @@ if HAS_MV_CAMERA:
 # [ ] 增益等的设置
 # 应该是通过 setEnum 来设置
 
+EXPOSURE_TIME = 10_000.0
+FRAME_RATE = 90.0
+GAIN = 12.5
+
 # 全局变量控制录像线程
 g_bExit = False
 ser: serial.Serial = None
@@ -136,7 +140,33 @@ def init_camera(save_dir: Path = None, file_name: str = None):
         cam.MV_CC_DestroyHandle()
         return None
 
+    # ===================== 配置增益等 ======================
+    ret = cam.MV_CC_SetEnumValueByString("ExposureAuto", "Off")
+    if ret != 0:
+        logger.error(f"Set exposure auto: {ret}")
+        return None
+    ret = cam.MV_CC_SetFloatValue("ExposureTime", EXPOSURE_TIME)
+    if ret != 0:
+        logger.error(f"Set exposure time: {ret}")
+        return None
+    ret = cam.MV_CC_SetFloatValue("AcquisitionFrameRate", FRAME_RATE)
+    if ret != 0:
+        logger.error(f"Set acquisition frame rate: {ret}")
+        return None
+    ret = cam.MV_CC_SetEnumValueByString("GainAuto", "Off")
+    if ret != 0:
+        logger.error(f"Set gain auto: {ret}")
+        return None
+    ret = cam.MV_CC_SetFloatValue("Gain", GAIN)
+    if ret != 0:
+        logger.error(f"Set gain: {ret}")
+        return None
+    ret = cam.MV_CC_SetEnumValueByString("BalanceWhiteAuto", "Off")
+    if ret != 0:
+        logger.error(f"Set balance white auto: {ret}")
+        return None
     # ===================== 配置硬件触发 =====================
+
     # 设置触发模式为 on (外触发模式)
     ret = cam.MV_CC_SetEnumValueByString("TriggerMode", "Off")  # 1=On
     if ret != 0:

@@ -192,6 +192,7 @@ class Session:
             color="grey",
             units="norm",
         )  # 全局窗口
+        self.win.setMouseVisible(visibility=False)
         self.win.callOnFlip(event.clearEvents)
         if with_lsl:
             self.lsl_proc = multiprocessing.Process(target=self._lsl_recv)

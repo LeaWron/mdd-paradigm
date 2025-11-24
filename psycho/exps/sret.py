@@ -89,8 +89,8 @@ prompts = {
 
 
 # === 全局变量 ===
-win = None
-clock = None
+win: visual.Window = None
+clock: core.Clock = None
 lsl_outlet = None
 logger = None
 pre = False
@@ -153,6 +153,7 @@ def init_encoding_phase():
             n_blocks=1,
             n_trials_per_block=len(candidates),
             stim_list=candidates,
+            max_seq_same=3,
         )[0]
 
 
@@ -226,7 +227,8 @@ def run_encoding_phase():
         # 保存该 trial 数据
         update_trial(one_trial_data, one_block_data)
         logger.info(f"Encoding Trial {idx}: {trial} -> {resp}")
-
+        if event.getKeys(keyList=["escape"]):
+            break
     one_trial_data["endorse_count"] = endorse_count
     one_trial_data["phase_end_time"] = clock.getTime()
     send_marker(lsl_outlet, f"{prompts['encoding']['marker']}_END", is_pre=pre)
@@ -270,8 +272,9 @@ def run_recall_phase():
 
     one_trial_data["phase"] = phase_name
     one_trial_data["phase_start_time"] = clock.getTime()
-    # [ ] 测试是否需要取消全屏
-    # win.fullscr = False
+
+    win.setMouseVisible(visibility=True)
+
 
     # 存储所有提交的词
     submitted_words = []
@@ -287,7 +290,6 @@ def run_recall_phase():
         letterHeight=0.08,
         color="white",
         alignment="center",
-        placeholder="请输入词汇并按回车提交",
         editable=True,
         borderColor="white",
         borderWidth=2,
@@ -330,15 +332,13 @@ def run_recall_phase():
             word = raw_text.strip()
 
             if word:  # 如果不是空行
-                submitted_words.append(word)
-                submitted_words_set.add(word)
-
                 # [ ] 是否需要这里发送一个 marker 表示提交了一个词
                 send_marker(lsl_outlet, "RECALL_SUBMIT", is_pre=pre)
                 if word in submitted_words_set:
                     # [ ] 是否需要记录重复提交的词, 是否要给出提醒
                     logger.warning(f"重复提交了词: {word}")
-
+                submitted_words_set.add(word)
+                submitted_words.append(word)
             textbox.text = ""
             textbox.reset()
 
@@ -369,6 +369,8 @@ def run_recall_phase():
     update_trial(one_trial_data, one_block_data)
     update_block(one_block_data, data_to_save)
 
+    win.setMouseVisible(visibility=False)
+
     show_prompt(
         f"回忆阶段结束！\n你一共提交了 {len(submitted_words)} 个词。\n按空格键进入下一阶段。"
     )
@@ -382,6 +384,7 @@ def init_recognition_phase():
             n_blocks=1,
             n_trials_per_block=len(stim_list),
             stim_list=stim_list,
+            max_seq_same=3,
         )[0]
 
 
@@ -466,7 +469,8 @@ def run_recognition_phase():
             f"Recog Trial {idx}: {trial} (Truth:{one_trial_data['stim_type']}) -> Resp:{resp_val}, Correct:{is_correct}"
         )
         update_trial(one_trial_data, one_block_data)
-
+        if event.getKeys(keyList=["escape"]):
+            break
     one_trial_data["recog_count"] = recog_count
     one_trial_data["phase_end_time"] = clock.getTime()
     send_marker(lsl_outlet, f"{prompts['recognition']['marker']}_END", is_pre=pre)
@@ -484,15 +488,20 @@ def init_exp(config: DictConfig | None):
     if pre or test is False:
         timing = config["timing"]
     if "stim_sequence" in config:
+        logger.info("正式实验，使用伪随机序列")
+
         stim_sequence = config.stim_sequence
+        if test:
+            import numpy as np
+            for k, v in stim_sequence.items():
+                np.random.shuffle(v)
+                stim_sequence[k] = v[:len(v)//4]
+
     if "stims" in config:
         global positive_words, negative_words, distractor_words
 
-        if not pre:
-            positive_words = config.stims["positive"][:10]
-            negative_words = config.stims["negative"][:10]
-            distractor_words = config.stims["distractor"][:len(positive_words)+len(negative_words)]
-        else:
+        logger.info("Initializing stimuli")
+        if pre:
             total_stims = config.stims["neutral"]
             len_total_stims = len(total_stims)
             positive_words = total_stims[: len_total_stims // 4]
@@ -539,7 +548,6 @@ def entry(exp: Experiment | None = None):
     logger = exp.logger or setup_default_logger()
     lsl_outlet = exp.lsl_outlet or init_lsl("SRETMarker")
     test = exp.test
-
     # 是否需要预实验
     if exp.config is not None and "pre" in exp.config:
         pre = True

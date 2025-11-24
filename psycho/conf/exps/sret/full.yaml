@@ -19,8 +19,8 @@ timing:
     duration: 300
   recognition:
     iti:
-      low: 1.5
-      high: 1.7
+      low: 1.2
+      high: 1.5
 
 prompts:
   recall:

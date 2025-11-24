@@ -59,11 +59,6 @@ class Session:
         self._setup_logger()
 
         self.camera = None
-        if USE_CAMERA:
-            self.camera = init_camera()
-            if self.camera is None:
-                self.logger.error("Failed to initialize camera.")
-                core.quit()
 
         self.continue_keys = ["space"]
         self.lsl_proc = None
@@ -93,6 +88,11 @@ class Session:
         )
         self.logger = logging.getLogger(__name__)
 
+    def setup_camera(self):
+        self.camera = init_camera(save_dir=self.cfg.output_dir + "videos", file_name=f"{self.session_info['save_path']}_video.avi")
+        if self.camera is None:
+            self.logger.error("Failed to initialize camera.")
+            core.quit()
     def discover_experiments(self):
         files = list(self.exps_dir.glob("*.py"))
         exps = [
@@ -354,6 +354,9 @@ def run_session(cfg: DictConfig):
             print("temp_debug.yaml 已生成")
     session = Session(cfg)
     session.add_session_info()
+
+    if USE_CAMERA:
+        session.setup_camera()
 
     exps = session.discover_experiments()
     selected = session.select_experiments_gui(exps)

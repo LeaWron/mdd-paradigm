@@ -55,6 +55,9 @@ class Session:
         self.globalClock = core.Clock()
         self.trialClock = core.Clock()
 
+        # 初始化 logger
+        self._setup_logger()
+
         self.camera = None
         if USE_CAMERA:
             self.camera = init_camera()
@@ -82,8 +85,6 @@ class Session:
             key="p", modifiers=["shift"], func=self.pause, name="pause"
         )
 
-        # 初始化 logger
-        self._setup_logger()
 
     def _setup_logger(self):
         logging.basicConfig(
@@ -200,6 +201,7 @@ class Session:
             self.record_thread = init_record_thread(self.camera)
         try:
             self.lsl_outlet = init_lsl("ParadigmMarker")
+            gui.infoDlg(title="请等待主试确认", prompt="请检查是否打开 fNIRS 录制")
             if self.labrecorder_connection is not None:
                 # 文件名格式: {root}/{session_id}.xdf
                 root = Path(self.cfg.output_dir) / self.session_info["date"]
@@ -227,7 +229,18 @@ class Session:
 
             if self.labrecorder_connection is not None:
                 self.labrecorder_connection.sendall(b"start\n")
-                time.sleep(5)
+
+            sleep_time = 5
+            for i in range(sleep_time, 0, -1):
+                text_stim = visual.TextStim(self.win, text=str(i), color="white", height=0.3)
+                text_stim.draw()
+                self.win.flip()
+                core.wait(1)
+
+                # 允许按 ESC 退出
+                if event.getKeys(keyList=["escape"]):
+                    break
+
             if self.camera is not None:
                 start_record(self.camera, self.record_thread)
             send_marker(self.lsl_outlet, "SESSION_START")

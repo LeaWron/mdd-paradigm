@@ -1,4 +1,5 @@
 import random
+import re
 from pathlib import Path
 
 from omegaconf import DictConfig
@@ -329,6 +330,8 @@ def run_recall_phase():
         if "\n" in textbox.text:
             raw_text = textbox.text
             word = raw_text.strip()
+            # 正则匹配, 只保留中文字符
+            word = re.sub(r"[^\u4e00-\u9fa5]", "", word)
 
             if word:  # 如果不是空行
                 # [ ] 是否需要这里发送一个 marker 表示提交了一个词

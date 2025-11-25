@@ -267,11 +267,13 @@ def trial():
 
 
 def post_trial():
+    win.setMouseVisible(visibility=False)
     win.flip()
     core.wait(0.5)
 
 
 def rating_slider():
+    win.setMouseVisible(visibility=True)
     prompt = visual.TextStim(
         win, text=intensity_prompt, color="white", pos=(0, 0.4), wrapWidth=2
     )

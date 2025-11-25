@@ -16,8 +16,7 @@ if HAS_MV_CAMERA:
     from MvCameraControl_class import *  # noqa
     from CameraParams_header import *
 
-# [ ] 增益等的设置
-# 应该是通过 setEnum 来设置
+# [ ] 水平镜像
 
 EXPOSURE_TIME = 10_000.0
 FRAME_RATE = 90.0

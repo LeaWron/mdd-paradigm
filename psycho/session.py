@@ -94,7 +94,7 @@ class Session:
 
     def setup_camera(self):
         self.camera = init_camera(
-            save_dir=self.cfg.output_dir + "videos",
+            save_dir=Path(self.cfg.output_dir) / "videos",
             file_name=f"{self.session_info['save_path']}_video.avi",
         )
         if self.camera is None:

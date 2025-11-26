@@ -566,6 +566,7 @@ class PsychopyDisplaySelector:
 
         # 创建对话框
         dlg = gui.Dlg(title="显示器选择器")
+        dlg.addText("pos代表该显示器左上角与主显示器的相对位置")
         dlg.addText("请选择要使用的显示器:")
 
         # 为每个屏幕添加信息
@@ -581,7 +582,7 @@ class PsychopyDisplaySelector:
             screen_desc = (
                 f"屏幕 {i + 1}: "
                 f"{width}x{height} | "
-                f"pos: {screen_rect}"
+                f"pos: {(screen_rect[0], screen_rect[1])}"
                 f"主要: {'是' if basic_info['Flags'] == 1 else '否'}"
             )
 

@@ -28,6 +28,7 @@ timing:
   iti: 0.5
   feedback: 0.5
   rest: 30
+  show: 5
 
 fov: 10
 monitor_distance: 60

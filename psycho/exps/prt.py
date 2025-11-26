@@ -6,6 +6,7 @@ from psychopy import core, event, tools, visual
 
 from psycho.session import PSYCHO_FONT, Experiment
 from psycho.utils import (
+    adapt_image_stim_size,
     init_lsl,
     parse_stim_path,
     save_csv_data,
@@ -30,6 +31,7 @@ timing = {
     "iti": 0.5,
     "feedback": 0.5,
     "rest": 5,
+    "show": 5,
 }
 
 response_keys = ["s", "l"]
@@ -347,6 +349,52 @@ def get_stim_size() -> float:
     return stim_size  # 假设刺激大小与距离成比例
 
 
+def show_stims():
+    prompt = visual.TextBox2(
+        win,
+        text=f"现在为你展示会出现的脸的图片\n从左到右依次为: 空脸, 短嘴巴, 长嘴巴\n你有 <c=yellow>{timing['show']}</c> 秒时间查看",
+        letterHeight=0.08,
+        size=(2, None),
+        pos=(0, 0.6),
+        color="white",
+        font=PSYCHO_FONT,
+        alignment="center",
+    )
+    prompt.draw()
+
+    stim_height, aspect_ratio = adapt_image_stim_size(win, empty_face, 0.3)
+    stim_width = stim_height * aspect_ratio
+    empty_face_stim = visual.ImageStim(
+        win,
+        image=empty_face,
+        pos=(-0.5, 0),
+        size=(stim_width, stim_height),
+        units="norm",
+    )
+
+    short_mouth_stim = visual.ImageStim(
+        win,
+        image=short_mouth,
+        pos=(0, 0),
+        size=(stim_width, stim_height),
+        units="norm",
+    )
+    long_mouth_stim = visual.ImageStim(
+        win,
+        image=long_mouth,
+        pos=(0.5, 0),
+        size=(stim_width, stim_height),
+        units="norm",
+    )
+
+    empty_face_stim.draw()
+    short_mouth_stim.draw()
+    long_mouth_stim.draw()
+
+    win.flip()
+    core.wait(timing["show"])
+
+
 def init_exp(config: DictConfig | None):
     global \
         n_blocks, \
@@ -419,6 +467,9 @@ def run_exp(cfg: DictConfig | None):
         prompt.draw()
         win.flip()
         event.waitKeys(keyList=continue_keys)
+
+        if pre:
+            show_stims()
 
     for local_block_index in range(n_blocks):
         block_index = local_block_index

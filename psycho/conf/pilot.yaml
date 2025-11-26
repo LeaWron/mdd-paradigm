@@ -14,7 +14,6 @@ log_level: INFO
 debug: false
 
 labrecorder:
-  use: true
   host: localhost
   port: 22345
 

@@ -10,23 +10,11 @@ n_trials_per_block: 90
 stim_folder: prt
 
 phase_prompt: |
-  接下来是正式实验, 实验方式与预实验相同
-  
+  接下来是正式实验, 实验方式与预实验<c=#eb5555>相同</c>
+
   仅有实验次数不同
-  
-  请按空格键继续
 
-timing:
-  fixation: 0.5
-  empty: 0.5
-  stim: 0.1
-  response: 0.5
-  iti: 0.5
-  feedback: 0.5
-  rest: 30
-
-fov: 10
-monitor_distance: 60
+  请按<c=#51d237>空格键</c>继续
 
 reward_high: 9
 reward_low: 3

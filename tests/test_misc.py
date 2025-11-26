@@ -278,3 +278,28 @@ def test_sret_stimulus():
         )
 
     print(positive_set & distractor_set)
+
+
+@pytest.mark.skip(reason="暂时不测试这个函数")
+def test_style_text_prompt():
+    win = visual.Window([800, 600], color="grey", units="norm")
+
+    # 创建带样式的文本
+    rich_text = visual.TextBox2(
+        win,
+        text="这是普通文本，<b>这是加粗文本</b>，<c=#ff0000>这是红色文本</c>，<b><c=#00ff00>这是绿色加粗文本</c></b>",
+        font="Microsoft YaHei",
+        pos=(0, 0),
+        letterHeight=0.05,
+        size=(1.5, 0.8),
+        color="white",
+        alignment="center",
+    )
+
+    # 显示文本
+    rich_text.draw()
+    win.flip()
+
+    # 等待按键
+    core.wait(5)
+    win.close()

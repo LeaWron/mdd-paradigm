@@ -3,7 +3,7 @@ from pathlib import Path
 from omegaconf import DictConfig
 from psychopy import core, event, visual
 
-from psycho.session import Experiment
+from psycho.session import PSYCHO_FONT, Experiment
 from psycho.utils import (
     adapt_image_stim_size,
     generate_trial_sequence,
@@ -27,7 +27,7 @@ timing = {
     "stim": 1.0,
     "max_response": 2.0,
     "emotion_select": 1.0,
-    "rest": 20.0,
+    "rest": 20,
 }
 
 stim_folder = parse_stim_path("emotion-face")
@@ -36,7 +36,9 @@ stim_items = list(stim_folder.glob("*.BMP"))
 response_map = {"a": "positive", "s": "neutral", "d": "negative"}
 
 
-intensity_prompt = "请选择情感的强度（1-9）, 1为最弱，9为最强"
+intensity_prompt = (
+    "请选择情感的强度（1-9）, 1为<c=#eb5555>最弱</c>, 9为<c=#51d237>最强</c>"
+)
 intensity_ticks = list(range(1, 10))
 intensity_tips = ["最弱", "中等", "最强"]
 # === 全局变量 ===
@@ -91,8 +93,18 @@ one_block_data = {key: [] for key in data_to_save.keys()}
 
 
 def pre_block():
-    text = f"当前 block 为第 {block_index + 1} 个 block\n记住按 a 为积极, s 为中性, d 为消极\n请按空格键开始"
-    text_stim = visual.TextStim(win, text=text, color="white", wrapWidth=2)
+    text_front = f"当前区块为第 {block_index + 1} 个 区块\n" if not pre else ""
+    text = f"{text_front}记住按 <c=#51d237>A</c> 为<c=yellow>积极</c>, <c=#51d237>S</c> 为<c=white>中性</c>, <c=#51d237>D</c> 为<c=purple>消极</c>\n请按<c=#51d237>空格键</c>开始"
+    text_stim = visual.TextBox2(
+        win,
+        text=text,
+        color="white",
+        letterHeight=0.1,
+        size=(1.2, None),
+        font=PSYCHO_FONT,
+        alignment="center",
+    )
+
     text_stim.draw()
     win.flip()
     event.waitKeys(keyList=continue_keys)
@@ -118,15 +130,26 @@ def post_block():
 
     one_trial_data["correct_rate"] = correct_rate
     # resting
-    text = f"你有 {timing['rest']} 秒休息时间\n你可以按空格键进入下一个 block"
-    text_stim = visual.TextStim(win, text=text, color="white", wrapWidth=2)
+    text_back = "进入下一个区块" if not pre else "结束预实验"
+    text = f"你有 <c=yellow>{timing['rest']}</c> 秒休息时间\n你可以按<c=#51d237>空格键</c>{text_back}"
+    text_stim = visual.TextBox2(
+        win,
+        text=text,
+        color="white",
+        letterHeight=0.1,
+        size=(1.2, None),
+        font=PSYCHO_FONT,
+        alignment="center",
+    )
     text_stim.draw()
     win.flip()
     event.waitKeys(timing["rest"], keyList=continue_keys)
 
 
 def pre_trial():
-    fixation = visual.TextStim(win, text="+", color="white", height=0.2, wrapWidth=2)
+    fixation = visual.TextStim(
+        win, text="+", color="white", height=0.2, wrapWidth=2, font=PSYCHO_FONT
+    )
     fixation.draw()
     win.flip()
     core.wait(timing["fixation"])
@@ -169,15 +192,22 @@ def trial():
 
     core.wait(timing["stim"])
     judge_stim = visual.TextStim(
-        win, text="请判断这张图片中的人脸的情绪类别", color="white", wrapWidth=2
+        win,
+        text="请判断这张图片中的人脸的情绪类别",
+        color="white",
+        wrapWidth=2,
+        font=PSYCHO_FONT,
     )
     judge_stim.draw()
-    judge_prompt = visual.TextStim(
+    judge_prompt = visual.TextBox2(
         win,
-        text="按 a 为积极, s 为中性, d 为消极",
+        text="按 <c=#51d237>A</c> 为<c=yellow>积极</c>, <c=#51d237>S</c> 为<c=white>中性</c>, <c=#51d237>D</c> 为<c=purple>消极</c>",
         color="white",
         pos=(0, -0.3),
-        wrapWidth=2,
+        letterHeight=0.1,
+        size=(1.2, None),
+        font=PSYCHO_FONT,
+        alignment="center",
     )
     judge_prompt.draw()
     win.flip()
@@ -209,7 +239,11 @@ def trial():
 
         logger.info("NO RESPONSE")
         visual.TextStim(
-            win, text="你没有及时进行评价, 请集中精神", color="white", wrapWidth=2
+            win,
+            text="你没有及时进行评价, 请集中精神",
+            color="white",
+            wrapWidth=2,
+            font=PSYCHO_FONT,
         ).draw()
         win.flip()
         core.wait(1.0)
@@ -231,7 +265,12 @@ def trial():
         lineColor="white",
     )
     button_text = visual.TextStim(
-        win, text="确认", color="white", pos=(0, -0.5), height=0.1
+        win,
+        text="确认",
+        color="white",
+        pos=(0, -0.5),
+        height=0.1,
+        font=PSYCHO_FONT,
     )
 
     mouse = event.Mouse(win=win)
@@ -274,8 +313,15 @@ def post_trial():
 
 def rating_slider():
     win.setMouseVisible(visibility=True)
-    prompt = visual.TextStim(
-        win, text=intensity_prompt, color="white", pos=(0, 0.4), wrapWidth=2
+    prompt = visual.TextBox2(
+        win,
+        text=intensity_prompt,
+        color="white",
+        pos=(0, 0.4),
+        size=(2, None),
+        letterHeight=0.1,
+        font=PSYCHO_FONT,
+        alignment="center",
     )
     slider = visual.Slider(
         win,
@@ -287,7 +333,7 @@ def rating_slider():
         style=["rating"],
         color="white",
         pos=(0, 0),
-        font="Microsoft YaHei",
+        font=PSYCHO_FONT,
         labelHeight=0.08,
     )
     # slider.setValue(slider.startValue)
@@ -327,14 +373,15 @@ def run_exp(cfg: DictConfig | None):
 
     if cfg is not None:
         init_exp(cfg)
-        prompt = visual.TextStim(
+        prompt = visual.TextBox2(
             win,
             text=cfg.phase_prompt,
             color="white",
-            height=0.06,
-            wrapWidth=1,
+            letterHeight=0.06,
+            size=(1.5, None),
             pos=(0, 0),
-            alignText="left",
+            alignment="left",
+            font=PSYCHO_FONT,
         )
         prompt.draw()
         win.flip()
@@ -365,17 +412,18 @@ def entry(exp: Experiment | None = None):
         pre = True
         while True:
             run_exp(exp.config.pre)
-
-            commit_text = (
-                "是否需要再次进行预实验?\n按 y 键再次进行预实验, 按 n 键结束预实验"
-            )
-            prompt = visual.TextStim(
+            commit_text = "是否需要再次进行预实验?\n按 <c=#51d237>y</c> 键再次进行预实验, 按 <c=#eb5555>n</c> 键结束预实验"
+            prompt = visual.TextBox2(
                 win,
                 text=commit_text,
                 color="white",
-                height=0.1,
-                wrapWidth=2,
+                letterHeight=0.1,
+                size=(2, None),
+                alignment="center",
+                pos=(0, 0),
+                font=PSYCHO_FONT,
             )
+
             prompt.draw()
             win.flip()
             keys = event.waitKeys(keyList=["y", "n"])
@@ -402,7 +450,7 @@ def entry(exp: Experiment | None = None):
 
 
 def main():
-    entry()
+    entry(Experiment(None, None, None, None, None, None))
 
 
 if __name__ == "__main__":

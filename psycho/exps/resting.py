@@ -4,7 +4,7 @@ from omegaconf import DictConfig
 from psychopy import core, event, sound, visual
 from pylsl import StreamOutlet
 
-from psycho.session import Experiment
+from psycho.session import PSYCHO_FONT, Experiment
 from psycho.utils import init_lsl, parse_stim_path, send_marker, setup_default_logger
 
 # === 参数设置 ===
@@ -40,7 +40,15 @@ logger = None
 
 def pre_block():
     text = block_cfg[phase[block_index]]["prompt"]
-    stim = visual.TextStim(win, text=text, color="white", height=0.1, wrapWidth=2)
+    stim = visual.TextBox2(
+        win,
+        text=text,
+        color="white",
+        letterHeight=0.1,
+        size=(2, None),
+        alignment="center",
+        font=PSYCHO_FONT,
+    )
     stim.draw()
     win.flip()
     core.wait(0.5)
@@ -52,7 +60,15 @@ def pre_block():
 def block():
     send_marker(lsl_outlet, block_cfg[phase[block_index]]["marker"])
     text = block_cfg[phase[block_index]]["prompt"]
-    stim = visual.TextStim(win, text=text, color="white", height=0.1, wrapWidth=2)
+    stim = visual.TextBox2(
+        win,
+        text=text,
+        color="white",
+        letterHeight=0.1,
+        size=(2, None),
+        font=PSYCHO_FONT,
+        alignment="center",
+    )
     stim.draw()
     win.flip()
     core.wait(timing["rest"])
@@ -62,7 +78,9 @@ def block():
 
 
 def post_block():
-    fixation = visual.TextStim(win, text="+", color="white", height=0.2, wrapWidth=2)
+    fixation = visual.TextStim(
+        win, text="+", color="white", height=0.2, wrapWidth=2, font=PSYCHO_FONT
+    )
     fixation.draw()
     win.flip()
     core.wait(0.5)

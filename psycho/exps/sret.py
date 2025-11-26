@@ -3,7 +3,7 @@ from typing import Literal
 from omegaconf import DictConfig
 from psychopy import core, event, visual
 
-from psycho.session import Experiment
+from psycho.session import PSYCHO_FONT, Experiment
 from psycho.utils import (
     generate_trial_sequence,
     get_isi,
@@ -133,8 +133,14 @@ one_block_data = {key: [] for key in data_to_save.keys()}  # 这里的 block 指
 
 # === 工具函数 ===
 def show_prompt(text, duration=None, wait_key=True):
-    stim = visual.TextStim(
-        win, text=text, color="white", wrapWidth=1.2, height=0.06, alignText="left"
+    stim = visual.TextBox2(
+        win,
+        text=text,
+        color="white",
+        letterHeight=0.08,
+        size=(1.2, None),
+        font=PSYCHO_FONT,
+        alignment="left",
     )
     stim.draw()
     win.flip()
@@ -145,7 +151,7 @@ def show_prompt(text, duration=None, wait_key=True):
 
 
 def draw_fixation(time: float):
-    fix = visual.TextStim(win, text="+", color="white", height=0.2)
+    fix = visual.TextStim(win, text="+", color="white", height=0.2, font=PSYCHO_FONT)
     fix.draw()
     win.flip()
     core.wait(time)
@@ -153,8 +159,15 @@ def draw_fixation(time: float):
 
 def rating_slider(resp: Literal["yes", "no"]):
     win.setMouseVisible(visibility=True)
-    prompt = visual.TextStim(
-        win, text=intensity_prompt, color="white", pos=(0, 0.4), wrapWidth=2
+    prompt = visual.TextBox2(
+        win,
+        text=intensity_prompt,
+        color="white",
+        pos=(0, 0.4),
+        size=(1.2, None),
+        letterHeight=0.06,
+        alignment="center",
+        font=PSYCHO_FONT,
     )
     slider = visual.Slider(
         win,
@@ -166,7 +179,7 @@ def rating_slider(resp: Literal["yes", "no"]):
         style=["rating"],
         color="white",
         pos=(0, 0),
-        font="Microsoft YaHei",
+        font=PSYCHO_FONT,
         labelHeight=0.04,
     )
     # slider.setValue(slider.startValue)
@@ -253,19 +266,24 @@ def run_encoding_phase():
         )
 
         # Stimulus
-        text_stim = visual.TextStim(win, text=trial, color="white", height=0.15)
+        text_stim = visual.TextStim(
+            win, text=trial, color="white", height=0.15, font=PSYCHO_FONT
+        )
         text_stim.draw()
         win.flip()
         core.wait(timing["encoding"]["stim"])
 
         draw_fixation(timing["encoding"]["fixation"])
 
-        prompt_stim = visual.TextStim(
+        prompt_stim = visual.TextBox2(
             win,
-            text="符合我(f)   不符合我(j)",
+            text="符合我( <c=#51d237>f</c> )   不符合我( <c=#eb5555>j</c> )",
             pos=(0, 0),
-            height=0.1,
+            letterHeight=0.1,
+            size=(1.2, None),
+            font=PSYCHO_FONT,
             color="white",
+            alignment="center",
         )
 
         prompt_stim.draw()
@@ -361,14 +379,15 @@ def init_exp(config: DictConfig | None):
 def run_exp(cfg: DictConfig | None):
     if cfg is not None:
         init_exp(cfg)
-        prompt = visual.TextStim(
+        prompt = visual.TextBox2(
             win,
             text=cfg.phase_prompt,
             color="white",
-            height=0.06,
-            wrapWidth=1.2,
+            letterHeight=0.08,
+            size=(1.2, None),
             pos=(0, 0),
-            alignText="left",
+            font=PSYCHO_FONT,
+            alignment="left",
         )
         prompt.draw()
         win.flip()
@@ -392,15 +411,16 @@ def entry(exp: Experiment | None = None):
         while True:
             run_exp(exp.config.pre)
 
-            commit_text = (
-                "是否需要再次进行预实验?\n按 y 键再次进行预实验, 按 n 键结束预实验"
-            )
-            prompt = visual.TextStim(
+            commit_text = "是否需要再次进行预实验?\n按 <c=#51d237>y</c> 键再次进行预实验, 按 <c=#eb5555>n</c> 键结束预实验"
+            prompt = visual.TextBox2(
                 win,
                 text=commit_text,
                 color="white",
-                height=0.1,
-                wrapWidth=2,
+                letterHeight=0.1,
+                size=(2, None),
+                alignment="center",
+                pos=(0, 0),
+                font=PSYCHO_FONT,
             )
             prompt.draw()
             win.flip()

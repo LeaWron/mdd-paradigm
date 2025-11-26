@@ -298,15 +298,18 @@ def stop_record(cam, record_thread: threading.Thread):
     record_thread.join()
     send_marker(lsl_outlet, "StopRecording")
 
+    time.sleep(0.5)
+
     ret = cam.MV_CC_StopRecord()
     if ret != 0:
-        logger.error(f"Stop record failed! ret [0x{ret:08x}]")
         logger.error(f"Stop record failed! ret [0x{ret:08x}]")
 
     # 停止取流
     ret = cam.MV_CC_StopGrabbing()
     if ret != 0:
         logger.error(f"Stop grabbing failed! ret [0x{ret:08x}]")
+
+    time.sleep(0.5)
 
 
 def close_camera(cam):

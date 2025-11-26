@@ -640,7 +640,7 @@ def create_monitor(
 
     monitor = monitors.Monitor(name=ok["name"])
     monitor.setSizePix(ok["pix_size"])
-    monitor.setWidth(ok["phys_size_mm"][0] * 10)
+    monitor.setWidth(ok["phys_size_mm"][0] / 10)
     monitor.setDistance(ok["distance"])
     monitor.save()
     if logger:
@@ -667,10 +667,10 @@ def select_monitor(
         )
         dlg.addField(label="是否创建新的显示器配置?", initial=True, key="create")
         ok = dlg.show()
-        if ok["create"]:
+        if ok and ok["create"]:
             return create_monitor(screen_info, my_monitor, logger)
         else:
-            gui.infoDlg(title="通知", message="将会在已有显示器配置中选择")
+            gui.infoDlg(title="通知", prompt="将会在已有显示器配置中选择")
 
     dlg = gui.Dlg(title="选择显示器配置")
     dlg.addField(

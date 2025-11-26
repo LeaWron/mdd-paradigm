@@ -10,15 +10,16 @@ from pathlib import Path
 import hydra
 import psychopy
 from omegaconf import DictConfig, OmegaConf
+from psychopy import core, event, gui, visual  # noqa: E402
 
-from psycho.camera import (
+from psycho.camera import (  # noqa: E402
     close_camera,
     init_camera,
     init_record_thread,
     start_record,
     stop_record,
 )
-from psycho.utils import (
+from psycho.utils import (  # noqa: E402
     PsychopyDisplaySelector,
     get_audio_devices,
     init_lsl,
@@ -28,11 +29,7 @@ from psycho.utils import (
 )
 
 # 全局设置
-psychopy.prefs.general["defaultTextFont"] = "Arial"
-psychopy.prefs.general["defaultTextSize"] = 0.05
-psychopy.prefs.general["defaultTextColor"] = "white"
-from psychopy import core, event, gui, visual  # noqa: E402
-
+PSYCHO_FONT = "Microsoft YaHei"
 USE_CAMERA = False
 USE_FNIRS = False
 
@@ -72,17 +69,19 @@ class Session:
         self.after_rest_duration = self.cfg.session.timing.iei
 
         self.labrecorder_connection = None
-        if "labrecorder" in self.cfg and self.cfg.labrecorder.use:
+        try:
             self.labrecorder_connection = socket.create_connection(
                 (self.cfg.labrecorder.host, self.cfg.labrecorder.port)
             )
+        except Exception as e:
+            self.logger.error(f"Failed to connect to LabRecorder: {e}")
 
         event.globalKeys.add(
             key="escape", modifiers=["shift"], func=self.stop, name="quit"
         )
-        event.globalKeys.add(
-            key="p", modifiers=["shift"], func=self.pause, name="pause"
-        )
+        # event.globalKeys.add(
+        #     key="p", modifiers=["shift"], func=self.pause, name="pause"
+        # )
 
     def _setup_logger(self):
         logging.basicConfig(
@@ -233,12 +232,14 @@ class Session:
             self.win.setMouseVisible(visibility=False)
             self.win.callOnFlip(event.clearEvents)
 
-            initial_msg = visual.TextStim(
+            initial_msg = visual.TextBox2(
                 self.win,
-                text="你即将开始本次会话, 准备好后按下空格键开始",
+                text="你即将开始本次会话, 准备好后按下<c=#51d237>空格键</c>开始",
                 color="white",
-                height=0.1,
-                wrapWidth=2,
+                letterHeight=0.1,
+                size=(2, None),
+                alignment="center",
+                font=PSYCHO_FONT,
             )
             initial_msg.draw()
             self.win.flip()
@@ -255,7 +256,7 @@ class Session:
             sleep_time = 5
             for i in range(sleep_time, 0, -1):
                 text_stim = visual.TextStim(
-                    self.win, text=str(i), color="white", height=0.3
+                    self.win, text=str(i), color="yellow", height=0.3, font=PSYCHO_FONT
                 )
                 text_stim.draw()
                 self.win.flip()
@@ -274,12 +275,14 @@ class Session:
             for name, exp_module in self.experiments:
                 if not self.running:
                     break
-                start_msg = visual.TextStim(
+                start_msg = visual.TextBox2(
                     self.win,
-                    text="准备进入实验, 按空格键继续",
+                    text="准备进入实验, 按<c=#51d237>空格键</c>继续",
                     color="white",
-                    height=0.1,
-                    wrapWidth=2,
+                    letterHeight=0.1,
+                    size=(2, None),
+                    alignment="center",
+                    font=PSYCHO_FONT,
                 )
                 start_msg.draw()
                 self.win.flip()
@@ -300,12 +303,14 @@ class Session:
                     ),
                 )
 
-                end_msg = visual.TextStim(
+                end_msg = visual.TextBox2(
                     self.win,
-                    text=f"该实验结束, 你有 {self.after_rest_duration} 秒休息时间\n你可以按空格键直接进入下一个实验",
+                    text=f"该实验结束, 你有 <c=yellow>{self.after_rest_duration}</c> 秒休息时间\n你可以按<c=#51d237>空格键</c>直接进入下一个实验",
                     color="white",
-                    height=0.1,
-                    wrapWidth=2,
+                    letterHeight=0.1,
+                    size=(2, None),
+                    alignment="center",
+                    font=PSYCHO_FONT,
                 )
                 end_msg.draw()
                 self.win.flip()

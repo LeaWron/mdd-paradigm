@@ -22,6 +22,7 @@ from psycho.utils import (
     PsychopyDisplaySelector,
     get_audio_devices,
     init_lsl,
+    select_monitor,
     send_marker,
     switch_keyboard_layout,
 )
@@ -57,8 +58,6 @@ class Session:
         self.globalClock = core.Clock()
         self.trialClock = core.Clock()
 
-        # 副屏幕配置文件名称
-        # [ ]: 配置该配置文件
         self.MONITOR_NAME = "subMonitor"
         # 初始化 logger
         self._setup_logger()
@@ -101,11 +100,15 @@ class Session:
             self.logger.error("Failed to initialize camera.")
             core.quit()
 
-    def select_monitor(self):
+    def select_screen(self):
         selector = PsychopyDisplaySelector()
         self.selected_screen = selector.select_and_preview()
 
         self.params = selector.get_selected_screen_window_params()
+
+    def select_monitor(self):
+        self.select_screen()
+        self.monitor = select_monitor(self.params, self.MONITOR_NAME, self.logger)
 
     def discover_experiments(self):
         files = list(self.exps_dir.glob("*.py"))
@@ -206,7 +209,6 @@ class Session:
             self.record_thread = init_record_thread(self.camera)
         try:
             self.lsl_outlet = init_lsl("ParadigmMarker")
-            # [x] 检查是否打开 fNIRS 录制
             if USE_FNIRS:
                 gui.infoDlg(title="请等待主试确认", prompt="请检查是否打开 fNIRS 录制")
             if self.labrecorder_connection is not None:
@@ -220,7 +222,7 @@ class Session:
                 # screen: 1 0 2
             time.sleep(1)
             self.win = visual.Window(
-                monitor=self.MONITOR_NAME,
+                monitor=self.monitor,
                 screen=self.selected_screen,
                 size=self.params["pix_size"] if not self.cfg.debug else (1600, 900),
                 pos=(0, 0) if not self.cfg.debug else (0.2, 0.2),

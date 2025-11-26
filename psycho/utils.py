@@ -13,7 +13,7 @@ import polars as pl
 import win32api
 import win32con
 from PIL import Image
-from psychopy import event, gui, visual
+from psychopy import event, gui, monitors, visual
 from pyglet import canvas
 from pylsl import StreamInfo, StreamOutlet, local_clock
 
@@ -201,123 +201,6 @@ def cm_to_unit_ratio(cm):
     return ratio
 
 
-# === misc === #
-# 每个范式只生成一次, 所以简单点
-def generate_trial_sequence(
-    n_blocks: int,
-    n_trials_per_block: int,
-    max_seq_same: int = 2,
-    all_occur: bool = True,
-    stim_list: list = None,
-    stim_weights: list = None,
-    seed: int = None,
-):
-    from collections import Counter, defaultdict
-    from pprint import pprint
-
-    def check_seq(seq: list, max_seq_same: int, all_occur: bool) -> bool:
-        current_count = 0
-        prev_choice = None
-        appeared = set()
-        for item in seq:
-            if item == prev_choice:
-                current_count += 1
-            else:
-                current_count = 1
-                prev_choice = item
-            if current_count > max_seq_same:
-                return False
-            appeared.add(item)
-        if all_occur and len(appeared) != len(stim_list):
-            return False
-        return True
-
-    if seed is not None:
-        random.seed(seed)
-        np.random.seed(seed)
-    rng = np.random.default_rng(seed=seed)
-
-    stim_sequences = defaultdict(list)
-    for block_index in range(n_blocks):
-        while True:
-            seq: list = rng.choice(
-                stim_list, size=n_trials_per_block, replace=True, p=stim_weights
-            ).tolist()
-            if check_seq(seq, max_seq_same, all_occur):
-                stim_sequences[block_index].extend(seq)
-                break
-
-    stim_sequences = dict(stim_sequences)
-
-    return stim_sequences
-
-
-def update_trial(one_trial_data: dict[str, Any], one_block_data: dict[str, list]):
-    for key, value in one_trial_data.items():
-        one_block_data[key].append(value)
-        one_trial_data[key] = None
-
-
-def update_block(one_block_data: dict[str, list], data_to_save: dict[str, list]):
-    for key, value in one_block_data.items():
-        data_to_save[key].extend(value)
-        one_block_data[key] = []
-
-
-def save_csv_data(data: dict[str, list], file_name: str | Path):
-    """
-    将实验数据保存为 CSV 文件
-
-    Args:
-        data (dict[str, list]): key 为列名, value 为该列的数据（长度需一致）
-        file_name (str | Path): 保存文件名, 会保存到根目录的 data 文件夹下的当前日期文件夹, 会自动添加 .csv 后缀
-    """
-    base_path = Path(__file__).parent.parent / "data"
-    date_folder = base_path / datetime.now().strftime("%Y-%m-%d")
-    # 日期文件夹
-    date_folder.mkdir(parents=True, exist_ok=True)
-
-    file_name = (date_folder / f"{file_name}").with_suffix(".csv")
-
-    max_len = max(len(v) for v in data.values()) if data else 0
-    for _, v in data.items():
-        if len(v) < max_len:
-            v.extend([None] * (max_len - len(v)))
-
-    df = pl.DataFrame(data, strict=False)
-
-    if file_name.exists():
-        with open(file_name, "a", encoding="utf-8", newline="") as f:
-            df.write_csv(f, include_header=False)
-    else:
-        df.write_csv(file_name)
-
-
-def setup_default_logger():
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
-    )
-    return logging.getLogger("default")
-
-
-def get_audio_devices():
-    import sounddevice as sd
-
-    devices = sd.query_devices()
-    hostapis = sd.query_hostapis()
-
-    clean = []
-    for d in devices:
-        if d["max_output_channels"] <= 0:
-            continue
-        api_name = hostapis[d["hostapi"]]["name"]
-        if any(skip in api_name for skip in ["MME", "DirectSound", "ASIO", "WDM-KS"]):
-            continue
-        clean.append(f"{d['name']}")
-    return sorted(list(set(clean)))
-
-
 class ScreenUtils:
     def __init__(self, show: bool = False):
         if show:
@@ -382,7 +265,7 @@ class ScreenUtils:
         )
 
         # 存储显示器信息
-        monitors = []
+        screens = []
 
         def enum_callback(hMonitor, hdcMonitor, lprcMonitor, dwData):
             # 使用 win32api 获取详细信息
@@ -399,7 +282,7 @@ class ScreenUtils:
                     dpi_y / 96.0,
                 )  # 相对于标准DPI的缩放因子
 
-                monitors.append(monitor_info)
+                screens.append(monitor_info)
             except Exception as e:
                 self.logger.error(f"Error getting monitor info: {e}")
                 pass
@@ -412,19 +295,19 @@ class ScreenUtils:
         ctypes.windll.user32.EnumDisplayMonitors(None, None, callback, 0)
 
         # 打印所有显示器信息
-        for i, monitor in enumerate(monitors):
+        for i, screen in enumerate(screens):
             self.logger.debug(f"显示器 {i + 1}:")
-            self.logger.debug(f"  设备名称: {monitor['Device']}")
-            self.logger.debug(f"  是否主要显示器: {monitor['Flags'] == 1}")
+            self.logger.debug(f"  设备名称: {screen['Device']}")
+            self.logger.debug(f"  是否主要显示器: {screen['Flags'] == 1}")
             self.logger.debug(
-                f"  工作区域: {monitor['Work']}"
+                f"  工作区域: {screen['Work']}"
             )  # 工作区域（不包含任务栏）
-            self.logger.debug(f"  显示器矩形: {monitor['Monitor']}")  # 整个显示器区域
-            self.logger.debug(f"  DPI: {monitor['DPI']}")
-            self.logger.debug(f"  缩放因子: {monitor['ScalingFactor']}")
+            self.logger.debug(f"  显示器矩形: {screen['Monitor']}")  # 整个显示器区域
+            self.logger.debug(f"  DPI: {screen['DPI']}")
+            self.logger.debug(f"  缩放因子: {screen['ScalingFactor']}")
             self.logger.debug("")
 
-        return monitors
+        return screens
 
     def get_screen_pyglet_dpi_aware(self):
         """改进版的pyglet屏幕信息获取函数，考虑DPI缩放"""
@@ -565,7 +448,7 @@ class PsychopyDisplaySelector:
         screens_info = self.get_all_screens_info()
 
         # 创建对话框
-        dlg = gui.Dlg(title="显示器选择器")
+        dlg = gui.Dlg(title="显示器选择")
         dlg.addText("pos代表该显示器左上角与主显示器的相对位置")
         dlg.addText("请选择要使用的显示器:")
 
@@ -733,6 +616,190 @@ class PsychopyDisplaySelector:
 
         # 返回窗口参数
         return needed_params
+
+
+def create_monitor(
+    screen_info: dict, my_monitor: str = "subMonitor", logger: logging.Logger = None
+) -> monitors.Monitor:
+    """
+    创建新的显示器配置
+
+    Returns:
+        psychopy.monitors.Monitor: 创建的显示器对象
+    """
+    dlg = gui.Dlg(title="创建显示器配置")
+    dlg.addField(label="显示器名称", initial=my_monitor, key="name")
+    dlg.addField(label="分辨率", initial=screen_info["pix_size"], key="pix_size")
+    dlg.addField(
+        label="物理尺寸(mm)", initial=screen_info["phys_size_mm"], key="phys_size_mm"
+    )
+    dlg.addField(label="与人的距离(cm)", initial=60, key="distance")
+    ok = dlg.show()
+    if ok is None:
+        return None
+
+    monitor = monitors.Monitor(name=ok["name"])
+    monitor.setSizePix(ok["pix_size"])
+    monitor.setWidth(ok["phys_size_mm"][0] * 10)
+    monitor.setDistance(ok["distance"])
+    monitor.save()
+    if logger:
+        logger.info(f"创建新的显示器配置: {ok['name']}")
+    return monitor
+
+
+def select_monitor(
+    screen_info: dict, my_monitor: str = "subMonitor", logger: logging.Logger = None
+) -> monitors.Monitor:
+    """
+    选择要使用的显示器
+
+    Returns:
+        psychopy.monitors.Monitor: 选择的显示器对象
+    """
+    available_monitors = monitors.getAllMonitors()
+    if my_monitor not in available_monitors:
+        dlg = gui.Dlg(
+            title="错误",
+        )
+        dlg.addText(
+            f"指定的显示器配置 {my_monitor} 不存在，可用显示器列表中只有 {available_monitors}",
+        )
+        dlg.addField(label="是否创建新的显示器配置?", initial=True, key="create")
+        ok = dlg.show()
+        if ok["create"]:
+            return create_monitor(screen_info, my_monitor, logger)
+        else:
+            gui.infoDlg(title="通知", message="将会在已有显示器配置中选择")
+
+    dlg = gui.Dlg(title="选择显示器配置")
+    dlg.addField(
+        label="请选择要使用的显示器配置",
+        choices=available_monitors,
+        initial=available_monitors[0],
+        key="monitor",
+    )
+    ok = dlg.show()
+    monitor = ok["monitor"]
+
+    return monitor
+
+
+# === misc === #
+# 每个范式只生成一次, 所以简单点
+def generate_trial_sequence(
+    n_blocks: int,
+    n_trials_per_block: int,
+    max_seq_same: int = 2,
+    all_occur: bool = True,
+    stim_list: list = None,
+    stim_weights: list = None,
+    seed: int = None,
+):
+    from collections import Counter, defaultdict
+    from pprint import pprint
+
+    def check_seq(seq: list, max_seq_same: int, all_occur: bool) -> bool:
+        current_count = 0
+        prev_choice = None
+        appeared = set()
+        for item in seq:
+            if item == prev_choice:
+                current_count += 1
+            else:
+                current_count = 1
+                prev_choice = item
+            if current_count > max_seq_same:
+                return False
+            appeared.add(item)
+        if all_occur and len(appeared) != len(stim_list):
+            return False
+        return True
+
+    if seed is not None:
+        random.seed(seed)
+        np.random.seed(seed)
+    rng = np.random.default_rng(seed=seed)
+
+    stim_sequences = defaultdict(list)
+    for block_index in range(n_blocks):
+        while True:
+            seq: list = rng.choice(
+                stim_list, size=n_trials_per_block, replace=True, p=stim_weights
+            ).tolist()
+            if check_seq(seq, max_seq_same, all_occur):
+                stim_sequences[block_index].extend(seq)
+                break
+
+    stim_sequences = dict(stim_sequences)
+
+    return stim_sequences
+
+
+def update_trial(one_trial_data: dict[str, Any], one_block_data: dict[str, list]):
+    for key, value in one_trial_data.items():
+        one_block_data[key].append(value)
+        one_trial_data[key] = None
+
+
+def update_block(one_block_data: dict[str, list], data_to_save: dict[str, list]):
+    for key, value in one_block_data.items():
+        data_to_save[key].extend(value)
+        one_block_data[key] = []
+
+
+def save_csv_data(data: dict[str, list], file_name: str | Path):
+    """
+    将实验数据保存为 CSV 文件
+
+    Args:
+        data (dict[str, list]): key 为列名, value 为该列的数据（长度需一致）
+        file_name (str | Path): 保存文件名, 会保存到根目录的 data 文件夹下的当前日期文件夹, 会自动添加 .csv 后缀
+    """
+    base_path = Path(__file__).parent.parent / "data"
+    date_folder = base_path / datetime.now().strftime("%Y-%m-%d")
+    # 日期文件夹
+    date_folder.mkdir(parents=True, exist_ok=True)
+
+    file_name = (date_folder / f"{file_name}").with_suffix(".csv")
+
+    max_len = max(len(v) for v in data.values()) if data else 0
+    for _, v in data.items():
+        if len(v) < max_len:
+            v.extend([None] * (max_len - len(v)))
+
+    df = pl.DataFrame(data, strict=False)
+
+    if file_name.exists():
+        with open(file_name, "a", encoding="utf-8", newline="") as f:
+            df.write_csv(f, include_header=False)
+    else:
+        df.write_csv(file_name)
+
+
+def setup_default_logger():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
+    )
+    return logging.getLogger("default")
+
+
+def get_audio_devices():
+    import sounddevice as sd
+
+    devices = sd.query_devices()
+    hostapis = sd.query_hostapis()
+
+    clean = []
+    for d in devices:
+        if d["max_output_channels"] <= 0:
+            continue
+        api_name = hostapis[d["hostapi"]]["name"]
+        if any(skip in api_name for skip in ["MME", "DirectSound", "ASIO", "WDM-KS"]):
+            continue
+        clean.append(f"{d['name']}")
+    return sorted(list(set(clean)))
 
 
 if __name__ == "__main__":

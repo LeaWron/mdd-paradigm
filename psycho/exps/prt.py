@@ -202,13 +202,12 @@ def trial():
     global total_point, correct_count
 
     def show_stim():
-        stim_size = get_stim_size()
         empty_face_stim = visual.ImageStim(
             win,
             image=empty_face,
             pos=(0, 0),
-            size=(stim_size, stim_size),
-            units="pix",
+            size=fov,
+            units="deg",
         )
         empty_face_stim.draw()
         win.flip()
@@ -224,8 +223,8 @@ def trial():
                 win,
                 image=short_mouth,
                 pos=(0, 0),
-                size=(stim_size, stim_size),
-                units="pix",
+                size=fov,
+                units="deg",
             )
             short_mouth_stim.draw()
         else:
@@ -233,8 +232,8 @@ def trial():
                 win,
                 image=long_mouth,
                 pos=(0, 0),
-                size=(stim_size, stim_size),
-                units="pix",
+                size=fov,
+                units="deg",
             )
             long_mouth_stim.draw()
         win.flip()

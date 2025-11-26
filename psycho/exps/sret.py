@@ -150,6 +150,7 @@ def draw_fixation(time: float):
     win.flip()
     core.wait(time)
 
+
 def rating_slider(resp: Literal["yes", "no"]):
     win.setMouseVisible(visibility=True)
     prompt = visual.TextStim(
@@ -213,6 +214,7 @@ def rating_slider(resp: Literal["yes", "no"]):
             send_marker(lsl_outlet, "RESPONSE_2", is_pre=pre)
             break
     win.setMouseVisible(visibility=False)
+
 
 def init_encoding_phase():
     global stim_sequence
@@ -323,7 +325,9 @@ def init_exp(config: DictConfig | None):
     prompts = config["prompts"]
 
     intensity_prompt = config["intensity_prompt"]
-    intensity_ticks = list(range(config["intensity_ticks"]["start"], config["intensity_ticks"]["end"] + 1))
+    intensity_ticks = list(
+        range(config["intensity_ticks"]["start"], config["intensity_ticks"]["end"] + 1)
+    )
     intensity_tips = config["intensity_tips"]
 
     if pre or test is False:

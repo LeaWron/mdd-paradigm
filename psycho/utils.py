@@ -3,13 +3,18 @@ import logging
 import math
 import random
 import tkinter as tk
+from ctypes import wintypes
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import polars as pl
+import win32api
+import win32con
 from PIL import Image
+from psychopy import event, gui, visual
+from pyglet import canvas
 from pylsl import StreamInfo, StreamOutlet, local_clock
 
 arbitary_keys = (
@@ -129,20 +134,22 @@ def into_stim_str(stim: Path) -> str:
     return stim
 
 
-def adapt_image_stim_size(stim_path: Path, max_height: float = 2.0):
+def adapt_image_stim_size(win: visual.Window, stim_path: Path, max_height: float = 2.0):
     """
     调整图像刺激大小, 使图像在保持宽高比的前提下, 能被屏幕正好容纳下
     Args:
+        win (visual.Window): 窗口对象
         stim_path (Path): 图像刺激路径
         max_height (float, optional): 最大高度, 单位为屏幕高度. Defaults to 2.0.
 
     Returns:
         tuple: (stim_height, aspect_ratio), 图像刺激高度, 宽高比
     """
+    screen_width, screen_height = win.size
     img = Image.open(stim_path)
     width, height = img.size
 
-    aspect_ratio = width / height
+    aspect_ratio = (width * screen_height) / (height * screen_width)
 
     if width < height:
         stim_height = max_height
@@ -309,6 +316,422 @@ def get_audio_devices():
             continue
         clean.append(f"{d['name']}")
     return sorted(list(set(clean)))
+
+
+class ScreenUtils:
+    def __init__(self, show: bool = False):
+        if show:
+            logging.basicConfig(level=logging.DEBUG)
+        else:
+            logging.basicConfig(level=logging.INFO)
+
+        self.logger = logging.getLogger("ScreenUtils")
+
+    def set_dpi_awareness(self, dpi_awareness: int = 2):
+        """设置应用程序的DPI感知级别，以正确处理高DPI显示器"""
+        # 0: PROCESS_DPI_UNAWARE
+        # 1: PROCESS_SYSTEM_DPI_AWARE
+        # 2: PROCESS_PER_MONITOR_DPI_AWARE
+        try:
+            # 尝试设置每监视器DPI感知（Windows 8.1+）
+            ctypes.windll.shcore.SetProcessDpiAwareness(dpi_awareness)
+        except Exception as e:
+            self.logger.error(f"Error setting DPI awareness: {e}")
+
+            try:
+                # 回退到系统DPI感知（Windows Vista+）
+                ctypes.windll.user32.SetProcessDpiAwarenessContext(
+                    -4
+                )  # DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2
+            except Exception as e:
+                self.logger.error(f"Error setting DPI awareness context: {e}")
+                try:
+                    # 更老的回退方案
+                    ctypes.windll.user32.SetProcessDPIAware()
+                except Exception as e:
+                    self.logger.error(f"Error setting DPI aware: {e}")
+
+    def get_dpi_for_monitor(self, hmonitor):
+        """获取指定监视器的DPI"""
+        try:
+            dpi_x = ctypes.c_uint()
+            dpi_y = ctypes.c_uint()
+            ctypes.windll.shcore.GetDpiForMonitor(
+                hmonitor, 0, ctypes.byref(dpi_x), ctypes.byref(dpi_y)
+            )
+            return dpi_x.value, dpi_y.value
+        except Exception as e:
+            self.logger.error(f"Error getting DPI for monitor: {e}")
+            return 96, 96  # 默认DPI
+
+    def get_display_devices_dpi_aware(self):
+        """改进版的显示器信息获取函数，考虑DPI缩放"""
+        # 设置DPI感知
+        self.set_dpi_awareness()
+
+        import ctypes
+        from ctypes import wintypes
+
+        # 定义回调函数类型
+        MONITORENUMPROC = ctypes.WINFUNCTYPE(
+            ctypes.c_int,
+            ctypes.wintypes.HMONITOR,
+            ctypes.wintypes.HDC,
+            ctypes.POINTER(wintypes.RECT),
+            ctypes.wintypes.LPARAM,
+        )
+
+        # 存储显示器信息
+        monitors = []
+
+        def enum_callback(hMonitor, hdcMonitor, lprcMonitor, dwData):
+            # 使用 win32api 获取详细信息
+            try:
+                monitor_info = win32api.GetMonitorInfo(hMonitor)
+
+                # 获取DPI信息
+                dpi_x, dpi_y = self.get_dpi_for_monitor(hMonitor)
+
+                # 添加DPI信息到monitor_info
+                monitor_info["DPI"] = (dpi_x, dpi_y)
+                monitor_info["ScalingFactor"] = (
+                    dpi_x / 96.0,
+                    dpi_y / 96.0,
+                )  # 相对于标准DPI的缩放因子
+
+                monitors.append(monitor_info)
+            except Exception as e:
+                self.logger.error(f"Error getting monitor info: {e}")
+                pass
+            return True
+
+        # 创建回调函数
+        callback = MONITORENUMPROC(enum_callback)
+
+        # 枚举所有显示器
+        ctypes.windll.user32.EnumDisplayMonitors(None, None, callback, 0)
+
+        # 打印所有显示器信息
+        for i, monitor in enumerate(monitors):
+            self.logger.debug(f"显示器 {i + 1}:")
+            self.logger.debug(f"  设备名称: {monitor['Device']}")
+            self.logger.debug(f"  是否主要显示器: {monitor['Flags'] == 1}")
+            self.logger.debug(
+                f"  工作区域: {monitor['Work']}"
+            )  # 工作区域（不包含任务栏）
+            self.logger.debug(f"  显示器矩形: {monitor['Monitor']}")  # 整个显示器区域
+            self.logger.debug(f"  DPI: {monitor['DPI']}")
+            self.logger.debug(f"  缩放因子: {monitor['ScalingFactor']}")
+            self.logger.debug("")
+
+        return monitors
+
+    def get_screen_pyglet_dpi_aware(self):
+        """改进版的pyglet屏幕信息获取函数，考虑DPI缩放"""
+        # 设置DPI感知
+        self.set_dpi_awareness()
+
+        try:
+            screens = canvas.get_display().get_screens()
+            for i, screen in enumerate(screens):
+                self.logger.debug(f"屏幕 {i + 1}:")
+                self.logger.debug(f"  x: {screen.x}, y: {screen.y}")
+                self.logger.debug(f"  width: {screen.width}, height: {screen.height}")
+                # 注意：在高DPI显示器上，这些值可能是逻辑像素而不是物理像素
+                # 可能需要结合DPI信息来计算实际物理尺寸
+            return screens
+        except Exception as e:
+            self.logger.error(f"Error getting pyglet screens: {e}")
+            return None
+
+    def get_physical_screen_size(self, hmonitor):
+        """获取监视器的物理尺寸（毫米）"""
+        try:
+            # 使用GetMonitorInfo获取监视器信息
+            monitor_info = win32api.GetMonitorInfo(hmonitor)
+
+            # 获取设备名称
+            device_name = monitor_info["Device"]
+
+            # 获取显示设置
+            dev_mode = win32api.EnumDisplaySettings(
+                device_name, win32con.ENUM_CURRENT_SETTINGS
+            )
+
+            # 获取DPI
+            dpi_x, dpi_y = self.get_dpi_for_monitor(hmonitor)
+
+            # 计算物理尺寸（英寸）
+            physical_width_inch = dev_mode.PelsWidth / dpi_x
+            physical_height_inch = dev_mode.PelsHeight / dpi_y
+
+            # 转换为毫米（1英寸 = 25.4毫米）
+            physical_width_mm = physical_width_inch * 25.4
+            physical_height_mm = physical_height_inch * 25.4
+
+            return physical_width_mm, physical_height_mm
+        except Exception as e:
+            self.logger.error(f"Error getting physical screen size: {e}")
+            return None, None
+
+    def get_comprehensive_display_info(self):
+        """综合显示信息测试，包含DPI和物理尺寸"""
+        # 设置DPI感知
+        self.set_dpi_awareness()
+
+        import ctypes
+
+        # 定义回调函数类型
+        MONITORENUMPROC = ctypes.WINFUNCTYPE(
+            ctypes.c_int,
+            ctypes.wintypes.HMONITOR,
+            ctypes.wintypes.HDC,
+            ctypes.POINTER(wintypes.RECT),
+            ctypes.wintypes.LPARAM,
+        )
+
+        # 存储显示器信息
+        monitors = []
+
+        def enum_callback(hMonitor, hdcMonitor, lprcMonitor, dwData):
+            try:
+                # 基本监视器信息
+                monitor_info = win32api.GetMonitorInfo(hMonitor)
+
+                # DPI信息
+                dpi_x, dpi_y = self.get_dpi_for_monitor(hMonitor)
+
+                # 物理尺寸
+                phys_width, phys_height = self.get_physical_screen_size(hMonitor)
+
+                # 组合信息
+                comprehensive_info = {
+                    "basic": monitor_info,
+                    "dpi": (dpi_x, dpi_y),
+                    "scaling_factor": (dpi_x / 96.0, dpi_y / 96.0),
+                    "physical_size_mm": (phys_width, phys_height),
+                }
+
+                monitors.append(comprehensive_info)
+            except Exception as e:
+                self.logger.error(f"Error getting comprehensive monitor info: {e}")
+            return True
+
+        # 创建回调函数
+        callback = MONITORENUMPROC(enum_callback)
+
+        # 枚举所有显示器
+        ctypes.windll.user32.EnumDisplayMonitors(None, None, callback, 0)
+
+        # 打印所有显示器信息
+        for i, monitor in enumerate(monitors):
+            basic_info = monitor["basic"]
+            dpi = monitor["dpi"]
+            scaling = monitor["scaling_factor"]
+            physical_size = monitor["physical_size_mm"]
+
+            self.logger.debug(f"=== 显示器 {i + 1} ===")
+            self.logger.debug(f"设备名称: {basic_info['Device']}")
+            self.logger.debug(f"工作区域: {basic_info['Work']}")
+            self.logger.debug(f"是否主要显示器: {basic_info['Flags'] == 1}")
+            self.logger.debug(f"显示器矩形: {basic_info['Monitor']}")
+            self.logger.debug(f"DPI: {dpi}")
+            self.logger.debug(f"缩放因子: {scaling[0]:.2f}x")
+            if physical_size[0] and physical_size[1]:
+                self.logger.debug(
+                    f"物理尺寸: {physical_size[0]:.1f}mm x {physical_size[1]:.1f}mm"
+                )
+        self.set_dpi_awareness(0)
+
+        return monitors
+
+
+class PsychopyDisplaySelector:
+    def __init__(self):
+        self.screen_utils = ScreenUtils()
+        self.selected_screen = None
+        self.screens_info = []
+
+    def get_all_screens_info(self):
+        """获取所有屏幕的详细信息"""
+        # 获取综合显示信息
+        comprehensive_info = self.screen_utils.get_comprehensive_display_info()
+        self.screens_info = comprehensive_info
+        return comprehensive_info
+
+    def create_display_dialog(self):
+        """创建Psychopy GUI对话框用于选择显示器"""
+        # 获取所有屏幕信息
+        screens_info = self.get_all_screens_info()
+
+        # 创建对话框
+        dlg = gui.Dlg(title="显示器选择器")
+        dlg.addText("请选择要使用的显示器:")
+
+        # 为每个屏幕添加信息
+        screen_choices = []
+        for i, screen_info in enumerate(screens_info):
+            basic_info = screen_info["basic"]
+
+            screen_rect = basic_info["Monitor"]
+            width = screen_rect[2] - screen_rect[0]
+            height = screen_rect[3] - screen_rect[1]
+
+            # 创建屏幕描述
+            screen_desc = (
+                f"屏幕 {i + 1}: "
+                f"{width}x{height} | "
+                f"pos: {screen_rect}"
+                f"主要: {'是' if basic_info['Flags'] == 1 else '否'}"
+            )
+
+            screen_choices.append(screen_desc)
+
+        # 添加选择字段
+        dlg.addField("显示器:", choices=screen_choices)
+
+        # 显示对话框
+        ok_data = dlg.show()
+
+        if dlg.OK:
+            selected_index = (
+                screen_choices.index(ok_data[0]) if ok_data[0] in screen_choices else 0
+            )
+            self.selected_screen = selected_index
+
+        else:
+            return None
+        return self.selected_screen
+
+    def preview_selected_screen(self, screen_index):
+        """预览选中的屏幕"""
+        if screen_index < 0 or screen_index >= len(self.screens_info):
+            print("无效的屏幕索引")
+            return
+
+        try:
+            # 获取屏幕信息
+            screen_info = self.screens_info[screen_index]
+            basic_info = screen_info["basic"]
+            dpi = screen_info["dpi"]
+            scaling = screen_info["scaling_factor"]
+
+            # 获取屏幕矩形
+            screen_rect = basic_info["Monitor"]
+            width = screen_rect[2] - screen_rect[0]
+            height = screen_rect[3] - screen_rect[1]
+
+            # 创建预览窗口 - 使用指定的屏幕
+            win = visual.Window(
+                size=(min(800, width), min(600, height)),  # 限制窗口大小
+                pos=(0, 0),
+                screen=screen_index,
+                fullscr=False,
+                color="grey",
+                units="norm",
+            )
+
+            # 显示屏幕信息
+            info_text = (
+                f"屏幕 {screen_index + 1} 预览\n\n"
+                f"分辨率: {width} x {height}\n"
+                f"DPI: {dpi[0]} x {dpi[1]}\n"
+                f"缩放因子: {scaling[0]:.2f}x\n"
+                f"主要显示器: {'是' if basic_info['Flags'] == 1 else '否'}\n\n"
+                f"按任意键关闭预览"
+            )
+
+            # 创建文本刺激
+            text_stim = visual.TextStim(
+                win=win,
+                text=info_text,
+                pos=(0, 0),
+                color="white",
+                height=0.05,
+                wrapWidth=1.8,
+            )
+
+            # 绘制并显示
+            text_stim.draw()
+            win.flip()
+
+            # 等待按键关闭
+            event.waitKeys()
+            win.close()
+
+        except Exception as e:
+            print(f"预览屏幕时出错: {e}")
+
+            # 创建错误提示窗口
+            error_win = visual.Window(
+                size=(400, 200),
+                color="black",
+                screen=0,  # 在主屏幕显示错误
+                fullscr=False,
+            )
+
+            error_text = visual.TextStim(
+                win=error_win,
+                text=f"无法创建预览窗口:\n{str(e)}",
+                color="white",
+                height=0.06,
+            )
+
+            error_text.draw()
+            error_win.flip()
+            event.waitKeys()
+            error_win.close()
+
+    def select_and_preview(self):
+        """选择显示器并预览"""
+        # 显示选择对话框
+        while True:
+            selected_index = self.create_display_dialog()
+            if selected_index is None:
+                break
+            sub_dlg = gui.Dlg(title="确认选择")
+            sub_dlg.addField(
+                label="是否预览选中屏幕位置?否则直接确认",
+                initial=False,
+                key="preview",
+            )
+            sub_ok = sub_dlg.show()
+            if sub_ok["preview"]:
+                self.preview_selected_screen(selected_index)
+                sub_dlg = gui.Dlg(title="确认选择")
+                sub_dlg.addField(
+                    label=f"是否选择屏幕 {selected_index + 1}?",
+                    initial=True,
+                    key="confirm",
+                )
+                sub_ok = sub_dlg.show()
+                if sub_ok["confirm"]:
+                    break
+            else:
+                break
+        if selected_index is None:
+            print("用户取消了选择")
+        return selected_index
+
+    def get_selected_screen_window_params(self):
+        """获取选中屏幕的窗口参数"""
+        if self.selected_screen is None:
+            # 如果没有选择，返回默认参数
+            return None
+
+        # 获取选中屏幕的信息
+        screen_info = self.screens_info[self.selected_screen]
+        needed_params = {}
+        # 分辨率
+        needed_params["pix_size"] = (
+            screen_info["basic"]["Monitor"][2] - screen_info["basic"]["Monitor"][0],
+            screen_info["basic"]["Monitor"][3] - screen_info["basic"]["Monitor"][1],
+        )
+        # 物理尺寸
+        needed_params["phys_size_mm"] = screen_info["physical_size_mm"]
+
+        # 返回窗口参数
+        return needed_params
 
 
 if __name__ == "__main__":

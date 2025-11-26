@@ -19,6 +19,7 @@ from psycho.camera import (
     stop_record,
 )
 from psycho.utils import (
+    PsychopyDisplaySelector,
     get_audio_devices,
     init_lsl,
     send_marker,
@@ -32,6 +33,7 @@ psychopy.prefs.general["defaultTextColor"] = "white"
 from psychopy import core, event, gui, visual  # noqa: E402
 
 USE_CAMERA = False
+USE_FNIRS = False
 
 
 @dataclass
@@ -55,6 +57,9 @@ class Session:
         self.globalClock = core.Clock()
         self.trialClock = core.Clock()
 
+        # 副屏幕配置文件名称
+        # [ ]: 配置该配置文件
+        self.MONITOR_NAME = "subMonitor"
         # 初始化 logger
         self._setup_logger()
 
@@ -95,6 +100,12 @@ class Session:
         if self.camera is None:
             self.logger.error("Failed to initialize camera.")
             core.quit()
+
+    def select_monitor(self):
+        selector = PsychopyDisplaySelector()
+        self.selected_screen = selector.select_and_preview()
+
+        self.params = selector.get_selected_screen_window_params()
 
     def discover_experiments(self):
         files = list(self.exps_dir.glob("*.py"))
@@ -186,17 +197,7 @@ class Session:
 
     def start(self, with_lsl=False):
         self.running = True
-        # screen: 1 0 2
-        self.win = visual.Window(
-            monitor="testMonitor",
-            screen=1,
-            pos=(0, 0),
-            fullscr=True,
-            color="grey",
-            units="norm",
-        )  # 全局窗口
-        self.win.setMouseVisible(visibility=False)
-        self.win.callOnFlip(event.clearEvents)
+
         if with_lsl:
             self.lsl_proc = multiprocessing.Process(target=self._lsl_recv)
             self.lsl_proc.start()
@@ -205,7 +206,9 @@ class Session:
             self.record_thread = init_record_thread(self.camera)
         try:
             self.lsl_outlet = init_lsl("ParadigmMarker")
-            gui.infoDlg(title="请等待主试确认", prompt="请检查是否打开 fNIRS 录制")
+            # [x] 检查是否打开 fNIRS 录制
+            if USE_FNIRS:
+                gui.infoDlg(title="请等待主试确认", prompt="请检查是否打开 fNIRS 录制")
             if self.labrecorder_connection is not None:
                 # 文件名格式: {root}/{session_id}.xdf
                 root = Path(self.cfg.output_dir) / self.session_info["date"]
@@ -214,6 +217,19 @@ class Session:
 
                 self.labrecorder_connection.sendall(b"update\n")
                 self.labrecorder_connection.sendall(b"select all\n")
+                # screen: 1 0 2
+            time.sleep(1)
+            self.win = visual.Window(
+                monitor=self.MONITOR_NAME,
+                screen=self.selected_screen,
+                size=self.params["pix_size"] if not self.cfg.debug else (1600, 900),
+                pos=(0, 0) if not self.cfg.debug else (0.2, 0.2),
+                fullscr=True if not self.cfg.debug else False,
+                color="grey",
+                units="norm",
+            )  # 全局窗口
+            self.win.setMouseVisible(visibility=False)
+            self.win.callOnFlip(event.clearEvents)
 
             initial_msg = visual.TextStim(
                 self.win,
@@ -227,7 +243,7 @@ class Session:
 
             while True:
                 keys = event.waitKeys(modifiers=True)
-                print(keys)
+                self.logger.debug(keys)
                 if "space" == keys[0][0]:
                     break
 
@@ -351,7 +367,7 @@ def run_session(cfg: DictConfig):
     # 切换到英文输入法
     switch_keyboard_layout()
     # 初始化音视频设备
-    init_audio_video_device()
+    init_external_device()
 
     OmegaConf.resolve(cfg)
     if cfg.debug:
@@ -363,6 +379,7 @@ def run_session(cfg: DictConfig):
 
     if USE_CAMERA:
         session.setup_camera()
+    session.select_monitor()
 
     exps = session.discover_experiments()
     selected = session.select_experiments_gui(exps)
@@ -371,22 +388,28 @@ def run_session(cfg: DictConfig):
     session.start(with_lsl=False)
 
 
-def init_audio_video_device():
+def init_external_device():
     sound_devices = get_audio_devices()
     # gui 选择
-    select_audio_vedio = gui.Dlg("音视频设备选择")
-    select_audio_vedio.addField(
-        label="请选择", choices=sound_devices, key="audio_device", tip="默认为第一项"
+    select_device = gui.Dlg("外部设备选择")
+
+    select_device.addField(
+        label="请选择扬声器",
+        choices=sound_devices,
+        key="audio_device",
+        tip="默认为第一项",
     )
-    select_audio_vedio.addField(
-        label="是否使用视频设备", initial=False, key="use_video"
-    )
-    ok_data = select_audio_vedio.show()
-    if select_audio_vedio.OK:
+    select_device.addField(label="是否使用视频设备", initial=False, key="use_video")
+    select_device.addField(label="是否使用 fNIRS 设备", initial=False, key="use_fnirs")
+    ok_data = select_device.show()
+    if select_device.OK:
         psychopy.prefs.hardware["audioDevice"] = ok_data["audio_device"]
         if ok_data["use_video"]:
             global USE_CAMERA
             USE_CAMERA = True
+        if ok_data["use_fnirs"]:
+            global USE_FNIRS
+            USE_FNIRS = True
 
 
 if __name__ == "__main__":

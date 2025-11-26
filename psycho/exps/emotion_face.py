@@ -152,7 +152,7 @@ def trial():
     one_trial_data["stim"] = kind_label
     one_trial_data["label_intensity"] = stim_sequence[block_index][trial_index]["label"]
 
-    stim_height, aspect_ratio = adapt_image_stim_size(stim_item, 1)
+    stim_height, aspect_ratio = adapt_image_stim_size(win, stim_item, 1)
 
     stimulus = visual.ImageStim(
         win,

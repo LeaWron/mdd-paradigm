@@ -16,7 +16,7 @@ from psycho.camera import (
     init_camera,
     init_record_thread,
     start_record,
-    stopRecord,
+    stop_record,
 )
 from psycho.utils import (
     get_audio_devices,
@@ -312,7 +312,7 @@ class Session:
 
         send_marker(self.lsl_outlet, "SESSION_END")
         if self.camera is not None:
-            stopRecord(self.camera, self.record_thread)
+            stop_record(self.camera, self.record_thread)
             close_camera(self.camera)
         if self.labrecorder_connection is not None:
             self.labrecorder_connection.sendall(b"stop\n")

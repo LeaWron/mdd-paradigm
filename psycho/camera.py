@@ -119,14 +119,15 @@ def init_camera(save_dir: Path = None, file_name: str = None):
             )
             logger.info(f"user serial number: [{strSerialNumber}]")
     # 选择第一个设备
-    nConnectionNum = input("please input the number of the device to connect:")
-
-    if int(nConnectionNum) >= device_list.nDeviceNum:
+    # nConnectionNum = input("please input the number of the device to connect:")
+    # 默认选择第一个设备
+    n_connection_num = "0"
+    if int(n_connection_num) >= device_list.nDeviceNum:
         logger.error("intput error!")
         return None
     # 选择设备
     st_device_list = cast(
-        device_list.pDeviceInfo[int(nConnectionNum)], POINTER(MV_CC_DEVICE_INFO)
+        device_list.pDeviceInfo[int(n_connection_num)], POINTER(MV_CC_DEVICE_INFO)
     ).contents
 
     # 创建相机实例
@@ -169,6 +170,10 @@ def init_camera(save_dir: Path = None, file_name: str = None):
     ret = cam.MV_CC_SetEnumValueByString("BalanceWhiteAuto", "Off")
     if ret != 0:
         logger.error(f"Set balance white auto: {ret}")
+        return None
+    ret = cam.MV_CC_SetBoolValue("ReverseX", True)
+    if ret != 0:
+        logger.error(f"Set ReverseX failed! ret [0x{ret:08x}]")
         return None
     # ===================== 配置硬件触发 =====================
 
@@ -248,12 +253,11 @@ def init_camera(save_dir: Path = None, file_name: str = None):
     record_param.nBitRate = 4096  # 码率(kbps)
     record_param.enRecordFmtType = MV_FormatType_AVI  # 录像格式为AVI
 
-    # 用户指定的保存路径
     if save_dir is None:
         save_dir = Path.cwd()
     if file_name is None:
         file_name = "video.avi"
-    save_path = save_dir / file_name  # 修改为您需要的路径
+    save_path = save_dir / file_name
     record_param.strFilePath = save_path.as_posix().encode("utf-8")
 
     # 确保目录存在
@@ -275,7 +279,7 @@ def init_camera(save_dir: Path = None, file_name: str = None):
 
 
 def init_record_thread(cam):
-    # 创建并启动录像线程
+    # 创建录像线程
     global g_bExit
     g_bExit = False
     record_thread = threading.Thread(target=work_thread, args=(cam, None, None))
@@ -287,7 +291,7 @@ def start_record(cam, record_thread: threading.Thread):
     send_marker(lsl_outlet, "StartRecording")
 
 
-def stopRecord(cam, record_thread: threading.Thread):
+def stop_record(cam, record_thread: threading.Thread):
     global g_bExit
     # send_highlevel_trigger()
     # 停止录像
@@ -320,7 +324,7 @@ def main():
         record_thread = init_record_thread(cam)
         start_record(cam, record_thread)
         input("Press any key to stop recording...")
-        stopRecord(cam, record_thread)
+        stop_record(cam, record_thread)
     else:
         MvCamera.MV_CC_Finalize()
     close_camera()

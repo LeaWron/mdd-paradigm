@@ -2,6 +2,7 @@ import importlib
 import logging
 import multiprocessing
 import socket
+import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -68,13 +69,10 @@ class Session:
         self.before_duration = self.cfg.session.timing.before_wait
         self.after_rest_duration = self.cfg.session.timing.iei
 
-        self.labrecorder_connection = None
-        try:
-            self.labrecorder_connection = socket.create_connection(
-                (self.cfg.labrecorder.host, self.cfg.labrecorder.port)
-            )
-        except Exception as e:
-            self.logger.error(f"Failed to connect to LabRecorder: {e}")
+        self.labrecorder_thread = threading.Thread(
+            target=self._connect_labrecorder, daemon=True
+        )
+        self.labrecorder_thread.start()
 
         event.globalKeys.add(
             key="escape", modifiers=["shift"], func=self.stop, name="quit"
@@ -89,6 +87,15 @@ class Session:
             format="%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
         )
         self.logger = logging.getLogger(__name__)
+
+    def _connect_labrecorder(self):
+        try:
+            self.labrecorder_connection = socket.create_connection(
+                (self.cfg.labrecorder.host, self.cfg.labrecorder.port)
+            )
+        except Exception as e:
+            self.logger.error(f"Failed to connect to LabRecorder: {e}")
+            self.labrecorder_connection = None
 
     def setup_camera(self):
         self.camera = init_camera(

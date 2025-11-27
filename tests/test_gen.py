@@ -93,38 +93,43 @@ def test_generate_prt(
     n_trials_per_block: int = 90,
     max_seq_same: int = 3,
     max_reward_count: int = 40,
-    high_low_ratio: float = 3.0,
-    stim_list: list = ["long", "short"],
-    seq_save_path: str | Path = "./prt_sequence",
-    idx_save_path: str | Path = "./prt_idx_sequence",
+    low_high_ratio: float = 3.0,
+    seq_save_path: str | Path = "./temp_prt_sequence",
+    idx_save_path: str | Path = "./temp_prt_idx_sequence",
 ):
-    long_mouth, short_mouth = stim_list
-
     sequence = defaultdict(list)
     idx_sequence = {}
     for block_index in range(n_blocks):
         while True:
             half = n_trials_per_block // 2
-            stim_seq = [str(long_mouth)] * half + [str(short_mouth)] * half
+            stim_seq = ["high"] * half + ["low"] * half
             random.shuffle(stim_seq)
 
             if check_prt_seq(stim_seq, max_seq_same):
                 break
 
-        high_count = int(max_reward_count * (high_low_ratio / (high_low_ratio + 1)))
-        low_count = max_reward_count - high_count
+        low_count = int(max_reward_count * (low_high_ratio / (low_high_ratio + 1)))
+        high_count = max_reward_count - low_count
 
-        available_indices = set(range(n_trials_per_block))
+        available_high_indices = []
+        available_low_indices = []
+        for i, stim in enumerate(stim_seq):
+            if stim == "high":
+                available_high_indices.append(i)
+            else:
+                available_low_indices.append(i)
 
-        high_indices = np.random.choice(
-            list(available_indices), size=high_count, replace=False
-        ).tolist()
+        high_indices = sorted(
+            np.random.choice(
+                list(available_high_indices), size=high_count, replace=False
+            ).tolist()
+        )
 
-        available_indices -= set(high_indices)
-
-        low_indices = np.random.choice(
-            list(available_indices), size=low_count, replace=False
-        ).tolist()
+        low_indices = sorted(
+            np.random.choice(
+                list(available_low_indices), size=low_count, replace=False
+            ).tolist()
+        )
         sequence[block_index] = stim_seq
 
         idx_sequence[block_index] = {}
@@ -228,32 +233,6 @@ def check_sret_seq_encoding(
     return True
 
 
-def check_sret_seq_recognition(
-    seq: list[dict],
-    old_stim: list[str],
-    new_stim: list[str],
-    max_seq_same: int = 1,
-):
-    pre = None
-    cnt = 0
-    for item in seq:
-        if item in old_stim:
-            if pre == "old":
-                cnt += 1
-            else:
-                cnt = 1
-            pre = "old"
-        elif item in new_stim:
-            if pre == "new":
-                cnt += 1
-            else:
-                cnt = 1
-            pre = "new"
-        if cnt > max_seq_same:
-            return False
-    return True
-
-
 @pytest.mark.skip(reason="已生成")
 def test_generate_sret(
     max_seq_same: int = 2,
@@ -280,31 +259,6 @@ def test_generate_sret(
             positive_stim,
             negative_stim,
             max_seq_same,
-        ):
-            break
-        count += 1
-        if count % 100000 == 0:
-            print(f"try {count} times")
-
-    sequence[phase] = candidate
-
-    # recoginition phase
-    phase = "recognition"
-    distractor = stim_list["distractor"]
-
-    old_stim = positive_stim + negative_stim
-    new_stim = distractor
-
-    candidate = old_stim + new_stim
-    print("try generate recognition sequence")
-    count = 0
-    while True:
-        np.random.shuffle(candidate)
-        if check_sret_seq_recognition(
-            candidate,
-            old_stim,
-            new_stim,
-            max_seq_same + 1,
         ):
             break
         count += 1

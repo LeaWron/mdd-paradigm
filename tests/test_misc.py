@@ -256,28 +256,15 @@ def test_sret_stimulus():
         stims = yaml.safe_load(f)
     positive_stim = stims["positive"]
     negative_stim = stims["negative"]
-    distractor = stims["distractor"]
 
     positive_set = set(positive_stim)
     negative_set = set(negative_stim)
-    distractor_set = set(distractor)
 
-    print(
-        f"positive_set: {len(positive_set)}, negative_set: {len(negative_set)}, distractor_set: {len(distractor_set)}"
-    )
+    print(f"positive_stim: {len(positive_stim)}, positive_set: {len(positive_set)}")
+    print(positive_set)
 
-    if positive_set.isdisjoint(distractor_set):
-        print(
-            "positive_set and distractor_set are disjoint:",
-            positive_set & distractor_set,
-        )
-    if negative_set.isdisjoint(distractor_set):
-        print(
-            "negative_set and distractor_set are disjoint:",
-            negative_set & distractor_set,
-        )
-
-    print(positive_set & distractor_set)
+    print(f"negative_stim: {len(negative_stim)}, negative_set: {len(negative_set)}")
+    print(negative_set)
 
 
 @pytest.mark.skip(reason="暂时不测试这个函数")

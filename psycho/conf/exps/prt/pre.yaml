@@ -30,7 +30,7 @@ timing:
   rest: 30
   show: 5
 
-fov: 10
+fov: 8
 monitor_distance: 60
 
 reward_high: 10

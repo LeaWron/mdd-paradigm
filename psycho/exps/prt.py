@@ -67,7 +67,14 @@ logger = None
 block_index = 0
 trial_index = 0
 
-high_side = random.choice(response_keys)
+high_side_abrr = random.choice(response_keys)
+if high_side_abrr == "s":
+    high_side = "short"
+    low_side = "long"
+else:
+    high_side = "long"
+    low_side = "short"
+
 total_point = 0
 correct_count = 0
 
@@ -125,9 +132,9 @@ def give_reward(choice: str, right_choice: str):
             return -1
     else:
         if choice == right_choice:
-            if choice == high_side and random.random() < high_reward_prob:
+            if choice == high_side_abrr and random.random() < high_reward_prob:
                 return reward_high
-            elif choice != high_side and random.random() < low_reward_prob:
+            elif choice != high_side_abrr and random.random() < low_reward_prob:
                 return reward_low
             else:
                 return 0
@@ -137,7 +144,7 @@ def give_reward(choice: str, right_choice: str):
 
 # ========== 框架函数 ==========
 def pre_block():
-    text_front = f"当前区块为第{block_index + 1}个 区块\n" if not pre else ""
+    text_front = f"当前区块为第 {block_index + 1} 个区块\n" if not pre else ""
     text = f"{text_front}按<c=#51d237>空格键</c>开始"
     msg = visual.TextBox2(
         win,
@@ -225,31 +232,29 @@ def trial():
         core.wait(timing["empty"])
 
         if stim_sequence is not None:
-            long_or_short = stim_sequence[block_index][trial_index]
+            high_or_low = stim_sequence[block_index][trial_index]
+            if high_or_low == "high":
+                cur_side = high_side
+            else:
+                cur_side = low_side
         else:
-            long_or_short = random.choice(["long", "short"])
-        if long_or_short == "short":
-            short_mouth_stim = visual.ImageStim(
-                win,
-                image=short_mouth,
-                pos=(0, 0),
-                size=fov,
-                units="deg",
-            )
-            short_mouth_stim.draw()
+            cur_side = random.choice(["long", "short"])
+        if cur_side == "long":
+            cur_stim = long_mouth
         else:
-            long_mouth_stim = visual.ImageStim(
-                win,
-                image=long_mouth,
-                pos=(0, 0),
-                size=fov,
-                units="deg",
-            )
-            long_mouth_stim.draw()
+            cur_stim = short_mouth
+        mouth_stim = visual.ImageStim(
+            win,
+            image=cur_stim,
+            pos=(0, 0),
+            size=fov,
+            units="deg",
+        )
+        mouth_stim.draw()
         win.flip()
         on_set = clock.getTime()
         core.wait(timing["stim"])
-        return empty_face_stim, on_set, "s" if long_or_short == "short" else "l"
+        return empty_face_stim, on_set, "s" if cur_side == "short" else "l"
 
     empty_stim, on_set, long_or_short = show_stim()
     empty_stim.draw()
@@ -307,7 +312,7 @@ def trial():
     elif reward < 0:
         feedback_wrong = visual.TextStim(
             win,
-            text="错误!",
+            text="错误!" if rt is not None else "超时!",
             height=0.1,
             color="#eb5555",
             colorSpace="rgb",
@@ -500,7 +505,7 @@ def entry(exp: Experiment | None = None):
         while True:
             run_exp(exp.config.pre)
 
-            commit_text = "是否需要再次进行预实验?\n按 <c=#51d237>y</c> 键再次进行预实验, 按 <c=#eb5555>n</c> 键结束预实验"
+            commit_text = "是否需要再次进行预实验?\n按 <c=#51d237>Y</c> 键再次进行预实验, 按 <c=#eb5555>N</c> 键结束预实验"
             prompt = visual.TextBox2(
                 win,
                 text=commit_text,

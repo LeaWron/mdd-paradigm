@@ -93,7 +93,7 @@ one_block_data = {key: [] for key in data_to_save.keys()}
 
 
 def pre_block():
-    text_front = f"当前区块为第 {block_index + 1} 个 区块\n" if not pre else ""
+    text_front = f"当前区块为第 {block_index + 1} 个区块\n" if not pre else ""
     text = f"{text_front}记住按 <c=#51d237>A</c> 为<c=yellow>积极</c>, <c=#51d237>S</c> 为<c=white>中性</c>, <c=#51d237>D</c> 为<c=purple>消极</c>\n请按<c=#51d237>空格键</c>开始"
     text_stim = visual.TextBox2(
         win,
@@ -126,7 +126,9 @@ def block():
 
 
 def post_block():
+    global correct_count
     correct_rate = 1.0 * correct_count / n_trials_per_block
+    correct_count = 0
 
     one_trial_data["correct_rate"] = correct_rate
     # resting
@@ -366,6 +368,8 @@ def init_exp(config: DictConfig | None = None):
 
     if "stim_sequence" in config:
         stim_sequence = config.stim_sequence
+    for k in data_to_save.keys():
+        data_to_save[k].clear()
 
 
 def run_exp(cfg: DictConfig | None):
@@ -412,7 +416,7 @@ def entry(exp: Experiment | None = None):
         pre = True
         while True:
             run_exp(exp.config.pre)
-            commit_text = "是否需要再次进行预实验?\n按 <c=#51d237>y</c> 键再次进行预实验, 按 <c=#eb5555>n</c> 键结束预实验"
+            commit_text = "是否需要再次进行预实验?\n按 <c=#51d237>Y</c> 键再次进行预实验, 按 <c=#eb5555>N</c> 键结束预实验"
             prompt = visual.TextBox2(
                 win,
                 text=commit_text,

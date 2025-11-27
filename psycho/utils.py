@@ -680,6 +680,13 @@ def select_monitor(
         key="monitor",
     )
     ok = dlg.show()
+    if ok is None:
+        dlg = gui.Dlg(title="错误")
+        dlg.addText("用户取消了选择显示器配置")
+        dlg.addField(label="是否创建并使用新的显示器配置?", initial=True, key="create")
+        ok = dlg.show()
+        if ok and ok["create"]:
+            return create_monitor(screen_info, "", logger)
     monitor = ok["monitor"]
 
     return monitor

@@ -21,9 +21,6 @@ positive_words = ["美丽", "勇敢", "聪明", "有能力"]
 
 negative_words = ["害怕", "孤独", "易怒", "痛苦"]
 
-distractor_words = [
-    f"干扰{i}" for i in range(1, len(negative_words) + len(positive_words) + 1)
-]
 
 stim_sequence = {}
 
@@ -57,7 +54,7 @@ timing = {
     },
 }
 
-encoding_map = {"f": "yes", "j": "no"}
+encoding_map = {"a": "yes", "d": "no"}
 recognition_map = {"f": "old", "j": "new"}
 
 phase_names = {
@@ -257,7 +254,7 @@ def run_encoding_phase():
         one_trial_data["trial_start_time"] = clock.getTime()
         one_trial_data["stim_word"] = trial
         one_trial_data["stim_type"] = (
-            "postive" if trial in positive_words else "negative"
+            "positive" if trial in positive_words else "negative"
         )
 
         # 间隔
@@ -362,15 +359,17 @@ def init_exp(config: DictConfig | None):
                 stim_sequence[k] = v[: len(v) // 4]
 
     if "stims" in config:
-        global positive_words, negative_words, distractor_words
+        global positive_words, negative_words
 
         logger.info("Initializing stimuli")
         if pre:
             total_stims = config.stims["neutral"]
             len_total_stims = len(total_stims)
-            positive_words = total_stims[: len_total_stims // 4]
-            negative_words = total_stims[len_total_stims // 4 : len_total_stims // 2]
-            distractor_words = total_stims[len_total_stims // 2 :]
+            positive_words = total_stims[: len_total_stims // 2]
+            negative_words = total_stims[len_total_stims // 2 :]
+        else:
+            positive_words = config.stims["positive"]
+            negative_words = config.stims["negative"]
 
     for key in data_to_save.keys():
         data_to_save[key].clear()

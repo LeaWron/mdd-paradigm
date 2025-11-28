@@ -43,7 +43,7 @@ short_mouth = stim_folder / "short_mouth.png"
 long_mouth = stim_folder / "long_mouth.png"
 
 
-high_reward_prob = 0.8
+high_reward_prob = 0.4
 low_reward_prob = 1 - high_reward_prob
 
 

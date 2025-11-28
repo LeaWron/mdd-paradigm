@@ -274,7 +274,7 @@ def run_encoding_phase():
 
         prompt_stim = visual.TextBox2(
             win,
-            text="符合我( <c=#51d237>f</c> )   不符合我( <c=#eb5555>j</c> )",
+            text=f"符合我( <c=#51d237>{list(encoding_map.keys())[0].upper()}</c> )   不符合我( <c=#eb5555>{list(encoding_map.keys())[1].upper()}</c> )",
             pos=(0, 0),
             letterHeight=0.1,
             size=(1.2, None),
@@ -334,7 +334,7 @@ def init_exp(config: DictConfig | None):
         data_to_save, \
         intensity_prompt, \
         intensity_ticks, \
-        intensity_tips
+        intensity_tips, positive_words, negative_words
 
     phase_names = config["phase_names"]
     prompts = config["prompts"]
@@ -356,20 +356,17 @@ def init_exp(config: DictConfig | None):
 
             for k, v in stim_sequence.items():
                 np.random.shuffle(v)
-                stim_sequence[k] = v[: len(v) // 4]
+                stim_sequence[k] = v[: len(v) // 8]
+        positive_words = config.stims["positive"]
+        negative_words = config.stims["negative"]
 
     if "stims" in config:
-        global positive_words, negative_words
-
         logger.info("Initializing stimuli")
         if pre:
             total_stims = config.stims["neutral"]
             len_total_stims = len(total_stims)
             positive_words = total_stims[: len_total_stims // 2]
             negative_words = total_stims[len_total_stims // 2 :]
-        else:
-            positive_words = config.stims["positive"]
-            negative_words = config.stims["negative"]
 
     for key in data_to_save.keys():
         data_to_save[key].clear()
@@ -410,7 +407,7 @@ def entry(exp: Experiment | None = None):
         while True:
             run_exp(exp.config.pre)
 
-            commit_text = "是否需要再次进行预实验?\n按 <c=#51d237>y</c> 键再次进行预实验, 按 <c=#eb5555>n</c> 键结束预实验"
+            commit_text = "是否需要再次进行预实验?\n按 <c=#51d237>Y</c> 键再次进行预实验, 按 <c=#eb5555>N</c> 键结束预实验"
             prompt = visual.TextBox2(
                 win,
                 text=commit_text,

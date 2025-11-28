@@ -24,6 +24,7 @@ from psycho.utils import (  # noqa: E402
     PsychopyDisplaySelector,
     get_audio_devices,
     init_lsl,
+    save_csv_data,
     select_monitor,
     send_marker,
     switch_keyboard_layout,
@@ -275,6 +276,7 @@ class Session:
 
             if self.camera is not None:
                 start_record(self.camera, self.record_thread)
+            self.session_start_time = self.globalClock.getTime()
             send_marker(self.lsl_outlet, "SESSION_START")
 
             self.win.flip()
@@ -346,6 +348,29 @@ class Session:
             close_camera(self.camera)
         if self.labrecorder_connection is not None:
             self.labrecorder_connection.sendall(b"stop\n")
+
+        session_end_time = self.globalClock.getTime()
+
+        # 准备session信息数据
+        session_data = {
+            "session_id": [self.session_info.get("session_id", "unknown")],
+            "participant_id": [self.session_info.get("participant_id", "unknown")],
+            "date": [self.session_info.get("date", "unknown")],
+            "session_start_time": [self.session_start_time],
+            "session_end_time": [session_end_time],
+            "session_duration_seconds": [(session_end_time - self.session_start_time)],
+            "experiments_count": [len(self.experiments)],
+            "experiment_names": [",".join([exp[0] for exp in self.experiments])],
+        }
+
+        # 使用save_csv_data函数保存session信息
+        file_name = f"{self.session_info.get('save_path', 'session_info')}_session_info"
+        try:
+            save_csv_data(session_data, file_name)
+            self.logger.info(f"Session info saved to CSV: {file_name}")
+        except Exception as e:
+            self.logger.error(f"Failed to save session info to CSV: {e}")
+
         # core.quit()
 
     def pause(self):

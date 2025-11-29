@@ -64,38 +64,16 @@ phase_names = {
     "recognition": "Recognition",
 }
 
-prompts = {
-    "encoding": {
-        "prompt": f"任务一：自我描述判断\n\n屏幕将呈现一系列形容词。\n如果该词语符合对你自己的描述，请按{list(encoding_map.keys())[0]}键\n如果不符合，请按{list(encoding_map.keys())[1]}键。\n\n按空格键开始。",
-        "marker": "ENCODING",
-    },
-    "distractor": {
-        "prompt": "任务二：倒数任务\n\n屏幕上将出现数字。\n请跟随数字的节奏，在心中默数。\n\n按空格键开始。",
-        "marker": "DISTRACTOR",
-    },
-    "recall": {
-        "prompt": f"任务三：回忆任务\n\n请尽可能多地回忆刚才你在[任务一]见到的词。\n并通过键盘输入。\n限时 {timing['recall']['duration']} 秒。\n\n准备好后按空格键开始计时。",
-        "marker": "RECALL",
-    },
-    "recognition": {
-        "prompt": f"任务四：再认任务\n\n屏幕将出现一系列形容词。\n如果这个词刚才出现过，请按{list(recognition_map.keys())[0]}键。\n如果这个词是新出现的，请按{list(recognition_map.keys())[1]}键。\n\n按空格键开始。",
-        "marker": "RECOGNITION",
-    },
-}
-
 intensity_prompt = "请评估该词汇对您个人特征的描述程度"
 intensity_ticks = list(range(1, 9 + 1))
-intensity_tips = {
-    "yes": ["有点符合", "比较符合", "非常符合"],
-    "no": ["有点不符合", "不太符合", "完全不符合"],
-}
+
 
 # === 全局变量 ===
 win: visual.Window = None
 clock: core.Clock = None
 lsl_outlet = None
 logger = None
-pre = False
+pre = 0
 test = False
 
 # 数据容器
@@ -169,7 +147,7 @@ def rating_slider(resp: Literal["yes", "no"]):
     slider = visual.Slider(
         win,
         ticks=intensity_ticks,
-        labels=intensity_tips[resp],
+        labels=["0%", "50%", "100%"],
         granularity=0,  # 连续可拖动
         # startValue=labels[len(labels) // 2],
         size=(0.9, 0.05),
@@ -195,7 +173,7 @@ def rating_slider(resp: Literal["yes", "no"]):
         lineColor="white",
     )
     button_text = visual.TextStim(
-        win, text="确认", color="white", pos=(0, -0.5), height=0.1
+        win, text="确认", color="white", pos=(0, -0.5), height=0.08
     )
 
     mouse = event.Mouse(win=win)
@@ -239,11 +217,9 @@ def init_encoding_phase():
 
 
 def run_encoding_phase():
-    send_marker(lsl_outlet, f"{prompts['encoding']['marker']}_START", is_pre=pre)
+    send_marker(lsl_outlet, "ENCODING_PHASE_START", is_pre=pre)
     one_trial_data["phase"] = phase_names["encoding"]
     one_trial_data["phase_start_time"] = clock.getTime()
-
-    show_prompt(prompts["encoding"]["prompt"])
 
     trials = stim_sequence["encoding"]
 
@@ -276,7 +252,7 @@ def run_encoding_phase():
             win,
             text=f"符合我( <c=#51d237>{list(encoding_map.keys())[0].upper()}</c> )   不符合我( <c=#eb5555>{list(encoding_map.keys())[1].upper()}</c> )",
             pos=(0, 0),
-            letterHeight=0.1,
+            letterHeight=0.08,
             size=(1.2, None),
             font=PSYCHO_FONT,
             color="white",
@@ -315,11 +291,11 @@ def run_encoding_phase():
         # 保存该 trial 数据
         update_trial(one_trial_data, one_block_data)
         logger.info(f"Encoding Trial {idx}: {trial} -> {resp}")
-        if event.getKeys(keyList=["escape"]):
+        if pre > 1 and event.getKeys(keyList=["escape"]):
             break
     one_trial_data["endorse_count"] = endorse_count
     one_trial_data["phase_end_time"] = clock.getTime()
-    send_marker(lsl_outlet, f"{prompts['encoding']['marker']}_END", is_pre=pre)
+    send_marker(lsl_outlet, "ENCODING_PHASE_END", is_pre=pre)
 
     update_trial(one_trial_data, one_block_data)
     update_block(one_block_data, data_to_save)
@@ -329,21 +305,19 @@ def init_exp(config: DictConfig | None):
     global \
         timing, \
         phase_names, \
-        prompts, \
         stim_sequence, \
         data_to_save, \
         intensity_prompt, \
         intensity_ticks, \
-        intensity_tips, positive_words, negative_words
+        positive_words, \
+        negative_words
 
     phase_names = config["phase_names"]
-    prompts = config["prompts"]
 
     intensity_prompt = config["intensity_prompt"]
     intensity_ticks = list(
         range(config["intensity_ticks"]["start"], config["intensity_ticks"]["end"] + 1)
     )
-    intensity_tips = config["intensity_tips"]
 
     if pre or test is False:
         timing = config["timing"]
@@ -375,16 +349,28 @@ def init_exp(config: DictConfig | None):
 def run_exp(cfg: DictConfig | None):
     if cfg is not None:
         init_exp(cfg)
+        title = visual.TextStim(
+            win,
+            text=cfg.phase_prompt.title,
+            color="white",
+            height=0.1,
+            pos=(0, 0.7),
+            font=PSYCHO_FONT,
+        )
         prompt = visual.TextBox2(
             win,
-            text=cfg.phase_prompt,
+            text=cfg.phase_prompt.prompt,
             color="white",
-            letterHeight=0.08,
-            size=(1.2, None),
+            letterHeight=cfg.phase_prompt.letterHeight or 0.08,
+            size=(
+                cfg.phase_prompt.size.width or 1.2,
+                cfg.phase_prompt.size.height or None,
+            ),
             pos=(0, 0),
             font=PSYCHO_FONT,
-            alignment="left",
+            alignment=cfg.phase_prompt.alignment or "left",
         )
+        title.draw()
         prompt.draw()
         win.flip()
         event.waitKeys(keyList=continue_keys)
@@ -403,16 +389,16 @@ def entry(exp: Experiment | None = None):
     test = exp.test
     # 是否需要预实验
     if exp.config is not None and "pre" in exp.config:
-        pre = True
+        pre = 1
         while True:
             run_exp(exp.config.pre)
 
-            commit_text = "是否需要再次进行预实验?\n按 <c=#51d237>Y</c> 键再次进行预实验, 按 <c=#eb5555>N</c> 键结束预实验"
+            commit_text = "预实验已完成\n你是否需要再次进行预实验以更熟悉任务?\n按 <c=#51d237>Y</c> 键再次进行预实验, 按 <c=#eb5555>N</c> 键进入正式实验\n"
             prompt = visual.TextBox2(
                 win,
                 text=commit_text,
                 color="white",
-                letterHeight=0.1,
+                letterHeight=0.08,
                 size=(2, None),
                 alignment="center",
                 pos=(0, 0),
@@ -423,7 +409,21 @@ def entry(exp: Experiment | None = None):
             keys = event.waitKeys(keyList=["y", "n"])
             if keys and keys[0] == "n":
                 break
-        pre = False
+            pre += 1
+            tip = visual.TextBox2(
+                win,
+                text="如果你认为已经充分熟悉实验,可以在每个试次前按 <c=#51d237>ESC</c> 键退出预实验\n\n按<c=#51d237>空格键</c>进入预实验",
+                color="white",
+                letterHeight=0.08,
+                size=(2, None),
+                alignment="center",
+                pos=(0, 0),
+                font=PSYCHO_FONT,
+            )
+            tip.draw()
+            win.flip()
+            event.waitKeys(keyList=continue_keys)
+        pre = 0
 
     logger.info("实验开始")
     one_trial_data["exp_start_time"] = clock.getTime()

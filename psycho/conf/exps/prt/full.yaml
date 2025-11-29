@@ -9,12 +9,17 @@ n_trials_per_block: 90
 
 stim_folder: prt
 
-phase_prompt: |
-  接下来是正式实验, 实验方式与预实验<c=#eb5555>相同</c>
+phase_prompt:
+  prompt: |
+    正式实验的实验方式与预实验<c=#eb5555>相同</c>
 
-  仅有实验次数不同
+    仅有实验次数不同
 
-  请按<c=#51d237>空格键</c>继续
+    请按<c=#51d237>空格键</c>继续
+  letterHeight: 0.08
+  size:
+    width: 1.2
+  alignment: center
 
 reward_high: 9
 reward_low: 3

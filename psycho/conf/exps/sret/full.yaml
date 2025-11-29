@@ -13,29 +13,12 @@ timing:
     iti:
       low: 1.5
       high: 1.7
-  distractor:
-    start_num: 50
-  recall:
-    duration: 300
-  recognition:
-    iti:
-      low: 1.2
-      high: 1.5
 
-prompts:
-  recall:
-    prompt: |
-      任务三：回忆任务
+phase_prompt:
+  prompt: |
+    正式实验的实验方式与预实验<c=#eb5555>相同</c>
 
-      请尽可能多地回忆刚才你在[任务一]见到的词
-      并通过键盘输入
-      限时 ${...timing.recall.duration} 秒
+    仅有实验次数和所使用的词语不同
 
-      准备好后按空格键开始计时
-
-phase_prompt: |
-  接下来是正式实验, 实验方式与预实验<c=#eb5555>相同</c>
-
-  仅有实验次数和所使用的词语不同
-
-  请按<c=#51d237>空格键</c>继续
+    请按<c=#51d237>空格键</c>继续
+  alignment: center

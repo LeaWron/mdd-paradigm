@@ -5,4 +5,8 @@ timing:
   rest: 300 # 60 * 5
   max_wait: 5
 
+eye_close:
+  prompt: "请<c=#eb5555>闭眼</c>, 你会在 ${..timing.rest} 秒后再次听到提示音"
 
+eye_open:
+  prompt: "请<c=#eb5555>保持睁眼</c>状态, 你会在 ${..timing.rest} 秒后再次听到提示音"

@@ -271,12 +271,14 @@ class Session:
 
             self.win.flip()
 
-            for name, exp_module in self.experiments:
+            for i, (name, exp_module) in enumerate(self.experiments):
                 if not self.running:
                     break
                 start_msg = visual.TextBox2(
                     self.win,
-                    text="准备进入实验, 按<c=#51d237>空格键</c>继续",
+                    text="准备进入" + "下"
+                    if i
+                    else "第" + "一个实验, 按<c=#51d237>空格键</c>继续",
                     color="white",
                     letterHeight=0.1,
                     size=(2, None),
@@ -285,8 +287,7 @@ class Session:
                 )
                 start_msg.draw()
                 self.win.flip()
-                event.waitKeys(self.before_duration, keyList=self.continue_keys)
-                core.wait(0.3)
+                event.waitKeys(keyList=self.continue_keys)
                 self.win.flip()
 
                 # 多进程资源共享不了,直接退出(win 没送过去)
@@ -304,7 +305,7 @@ class Session:
 
                 end_msg = visual.TextBox2(
                     self.win,
-                    text="该实验结束\n当你准备好后,按<c=#51d237>空格键</c>进入下一个实验",
+                    text="该实验结束\n当你休息好后,按<c=#51d237>空格键</c>继续",
                     color="white",
                     letterHeight=0.1,
                     size=(2, None),

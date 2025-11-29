@@ -51,7 +51,7 @@ def pre_block():
     )
     stim.draw()
     win.flip()
-    core.wait(0.5)
+    core.wait(2)
     sound_prompt = sound.Sound(notification, secs=1)
     sound_prompt.play()
     event.waitKeys(timing["max_wait"], keyList=continue_keys)
@@ -59,12 +59,11 @@ def pre_block():
 
 def block():
     send_marker(lsl_outlet, block_cfg[phase[block_index]]["marker"])
-    text = block_cfg[phase[block_index]]["prompt"]
     stim = visual.TextBox2(
         win,
-        text=text,
+        text="+",
         color="white",
-        letterHeight=0.1,
+        letterHeight=0.2,
         size=(2, None),
         font=PSYCHO_FONT,
         alignment="center",
@@ -78,8 +77,14 @@ def block():
 
 
 def post_block():
-    fixation = visual.TextStim(
-        win, text="+", color="white", height=0.2, wrapWidth=2, font=PSYCHO_FONT
+    fixation = visual.TextBox2(
+        win,
+        text="+",
+        color="white",
+        letterHeight=0.2,
+        size=(2, None),
+        font=PSYCHO_FONT,
+        alignment="center",
     )
     fixation.draw()
     win.flip()

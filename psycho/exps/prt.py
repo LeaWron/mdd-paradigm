@@ -16,9 +16,6 @@ from psycho.utils import (
     update_trial,
 )
 
-# [ ]: 脸的大小设置, 每个 trial 后都显示总积分
-# 需要在一次性能够看完
-
 # === 参数设置 ===
 n_blocks = 3
 n_trials_per_block = 20
@@ -43,11 +40,11 @@ short_mouth = stim_folder / "short_mouth.png"
 long_mouth = stim_folder / "long_mouth.png"
 
 
-high_reward_prob = 0.4
+high_reward_prob = 0.3
 low_reward_prob = 1 - high_reward_prob
 
 
-fov = 10  # 视场角, 单位: degree
+fov = 8  # 视场角, 单位: degree
 monitor_distance = 60  # 显示器与人眼距离（单位：厘米）
 
 reward_low = 1
@@ -83,7 +80,7 @@ reward_indice = None
 high_cache = 0
 low_cache = 0
 
-pre = False
+pre = 0
 test = False
 
 # === 数据保存 ===
@@ -150,7 +147,7 @@ def pre_block():
         win,
         color="white",
         text=text,
-        letterHeight=0.1,
+        letterHeight=0.08,
         size=(1.2, None),
         font=PSYCHO_FONT,
         alignment="center",
@@ -169,8 +166,15 @@ def block():
         # 记录实验开始时间
         trial_start_time = clock.getTime()
         one_trial_data["trial_start_time"] = trial_start_time
-
+        if pre > 1:
+            key = event.getKeys(["escape"])
+            if key:
+                return
         pre_trial()
+        if pre > 1:
+            key = event.getKeys(["escape"])
+            if key:
+                return
         trial()
         post_trial()
 
@@ -190,19 +194,22 @@ def post_block():
 
     update_trial(one_trial_data, one_block_data)
 
-    text_front = "预实验" if pre else f"第 {block_index + 1} 个区块"
-    msg = visual.TextBox2(
-        win,
-        color="white",
-        text=f"{text_front}结束\n你目前已有 <c=yellow>{total_point}</c> 分\n你有 <c=yellow>{timing['rest']}</c> 秒休息时间\n你可以直接按<c=#51d237>空格键</c>继续",
-        letterHeight=0.1,
-        size=(1.2, None),
-        font=PSYCHO_FONT,
-        alignment="center",
-    )
-    msg.draw()
-    win.flip()
-    event.waitKeys(timing["rest"], keyList=continue_keys)
+    text_front = "" if pre else "该区块结束\n"
+    rest_time = timing["rest"]
+    for i in range(rest_time, -1, -1):
+        msg = visual.TextBox2(
+            win,
+            color="white",
+            text=f"{text_front}你目前已有 <c=yellow>{total_point}</c> 分\n你有 <c=yellow>{i}</c> 秒休息时间\n按<c=#51d237>空格键</c>继续",
+            letterHeight=0.08,
+            size=(1.2, None),
+            font=PSYCHO_FONT,
+            alignment="center",
+        )
+        msg.draw()
+        win.flip()
+        if event.waitKeys(1, keyList=continue_keys):
+            break
 
 
 def pre_trial():
@@ -290,7 +297,7 @@ def trial():
     if reward > 0:
         feedback_reward = visual.TextStim(
             win,
-            text=f"正确!\n你获得了 {reward} 分",
+            text=f"你获得了 {reward} 分!",
             height=0.1,
             color="#51d237",
             colorSpace="rgb",
@@ -299,37 +306,38 @@ def trial():
         feedback_reward.draw()
         total_point += reward
         correct_count += 1
-    elif reward == 0:
-        feedback_no = visual.TextStim(
+        # 显示总分数
+        visual.TextBox2(
             win,
-            text="正确!",
-            height=0.1,
+            text=f"你当前的分数为 <c=yellow>{total_point}</c>",
+            letterHeight=0.08,
+            size=(1.2, None),
+            font=PSYCHO_FONT,
+            pos=(0, -0.2),
             color="white",
-            font=PSYCHO_FONT,
-        )
-        feedback_no.draw()
+            alignment="center",
+        ).draw()
+    elif reward == 0:
+        # feedback_no = visual.TextStim(
+        #     win,
+        #     text="正确!",
+        #     height=0.1,
+        #     color="white",
+        #     font=PSYCHO_FONT,
+        # )
+        # feedback_no.draw()
         correct_count += 1
-    elif reward < 0:
-        feedback_wrong = visual.TextStim(
-            win,
-            text="错误!" if rt is not None else "超时!",
-            height=0.1,
-            color="#eb5555",
-            colorSpace="rgb",
-            font=PSYCHO_FONT,
-        )
-        feedback_wrong.draw()
-    # 显示总分数
-    visual.TextBox2(
-        win,
-        text=f"你当前的分数为 <c=yellow>{total_point}</c>",
-        letterHeight=0.1,
-        size=(1.2, None),
-        font=PSYCHO_FONT,
-        pos=(0, -0.2),
-        color="white",
-        alignment="center",
-    ).draw()
+    # elif reward < 0:
+    #     feedback_wrong = visual.TextStim(
+    #         win,
+    #         text="错误!" if rt is not None else "超时!",
+    #         height=0.1,
+    #         color="#eb5555",
+    #         colorSpace="rgb",
+    #         font=PSYCHO_FONT,
+    #     )
+    #     feedback_wrong.draw()
+
     win.flip()
     core.wait(timing["feedback"])
 
@@ -357,7 +365,7 @@ def get_stim_size() -> float:
 def show_stims():
     prompt = visual.TextBox2(
         win,
-        text=f"现在为你展示会出现的脸的图片\n从左到右依次为: 空脸, 短嘴巴, 长嘴巴\n你有 <c=yellow>{timing['show']}</c> 秒时间查看",
+        text="现在为你展示会出现的脸的图片\n从左到右依次为: 空脸, 短嘴巴, 长嘴巴",
         letterHeight=0.08,
         size=(2, None),
         pos=(0, 0.6),
@@ -396,8 +404,19 @@ def show_stims():
     short_mouth_stim.draw()
     long_mouth_stim.draw()
 
+    visual.TextBox2(
+        win,
+        text="观察完毕后按<c=#51d237>空格键</c>继续",
+        letterHeight=0.08,
+        size=(2, None),
+        pos=(0, -0.6),
+        color="white",
+        font=PSYCHO_FONT,
+        alignment="center",
+    ).draw()
+
     win.flip()
-    core.wait(timing["show"])
+    event.waitKeys(keyList=continue_keys)
 
 
 def init_exp(config: DictConfig | None):
@@ -459,16 +478,30 @@ def run_exp(cfg: DictConfig | None):
 
     if cfg is not None:
         init_exp(cfg)
-        prompt = visual.TextBox2(
+        title = visual.TextBox2(
             win,
-            text=cfg.phase_prompt,
+            text=cfg.phase_prompt.title,
             color="white",
-            letterHeight=0.06,
-            size=(1.5, 1.5),
-            pos=(0, 0),
-            alignment="left",
+            letterHeight=0.08,
+            size=(2, None),
+            pos=(0, 0.7),
+            alignment="center",
             font=PSYCHO_FONT,
         )
+        prompt = visual.TextBox2(
+            win,
+            text=cfg.phase_prompt.prompt,
+            color="white",
+            letterHeight=cfg.phase_prompt.letterHeight or 0.06,
+            size=(
+                cfg.phase_prompt.size.width or 1.5,
+                cfg.phase_prompt.size.height or 1.5,
+            ),
+            pos=(0, 0),
+            alignment=cfg.phase_prompt.alignment or "left",
+            font=PSYCHO_FONT,
+        )
+        title.draw()
         prompt.draw()
         win.flip()
         event.waitKeys(keyList=continue_keys)
@@ -501,16 +534,16 @@ def entry(exp: Experiment | None = None):
     test = exp.test
 
     if exp.config is not None and "pre" in exp.config:
-        pre = True
+        pre = 1
         while True:
             run_exp(exp.config.pre)
 
-            commit_text = "是否需要再次进行预实验?\n按 <c=#51d237>Y</c> 键再次进行预实验, 按 <c=#eb5555>N</c> 键结束预实验"
+            commit_text = "预实验已完成\n你是否需要再次进行预实验以更熟悉任务?\n按 <c=#51d237>Y</c> 键再次进行预实验, 按 <c=#eb5555>N</c> 键进入正式实验\n"
             prompt = visual.TextBox2(
                 win,
                 text=commit_text,
                 color="white",
-                letterHeight=0.1,
+                letterHeight=0.08,
                 size=(2, None),
                 alignment="center",
                 pos=(0, 0),
@@ -522,7 +555,21 @@ def entry(exp: Experiment | None = None):
             keys = event.waitKeys(keyList=["y", "n"])
             if keys and keys[0] == "n":
                 break
-        pre = False
+            pre += 1
+            tip = visual.TextBox2(
+                win,
+                text="如果你认为已经充分熟悉实验,可以在每个试次前按 <c=#51d237>ESC</c> 键退出预实验\n\n按<c=#51d237>空格键</c>进入预实验",
+                color="white",
+                letterHeight=0.08,
+                size=(2, None),
+                alignment="center",
+                pos=(0, 0),
+                font=PSYCHO_FONT,
+            )
+            tip.draw()
+            win.flip()
+            event.waitKeys(keyList=continue_keys)
+        pre = 0
 
     # 记录实验开始时间
     one_trial_data["exp_start_time"] = clock.getTime()

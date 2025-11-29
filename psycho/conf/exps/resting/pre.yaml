@@ -6,11 +6,11 @@ phase:
   - "eye_close"
   - "eye_open"
 eye_close:
-  prompt: "请<c=#eb5555>闭眼</c>, 直到再次听到如下提示音"
+  prompt: "请<c=#eb5555>闭眼</c>, 你会在 ${..timing.rest} 秒后再次听到提示音"
   marker: "EYE_CLOSE"
 
 eye_open:
-  prompt: "请<c=#eb5555>保持睁眼</c>状态, 直到再次听到如下提示音"
+  prompt: "请<c=#eb5555>保持睁眼</c>状态, 你会在 ${..timing.rest} 秒后再次听到提示音"
   marker: "EYE_OPEN"
 
 notification: "notification.wav"

@@ -314,7 +314,7 @@ class Session:
 
                 end_msg = visual.TextBox2(
                     self.win,
-                    text=f"该实验结束, 你有 <c=yellow>{self.after_rest_duration}</c> 秒休息时间\n你可以按<c=#51d237>空格键</c>直接进入下一个实验",
+                    text="该实验结束\n当你准备好后,按<c=#51d237>空格键</c>进入下一个实验",
                     color="white",
                     letterHeight=0.1,
                     size=(2, None),
@@ -323,7 +323,7 @@ class Session:
                 )
                 end_msg.draw()
                 self.win.flip()
-                event.waitKeys(self.after_rest_duration, keyList=self.continue_keys)
+                event.waitKeys(keyList=self.continue_keys)
                 core.wait(0.3)
                 self.win.flip()
 

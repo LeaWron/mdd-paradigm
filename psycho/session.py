@@ -225,6 +225,7 @@ class Session:
                 self.labrecorder_connection.sendall(file_name_cmd.encode("utf-8"))
 
                 self.labrecorder_connection.sendall(b"update\n")
+                time.sleep(0.5)
                 self.labrecorder_connection.sendall(b"select all\n")
                 # screen: 1 0 2
             time.sleep(1)
@@ -261,18 +262,7 @@ class Session:
             if self.labrecorder_connection is not None:
                 self.labrecorder_connection.sendall(b"start\n")
 
-            sleep_time = 5
-            for i in range(sleep_time, 0, -1):
-                text_stim = visual.TextStim(
-                    self.win, text=str(i), color="yellow", height=0.3, font=PSYCHO_FONT
-                )
-                text_stim.draw()
-                self.win.flip()
-                core.wait(1)
-
-                # 允许按 ESC 退出
-                if event.getKeys(keyList=["escape"]):
-                    break
+            time.sleep(1)
 
             if self.camera is not None:
                 start_record(self.camera, self.record_thread)

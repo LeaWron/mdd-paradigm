@@ -276,9 +276,9 @@ class Session:
                     break
                 start_msg = visual.TextBox2(
                     self.win,
-                    text="准备进入" + "下"
-                    if i
-                    else "第" + "一个实验, 按<c=#51d237>空格键</c>继续",
+                    text="准备进入"
+                    + ("下" if i else "第")
+                    + "一个实验, 按<c=#51d237>空格键</c>继续",
                     color="white",
                     letterHeight=0.1,
                     size=(2, None),

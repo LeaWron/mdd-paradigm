@@ -225,6 +225,7 @@ class Session:
                 self.labrecorder_connection.sendall(file_name_cmd.encode("utf-8"))
 
                 self.labrecorder_connection.sendall(b"update\n")
+                time.sleep(0.5)
                 self.labrecorder_connection.sendall(b"select all\n")
                 # screen: 1 0 2
             time.sleep(1)
@@ -261,18 +262,7 @@ class Session:
             if self.labrecorder_connection is not None:
                 self.labrecorder_connection.sendall(b"start\n")
 
-            sleep_time = 5
-            for i in range(sleep_time, 0, -1):
-                text_stim = visual.TextStim(
-                    self.win, text=str(i), color="yellow", height=0.3, font=PSYCHO_FONT
-                )
-                text_stim.draw()
-                self.win.flip()
-                core.wait(1)
-
-                # 允许按 ESC 退出
-                if event.getKeys(keyList=["escape"]):
-                    break
+            time.sleep(1)
 
             if self.camera is not None:
                 start_record(self.camera, self.record_thread)
@@ -281,12 +271,14 @@ class Session:
 
             self.win.flip()
 
-            for name, exp_module in self.experiments:
+            for i, (name, exp_module) in enumerate(self.experiments):
                 if not self.running:
                     break
                 start_msg = visual.TextBox2(
                     self.win,
-                    text="准备进入实验, 按<c=#51d237>空格键</c>继续",
+                    text="准备进入"
+                    + ("下" if i else "第")
+                    + "一个实验, 按<c=#51d237>空格键</c>继续",
                     color="white",
                     letterHeight=0.1,
                     size=(2, None),
@@ -295,8 +287,7 @@ class Session:
                 )
                 start_msg.draw()
                 self.win.flip()
-                event.waitKeys(self.before_duration, keyList=self.continue_keys)
-                core.wait(0.3)
+                event.waitKeys(keyList=self.continue_keys)
                 self.win.flip()
 
                 # 多进程资源共享不了,直接退出(win 没送过去)
@@ -314,7 +305,7 @@ class Session:
 
                 end_msg = visual.TextBox2(
                     self.win,
-                    text=f"该实验结束, 你有 <c=yellow>{self.after_rest_duration}</c> 秒休息时间\n你可以按<c=#51d237>空格键</c>直接进入下一个实验",
+                    text="该实验结束\n当你休息好后,按<c=#51d237>空格键</c>继续",
                     color="white",
                     letterHeight=0.1,
                     size=(2, None),
@@ -323,7 +314,7 @@ class Session:
                 )
                 end_msg.draw()
                 self.win.flip()
-                event.waitKeys(self.after_rest_duration, keyList=self.continue_keys)
+                event.waitKeys(keyList=self.continue_keys)
                 core.wait(0.3)
                 self.win.flip()
 

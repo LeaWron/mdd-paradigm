@@ -1,5 +1,5 @@
 n_blocks: 1
-n_trials_per_block: 5
+n_trials_per_block: 15
 
 timing:
   fixation: 0.5
@@ -7,20 +7,24 @@ timing:
   max_response: 2.0
   rest: 3
 
-phase_prompt: |
-  即将进入预实验, 你将学习该实验如何进行
+phase_prompt:
+  title: 人脸情绪识别任务
+  prompt: |
+    每次你将看到一张黑白的人脸图片, 短暂延迟后图片消失
+    随后会出现"<c=#eb5555>请判断</c>"的提示
+    此时你需要判断这张图片中的人脸的情绪是积极的、中性的还是消极的
 
-  每次你将看到一张黑白的人脸图片, 短暂延迟后图片消失
-  你需要判断这张图片中的人脸的情绪是积极的、中性的还是消极的
+    按 <c=#51d237>A</c> 代表<c=yellow>积极</c>, <c=#51d237>S</c> 代表中性, <c=#51d237>D</c> 代表<c=purple>消极</c>
+    请尽快反应
 
-  按 <c=#51d237>A</c> 代表<c=yellow>积极</c>, <c=#51d237>S</c> 代表中性, <c=#51d237>D</c> 代表<c=purple>消极</c>
-  请尽快反应
+    你可能需要判断这张图片中的人脸的情绪强度, 用<c=#51d237>鼠标拖动滑块</c>后点击确认
 
-  随后你需要判断这张图片中的人脸的情绪强度, 用<c=#51d237>鼠标拖动滑块</c>后点击确认
-
-  但是如果你认为图片是中性的, 那么将不会需要判断情绪强度
-
-  请按<c=#51d237>空格键</c>继续
+    请按<c=#51d237>空格键</c>继续
+  letterHeight: 0.06
+  size:
+    width: 1.5
+    height: ~
+  alignment: left
 
 response_map:
   a: positive
@@ -31,8 +35,3 @@ intensity_prompt: "请选择情感的强度"
 intensity_ticks:
   start: 1
   end: 9
-
-intensity_tips:
-  - 最弱
-  - 中等
-  - 最强

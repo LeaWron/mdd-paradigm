@@ -40,7 +40,6 @@ intensity_prompt = (
     "请选择情感的强度（1-9）, 1为<c=#eb5555>最弱</c>, 9为<c=#51d237>最强</c>"
 )
 intensity_ticks = list(range(1, 10))
-intensity_tips = ["最弱", "中等", "最强"]
 # === 全局变量 ===
 win = None
 clock = None
@@ -51,7 +50,7 @@ block_index = 0
 trial_index = 0
 
 correct_count = 0
-pre = False
+pre = 0
 test = False
 
 
@@ -99,7 +98,7 @@ def pre_block():
         win,
         text=text,
         color="white",
-        letterHeight=0.1,
+        letterHeight=0.08,
         size=(1.2, None),
         font=PSYCHO_FONT,
         alignment="center",
@@ -117,7 +116,15 @@ def block():
         one_trial_data["trial_index"] = trial_index
         one_trial_data["trial_start_time"] = clock.getTime()
 
+        if pre > 1:
+            key = event.getKeys(["escape"])
+            if key:
+                return
         pre_trial()
+        if pre > 1:
+            key = event.getKeys(["escape"])
+            if key:
+                return
         trial()
         post_trial()
 
@@ -132,20 +139,23 @@ def post_block():
 
     one_trial_data["correct_rate"] = correct_rate
     # resting
-    text_back = "进入下一个区块" if not pre else "结束预实验"
-    text = f"你有 <c=yellow>{timing['rest']}</c> 秒休息时间\n你可以按<c=#51d237>空格键</c>{text_back}"
-    text_stim = visual.TextBox2(
-        win,
-        text=text,
-        color="white",
-        letterHeight=0.1,
-        size=(1.2, None),
-        font=PSYCHO_FONT,
-        alignment="center",
-    )
-    text_stim.draw()
-    win.flip()
-    event.waitKeys(timing["rest"], keyList=continue_keys)
+    text_back = "进入下一个区块" if not pre else "继续"
+    for i in range(timing["rest"], -1, -1):
+        text = f"你有 <c=yellow>{i}</c> 秒休息时间\n你可以按<c=#51d237>空格键</c>{text_back}"
+        text_stim = visual.TextBox2(
+            win,
+            text=text,
+            color="white",
+            letterHeight=0.08,
+            size=(1.2, None),
+            font=PSYCHO_FONT,
+            alignment="center",
+        )
+        text_stim.draw()
+        win.flip()
+
+        if event.waitKeys(1, keyList=continue_keys):
+            break
 
 
 def pre_trial():
@@ -195,7 +205,7 @@ def trial():
     core.wait(timing["stim"])
     judge_stim = visual.TextStim(
         win,
-        text="请判断这张图片中的人脸的情绪类别",
+        text="请判断",
         color="white",
         wrapWidth=2,
         font=PSYCHO_FONT,
@@ -203,10 +213,10 @@ def trial():
     judge_stim.draw()
     judge_prompt = visual.TextBox2(
         win,
-        text="按 <c=#51d237>A</c> 为<c=yellow>积极</c>, <c=#51d237>S</c> 为<c=white>中性</c>, <c=#51d237>D</c> 为<c=purple>消极</c>",
+        text="<c=yellow>积极</c>( <c=#51d237>A</c> )  <c=white>中性</c>( <c=#51d237>S</c> )  <c=purple>消极</c>( <c=#51d237>D</c> )",
         color="white",
         pos=(0, -0.3),
-        letterHeight=0.1,
+        letterHeight=0.08,
         size=(1.2, None),
         font=PSYCHO_FONT,
         alignment="center",
@@ -321,14 +331,14 @@ def rating_slider():
         color="white",
         pos=(0, 0.4),
         size=(2, None),
-        letterHeight=0.1,
+        letterHeight=0.08,
         font=PSYCHO_FONT,
         alignment="center",
     )
     slider = visual.Slider(
         win,
         ticks=intensity_ticks,
-        labels=intensity_tips,
+        labels=[intensity_ticks[0], intensity_ticks[-1]],
         granularity=0,  # 连续可拖动
         # startValue=labels[len(labels) // 2],
         size=(0.9, 0.05),
@@ -342,6 +352,47 @@ def rating_slider():
     return prompt, slider
 
 
+def show_stims():
+    current_stim_sequence = stim_sequence[block_index]
+    current_most = set()
+    for stimulus in current_stim_sequence:
+        if stimulus["label"] == 9:
+            current_most.add(parse_stim_path(stimulus["stim_path"]))
+    current_most_stim = sorted(list(current_most))
+    for i, stim_path in enumerate(current_most_stim):
+        height, aspect_ratio = adapt_image_stim_size(win, stim_path, 0.5)
+        stimulus = visual.ImageStim(
+            win,
+            image=stim_path,
+            pos=(-0.5 + i, 0),
+            size=(height * aspect_ratio, height),
+        )
+        stimulus.draw()
+    visual.TextBox2(
+        win,
+        text="这里为你展示当前区块中积极和消极图片中情感强度最高的图片",
+        color="white",
+        pos=(0, 0.5),
+        size=(2, None),
+        letterHeight=0.08,
+        alignment="center",
+        font=PSYCHO_FONT,
+    ).draw()
+    visual.TextBox2(
+        win,
+        text="请按<c=#51d237>空格键</c>继续",
+        color="white",
+        pos=(0, -0.7),
+        letterHeight=0.08,
+        alignment="center",
+        size=(2, None),
+        font=PSYCHO_FONT,
+    ).draw()
+    win.flip()
+
+    event.waitKeys(keyList=continue_keys)
+
+
 def init_exp(config: DictConfig | None = None):
     global \
         n_blocks, \
@@ -350,7 +401,6 @@ def init_exp(config: DictConfig | None = None):
         response_map, \
         intensity_prompt, \
         intensity_ticks, \
-        intensity_tips, \
         stim_sequence
 
     if pre or not test:
@@ -364,7 +414,6 @@ def init_exp(config: DictConfig | None = None):
     intensity_ticks = list(
         range(config.intensity_ticks.start, config.intensity_ticks.end + 1)
     )
-    intensity_tips = config.intensity_tips
 
     if "stim_sequence" in config:
         stim_sequence = config.stim_sequence
@@ -377,16 +426,28 @@ def run_exp(cfg: DictConfig | None):
 
     if cfg is not None:
         init_exp(cfg)
-        prompt = visual.TextBox2(
+        title = visual.TextStim(
             win,
-            text=cfg.phase_prompt,
+            text=cfg.phase_prompt.title,
             color="white",
-            letterHeight=0.06,
-            size=(1.5, None),
-            pos=(0, 0),
-            alignment="left",
+            height=0.08,
+            pos=(0, 0.7),
             font=PSYCHO_FONT,
         )
+        prompt = visual.TextBox2(
+            win,
+            text=cfg.phase_prompt.prompt,
+            color="white",
+            letterHeight=cfg.phase_prompt.letterHeight or 0.06,
+            size=(
+                cfg.phase_prompt.size.width or 1.5,
+                cfg.phase_prompt.size.height or None,
+            ),
+            pos=(0, 0),
+            alignment=cfg.phase_prompt.alignment or "left",
+            font=PSYCHO_FONT,
+        )
+        title.draw()
         prompt.draw()
         win.flip()
         event.waitKeys(keyList=continue_keys)
@@ -394,6 +455,8 @@ def run_exp(cfg: DictConfig | None):
     for local_block_index in range(n_blocks):
         block_index = local_block_index
         one_trial_data["block_index"] = block_index
+        if not pre:
+            show_stims()
 
         pre_block()
         block()
@@ -413,15 +476,15 @@ def entry(exp: Experiment | None = None):
     test = exp.test
 
     if exp.config is not None and "pre" in exp.config:
-        pre = True
+        pre = 1
         while True:
             run_exp(exp.config.pre)
-            commit_text = "是否需要再次进行预实验?\n按 <c=#51d237>Y</c> 键再次进行预实验, 按 <c=#eb5555>N</c> 键结束预实验"
+            commit_text = "预实验已完成\n你是否需要再次进行预实验以更熟悉任务?\n按 <c=#51d237>Y</c> 键再次进行预实验, 按 <c=#eb5555>N</c> 键进入正式实验\n"
             prompt = visual.TextBox2(
                 win,
                 text=commit_text,
                 color="white",
-                letterHeight=0.1,
+                letterHeight=0.08,
                 size=(2, None),
                 alignment="center",
                 pos=(0, 0),
@@ -433,7 +496,21 @@ def entry(exp: Experiment | None = None):
             keys = event.waitKeys(keyList=["y", "n"])
             if keys and keys[0] == "n":
                 break
-        pre = False
+            pre += 1
+            tip = visual.TextBox2(
+                win,
+                text="如果你认为已经充分熟悉实验,可以在每个试次前按 <c=#51d237>ESC</c> 键退出预实验\n\n按<c=#51d237>空格键</c>进入预实验",
+                color="white",
+                letterHeight=0.08,
+                size=(2, None),
+                alignment="center",
+                pos=(0, 0),
+                font=PSYCHO_FONT,
+            )
+            tip.draw()
+            win.flip()
+            event.waitKeys(keyList=continue_keys)
+        pre = 0
 
     one_trial_data["exp_start_time"] = clock.getTime()
     send_marker(lsl_outlet, "EXPERIMENT_START", is_pre=pre)

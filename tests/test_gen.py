@@ -93,7 +93,7 @@ def test_generate_prt(
     n_trials_per_block: int = 90,
     max_seq_same: int = 3,
     max_reward_count: int = 40,
-    low_high_ratio: float = 3.0,
+    high_low_ratio: float = 3.0,
     seq_save_path: str | Path = "./temp_prt_sequence",
     idx_save_path: str | Path = "./temp_prt_idx_sequence",
 ):
@@ -108,8 +108,8 @@ def test_generate_prt(
             if check_prt_seq(stim_seq, max_seq_same):
                 break
 
-        low_count = int(max_reward_count * (low_high_ratio / (low_high_ratio + 1)))
-        high_count = max_reward_count - low_count
+        high_count = int(max_reward_count * (high_low_ratio / (high_low_ratio + 1)))
+        low_count = max_reward_count - high_count
 
         available_high_indices = []
         available_low_indices = []

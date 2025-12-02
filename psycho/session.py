@@ -1,8 +1,8 @@
 import importlib
-import sys
 import logging
 import multiprocessing
 import socket
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -85,7 +85,8 @@ class Session:
         base_dir.mkdir(parents=True, exist_ok=True)
 
         file_handler = logging.FileHandler(
-            filename=base_dir / (self.session_info["session_id"] + ".log"), encoding="utf-8"
+            filename=base_dir / (self.session_info["session_id"] + ".log"),
+            encoding="utf-8",
         )
         file_handler.setFormatter(
             logging.Formatter(

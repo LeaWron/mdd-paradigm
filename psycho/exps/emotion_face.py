@@ -245,7 +245,9 @@ def trial():
 
         send_marker(lsl_outlet, "RESPONSE_1", is_pre=pre)
 
-        logger.info(f"correct: {correct}, resp_emotion: {resp_emotion}, rt: {rt}")
+        logger.info(
+            f"correct_emotion: {one_trial_data['stim']}, resp_emotion: {resp_emotion}, rt: {rt:.4f}"
+        )
     else:
         send_marker(lsl_outlet, "NORESPONSE", is_pre=pre)
 
@@ -307,7 +309,9 @@ def trial():
             intensity = slider.getValue()
             one_trial_data["intensity"] = intensity
 
-            logger.info(f"intensity: {intensity}")
+            logger.info(
+                f"true_intensity: {one_trial_data['label_intensity']:.2f}, selected_intensity: {intensity:.2f}"
+            )
             send_marker(lsl_outlet, "RESPONSE_2", is_pre=pre)
             break
 

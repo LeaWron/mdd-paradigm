@@ -1,4 +1,5 @@
 import importlib
+import sys
 import logging
 import multiprocessing
 import socket
@@ -58,8 +59,6 @@ class Session:
         self.trialClock = core.Clock()
 
         self.MONITOR_NAME = "subMonitor"
-        # 初始化 logger
-        self._setup_logger()
 
         self.camera = None
 
@@ -73,7 +72,6 @@ class Session:
         self.labrecorder_thread = threading.Thread(
             target=self._connect_labrecorder, daemon=True
         )
-        self.labrecorder_thread.start()
 
         event.globalKeys.add(
             key="escape", modifiers=["shift"], func=self.stop, name="quit"
@@ -82,12 +80,25 @@ class Session:
         #     key="p", modifiers=["shift"], func=self.pause, name="pause"
         # )
 
-    def _setup_logger(self):
-        logging.basicConfig(
-            level=logging.DEBUG if self.cfg.debug else logging.INFO,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s",
+    def setup_logger(self):
+        base_dir = Path(self.cfg.output_dir) / datetime.now().strftime("%Y-%m-%d")
+        base_dir.mkdir(parents=True, exist_ok=True)
+
+        file_handler = logging.FileHandler(
+            filename=base_dir / (self.session_info["session_id"] + ".log"), encoding="utf-8"
         )
-        self.logger = logging.getLogger(__name__)
+        file_handler.setFormatter(
+            logging.Formatter(
+                "[%(asctime)s] - [%(name)s] - [%(levelname)s] - [%(filename)s:%(lineno)d] - %(message)s"
+            )
+        )
+
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(logging.Formatter("[%(levelname)s] - %(message)s"))
+
+        self.logger = logging.getLogger()
+        self.logger.setLevel(logging.DEBUG if self.cfg.debug else logging.INFO)
+        self.logger.handlers = [file_handler, console_handler]
 
     def _connect_labrecorder(self):
         try:
@@ -221,11 +232,12 @@ class Session:
             if self.labrecorder_connection is not None:
                 # 文件名格式: {root}/{session_id}.xdf
                 root = Path(self.cfg.output_dir) / self.session_info["date"]
-                file_name_cmd = f"filename {{root:{root}}} {{template:%s}} {{session:{self.session_info['session_id']}}}.xdf"
+                file_name_cmd = f"filename {{root:{root}}} {{template:%s.xdf}} {{session:{self.session_info['session_id']}}}\n"
                 self.labrecorder_connection.sendall(file_name_cmd.encode("utf-8"))
 
                 self.labrecorder_connection.sendall(b"update\n")
                 time.sleep(0.5)
+
                 self.labrecorder_connection.sendall(b"select all\n")
                 # screen: 1 0 2
             time.sleep(1)
@@ -233,7 +245,7 @@ class Session:
                 monitor=self.monitor,
                 screen=self.selected_screen,
                 size=self.params["pix_size"] if not self.cfg.debug else (1600, 900),
-                pos=(0, 0) if not self.cfg.debug else (0.2, 0.2),
+                pos=(0, 0) if not self.cfg.debug else (200, 200),
                 fullscr=True if not self.cfg.debug else False,
                 color="grey",
                 units="norm",
@@ -406,7 +418,9 @@ def run_session(cfg: DictConfig):
             print("temp_debug.yaml 已生成")
     session = Session(cfg)
     session.add_session_info()
+    session.setup_logger()
 
+    session.labrecorder_thread.start()
     if USE_CAMERA:
         session.setup_camera()
     session.select_monitor()

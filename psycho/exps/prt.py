@@ -283,14 +283,14 @@ def trial():
         one_trial_data["rt"] = rt
 
         send_marker(lsl_outlet, "RESPONSE", is_pre=pre)
-        logger.info(f"Response: {choice}, RT: {rt}")
+        logger.info(f"Response: {choice}, rt: {rt:.4f}")
     else:
         send_marker(lsl_outlet, "NO_RESPONSE", is_pre=pre)
         logger.info("No response")
 
     reward = give_reward(choice, long_or_short)
     # 记录奖励
-    data_to_save["reward"].append(reward)
+    one_trial_data["reward"] = reward
     logger.info(f"Reward: {reward}")
 
     # feedback

@@ -198,7 +198,9 @@ def rating_slider(resp: Literal["yes", "no"]):
             intensity = slider.getValue()
             one_trial_data["intensity"] = intensity
 
-            logger.info(f"intensity: {intensity}")
+            percentage = intensity * 10
+
+            logger.info(f"percentage:{percentage:.2f}%, coresp label: {intensity:.2f}")
             send_marker(lsl_outlet, "RESPONSE_2", is_pre=pre)
             break
     win.setMouseVisible(visibility=False)
@@ -281,6 +283,7 @@ def run_encoding_phase():
             one_trial_data["rt"] = rt
             if resp == "yes":
                 endorse_count += 1
+            logger.info(f"Encoding Trial {idx + 1}: {trial} -> {resp}, rt: {rt:.4f}")
             rating_slider(resp)
             send_marker(lsl_outlet, "RESPONSE", is_pre=pre)
         else:
@@ -290,7 +293,6 @@ def run_encoding_phase():
         one_trial_data["trial_end_time"] = clock.getTime()
         # 保存该 trial 数据
         update_trial(one_trial_data, one_block_data)
-        logger.info(f"Encoding Trial {idx}: {trial} -> {resp}")
         if pre > 1 and event.getKeys(keyList=["escape"]):
             break
     one_trial_data["endorse_count"] = endorse_count
@@ -335,7 +337,6 @@ def init_exp(config: DictConfig | None):
         negative_words = config.stims["negative"]
 
     if "stims" in config:
-        logger.info("Initializing stimuli")
         if pre:
             total_stims = config.stims["neutral"]
             len_total_stims = len(total_stims)

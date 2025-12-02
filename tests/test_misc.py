@@ -290,3 +290,31 @@ def test_style_text_prompt():
     # 等待按键
     core.wait(5)
     win.close()
+
+
+@pytest.mark.skip(reason="暂时不测试这个函数")
+def test_video_frame_length():
+    from pathlib import Path
+
+    import cv2
+
+    FRAME_PER_SECOND = 90
+
+    # video_path = Path(__file__).parent.parent / "data" / "video" / "test.mp4"
+    video_path = Path(
+        "E:\\Program Files (x86)\\DingDing\\main\\current_new\\plugins\\tblive\\data\\conf_res\\background_res\\02.mp4"
+    )
+    cap = cv2.VideoCapture(str(video_path))
+
+    assert cap.isOpened(), "视频文件打开失败"
+
+    ret, frame = cap.read()
+    assert ret, "读取视频帧失败"
+
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    frame_per_second = cap.get(cv2.CAP_PROP_FPS)
+    print(frame_count, frame_per_second, FRAME_PER_SECOND)
+
+    print(frame.shape)
+
+    cap.release()

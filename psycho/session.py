@@ -276,7 +276,7 @@ class Session:
             if self.labrecorder_connection is not None:
                 self.labrecorder_connection.sendall(b"start\n")
 
-            time.sleep(1)
+            time.sleep(2)
 
             if self.camera is not None:
                 start_record(self.camera, self.record_thread)

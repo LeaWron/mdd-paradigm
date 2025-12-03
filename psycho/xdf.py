@@ -1305,7 +1305,6 @@ def analyze_nirs_events(raw_nirs, events, output_dir):
         if len(epochs) == 0:
             results["error"] = "没有有效的epochs"
             return results
-
         # 计算事件相关平均
         evoked = epochs.average()
 
@@ -1589,12 +1588,21 @@ def save_as_json(data, output_path):
         print(f"Error: 写入 JSON 失败。原因: {e}")
 
 
-def show_xdf(xdf_file_path: Path, output_path: Path):
+def show_xdf(
+    xdf_file_path: Path,
+    output_path: Path,
+    target_marker: str = None,
+    time_window: float = 5.0,
+):
     """
     加载并分析 XDF 文件，然后导出为 JSON。
+    如果指定了target_marker，则只保存该marker附近的数据。
 
     Args:
-        file_path (str): .xdf 文件的路径
+        xdf_file_path (Path): .xdf 文件的路径
+        output_path (Path): 输出JSON文件的路径
+        target_marker (str, optional): 目标marker名称，如果为None则保存所有数据
+        time_window (float, optional): 时间窗口大小（秒），默认为5.0秒
     """
 
     if not xdf_file_path.exists():
@@ -1615,9 +1623,38 @@ def show_xdf(xdf_file_path: Path, output_path: Path):
     # 准备导出到 JSON 的数据结构
     export_data = {"file_header": file_header, "streams": []}
 
+    # 如果指定了目标marker，查找marker流
+    marker_timestamps = []
+    if target_marker:
+        print(f"正在查找目标marker流: '{target_marker}'")
+        for i, stream in enumerate(streams):
+            info = stream["info"]
+            stream_type = info["type"][0]
+            stream_name = info["name"][0]
+
+            # 只处理类型为Markers且名称为target_marker的流
+            if stream_type == "Markers" and stream_name == target_marker:
+                time_series = stream["time_series"]
+                time_stamps = stream["time_stamps"]
+
+                if isinstance(time_series, (np.ndarray, list)):
+                    for j, marker_data in enumerate(time_series):
+                        marker_str = (
+                            str(marker_data[0])
+                            if isinstance(marker_data, (list, np.ndarray))
+                            else str(marker_data)
+                        )
+                        marker_time = time_stamps[j]
+                        marker_timestamps.append(marker_time)
+                        print(f"  找到marker '{marker_str}' 在时间 {marker_time:.3f}秒")
+
+        print(f"共找到 {len(marker_timestamps)} 个目标marker事件")
+        if not marker_timestamps:
+            print(f"警告: 未找到目标marker流 '{target_marker}'，将保存所有数据")
+            target_marker = None
+
     for i, stream in enumerate(streams):
         info = stream["info"]
-        # 之前这里有个愚蠢的错误，time_series 和 time_stamps 搞混了，已修复
         time_series = stream["time_series"]
         time_stamps = stream["time_stamps"]
 
@@ -1642,12 +1679,15 @@ def show_xdf(xdf_file_path: Path, output_path: Path):
                 "channel_count": channel_count,
                 "nominal_srate": nominal_srate,
                 "source_id": source_id,
-                # info 中还包含 XML 格式的详细描述，有时很有用
                 "desc": info.get("desc", None),
             },
             "data": [],
             "timestamps": [],
+            "marker_events": [] if target_marker else None,
         }
+
+        # [ ]: 处理 timestamp 和 marker_event 对应, 不要完全保存 marker_event
+        # [ ]: 最好两个保存为一个元组, 然后保存为 list
 
         if isinstance(time_series, (np.ndarray, list)):
             data = np.array(time_series)
@@ -1658,19 +1698,53 @@ def show_xdf(xdf_file_path: Path, output_path: Path):
                 duration = timestamps_arr[-1] - timestamps_arr[0]
                 print(f"  持续时间 (秒):     {duration:.2f}")
 
-                # 将数据放入导出结构
-                # 注意：如果数据量极大，这步操作会消耗大量内存
-                stream_data_export["data"] = data
-                stream_data_export["timestamps"] = timestamps_arr
+                # 如果指定了目标marker，只保存marker附近的数据
+                if target_marker and marker_timestamps:
+                    # 对于marker流，保存所有marker数据
+                    if stream_type == "Markers" and stream_name == target_marker:
+                        stream_data_export["data"] = data
+                        stream_data_export["timestamps"] = timestamps_arr
+                    else:  # 对于非marker流，只保存marker附近的数据
+                        # 对于数据流，只保存marker附近的数据
+                        selected_indices = []
+                        for marker_time in marker_timestamps:
+                            # 找到marker时间点附近的数据索引
+                            start_time = marker_time - time_window
+                            end_time = marker_time + time_window
+
+                            # 找到时间窗口内的数据点
+                            mask = (timestamps_arr >= start_time) & (
+                                timestamps_arr <= end_time
+                            )
+                            indices = np.where(mask)[0]
+                            selected_indices.extend(indices.tolist())
+
+                        # 去重并排序
+                        selected_indices = sorted(set(selected_indices))
+
+                        if selected_indices:
+                            stream_data_export["data"] = data[selected_indices]
+                            stream_data_export["timestamps"] = timestamps_arr[
+                                selected_indices
+                            ]
+                            stream_data_export["marker_events"] = marker_timestamps
+                            print(
+                                f"  保存了 {len(selected_indices)} 个数据点（marker附近 ±{time_window}秒）"
+                            )
+                        else:
+                            print("  警告: 在marker附近未找到数据点")
+                else:
+                    # 保存所有数据
+                    stream_data_export["data"] = data
+                    stream_data_export["timestamps"] = timestamps_arr
         else:
             print("  [无数据]")
 
         export_data["streams"].append(stream_data_export)
         print("-" * 60)
 
-    # 执行保存
     save_as_json(export_data, output_path.with_suffix(".json"))
-    print("\n任务结束。")
+    print(f"\n任务结束。数据已保存到: {output_path.with_suffix('.json')}")
 
 
 @hydra.main(version_base=None, config_path="conf", config_name="config")
@@ -1682,13 +1756,27 @@ def main(cfg: DictConfig):
     result_dir = Path(cfg.result_dir) / xdf_file_path.stem
     result_dir.mkdir(parents=True, exist_ok=True)
 
-    if "inspect" in cfg and cfg.inspect:
-        inspect_xdf(xdf_file_path, result_dir / "inspect.json")
-        return
     if "show" in cfg and cfg.show:
-        show_xdf(xdf_file_path, result_dir / "result.json")
+        analyze_xdf_data(xdf_file_path, result_dir)
         return
-    analyze_xdf_data(xdf_file_path, result_dir)
+    # 获取用户输入的marker和时间窗口参数
+    target_marker = "ParadigmMarker"
+    target_marker = (
+        input(f"请输入目标marker名称(留空使用默认值{target_marker})\n").strip()
+        or target_marker
+    )
+    time_window = 0.001
+    time_window = float(
+        input(f"请输入时间窗口大小（秒，默认为{time_window}）:\n") or time_window
+    )
+
+    inspect_xdf(xdf_file_path, result_dir / "inspect.json")
+    show_xdf(
+        xdf_file_path,
+        result_dir / "result.json",
+        target_marker,
+        time_window,
+    )
 
 
 if __name__ == "__main__":

@@ -67,7 +67,8 @@ for block, stims in stim_sequence.items():
     block_seq = []
     for stim_path in stims:
         stim_str = into_stim_str(stim_path)
-        block_seq.append({"stim_path": stim_str, "label": 0})
+        label = float(stim_str.rsplit("-")[-2])
+        block_seq.append({"stim_path": stim_str, "label": label})
     stim_sequence[block] = block_seq
 
 
@@ -138,10 +139,13 @@ def post_block():
     correct_count = 0
 
     one_trial_data["correct_rate"] = correct_rate
+    logger.info(
+        f"Block {block_index + 1} end, current block correct rate: {correct_rate}"
+    )
     # resting
-    text_back = "进入下一个区块" if not pre else "继续"
+    text_front = "" if pre else "该区块结束\n"
     for i in range(timing["rest"], -1, -1):
-        text = f"你有 <c=yellow>{i}</c> 秒休息时间\n你可以按<c=#51d237>空格键</c>{text_back}"
+        text = f"{text_front}你有 <c=yellow>{i}</c> 秒休息时间\n你可以按<c=#51d237>空格键</c>继续"
         text_stim = visual.TextBox2(
             win,
             text=text,
@@ -246,7 +250,7 @@ def trial():
         send_marker(lsl_outlet, "RESPONSE_1", is_pre=pre)
 
         logger.info(
-            f"correct_emotion: {one_trial_data['stim']}, resp_emotion: {resp_emotion}, rt: {rt:.4f}"
+            f"Block {block_index + 1}, trial {trial_index + 1}: correct_emotion: {one_trial_data['stim']}, resp_emotion: {resp_emotion}, rt: {rt:.4f}"
         )
     else:
         send_marker(lsl_outlet, "NORESPONSE", is_pre=pre)
@@ -342,7 +346,7 @@ def rating_slider():
     slider = visual.Slider(
         win,
         ticks=intensity_ticks,
-        labels=[intensity_ticks[0], intensity_ticks[-1]],
+        labels=intensity_ticks,
         granularity=0,  # 连续可拖动
         # startValue=labels[len(labels) // 2],
         size=(0.9, 0.05),

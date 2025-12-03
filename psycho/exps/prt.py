@@ -192,6 +192,9 @@ def post_block():
     one_trial_data["correct_rate"] = 1.0 * correct_count / n_trials_per_block
     correct_count = 0
 
+    logger.info(
+        f"Block {block_index + 1} end, current block correct rate: {one_trial_data['correct_rate'] * 100:.2f}%, total point: {total_point}"
+    )
     update_trial(one_trial_data, one_block_data)
 
     text_front = "" if pre else "该区块结束\n"
@@ -267,7 +270,6 @@ def trial():
     empty_stim.draw()
     win.flip()
 
-    logger.info(f"Correct face: {long_or_short}")
     one_trial_data["stim"] = long_or_short
     keys = event.waitKeys(
         maxWait=timing["response"], keyList=response_keys, timeStamped=clock
@@ -283,7 +285,9 @@ def trial():
         one_trial_data["rt"] = rt
 
         send_marker(lsl_outlet, "RESPONSE", is_pre=pre)
-        logger.info(f"Response: {choice}, rt: {rt:.4f}")
+        logger.info(
+            f"Block {block_index + 1}, trial {trial_index + 1}: Correct face: {long_or_short}, Response: {choice}, rt: {rt:.4f}"
+        )
     else:
         send_marker(lsl_outlet, "NO_RESPONSE", is_pre=pre)
         logger.info("No response")

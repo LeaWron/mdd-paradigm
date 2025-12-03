@@ -344,6 +344,17 @@ class Session:
         if self.lsl_proc:
             self.lsl_proc.terminate()
         if self.win:
+            visual.TextBox2(
+                self.win,
+                text="会话结束\n按<c=#51d237>空格键</c>退出",
+                color="white",
+                letterHeight=0.1,
+                size=(2, None),
+                alignment="center",
+                font=PSYCHO_FONT,
+            ).draw()
+            self.win.flip()
+            event.waitKeys(keyList=self.continue_keys)
             self.win.close()
 
         send_marker(self.lsl_outlet, "SESSION_END")

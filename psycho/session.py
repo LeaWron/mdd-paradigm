@@ -248,6 +248,7 @@ class Session:
                 size=self.params["pix_size"] if not self.cfg.debug else (1600, 900),
                 pos=(0, 0) if not self.cfg.debug else (200, 200),
                 fullscr=True if not self.cfg.debug else False,
+                allowGUI=False,
                 color="grey",
                 units="norm",
             )  # 全局窗口

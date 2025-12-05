@@ -1,0 +1,2 @@
+timestamp,raw_gaze_position_x,raw_gaze_position_y,calibrated_gaze_position_x,calibrated_gaze_position_y,filtered_gaze_position_x,filtered_gaze_position_y,left_eye_openness,right_eye_openness,tracking_status,status,event,trigger
+1764034765206557300,2.334238052368164,-12.184904098510742,1090.5438995361328,803.577311038971,1090.5438995361328,803.577311038971,143.5,106.0,1,1,0,10

@@ -8,7 +8,6 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-
 import hydra
 import psychopy
 from omegaconf import DictConfig, OmegaConf
@@ -46,6 +45,7 @@ class Experiment:
     logger: logging.Logger
     session_info: dict
     test: bool = False
+    camera = None  # transfer camera handler
 
 
 class Session:
@@ -314,6 +314,7 @@ class Session:
                         logger=self.logger,
                         session_info=self.session_info,
                         test="test" in self.cfg and self.cfg.test,
+                        camera=self.camera,
                     ),
                 )
 

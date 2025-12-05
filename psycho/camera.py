@@ -3,7 +3,6 @@ import sys
 import threading
 import time
 from pathlib import Path
-
 import serial
 from pylsl import StreamOutlet
 
@@ -262,6 +261,9 @@ def init_camera(save_dir: Path = None, file_name: str = None):
     # 确保目录存在
     save_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # TODO create HikrobotCamera entity, with cam:MvCamera, then create thread in this class and capture videos
+
+    # hikvision_camera=HikvisionCamera(camera_handler=cam) # 录像,取流均在这一个实例中进行
     # 开始录像
     ret = cam.MV_CC_StartRecord(record_param)
     if ret != 0:

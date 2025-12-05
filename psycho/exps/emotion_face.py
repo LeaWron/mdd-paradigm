@@ -1,4 +1,5 @@
 from pathlib import Path
+from GazeFollower.example.MyCalibrationPsycho import eyetracking_calibration
 
 from omegaconf import DictConfig
 from psychopy import core, event, visual
@@ -519,6 +520,42 @@ def entry(exp: Experiment | None = None):
             win.flip()
             event.waitKeys(keyList=continue_keys)
         pre = 0
+    # eyetracking calibration
+    # [ ] 预实验后校准吗?
+    # [ ] 讲解更详细?或者人来讲解?
+    calibration_text = (
+        "下面进行眼动校准,随后的预览中请确保您的面部完整的呈现在画面中\n按<c=#51d237>空格键</c>继续"
+    )
+    calibration_info = visual.TextBox2(
+        win,
+        text=calibration_text,
+        color="white",
+        letterHeight=0.08,
+        size=(2, None),
+        alignment="center",
+        pos=(0, 0),
+        font=PSYCHO_FONT,
+    )
+    calibration_info.draw()
+    win.flip()
+    event.waitKeys(keyList=continue_keys)
+    logger.info("begin eyetracking calibration")
+
+    def calibrate_eyetracking():
+        ret = eyetracking_calibration(win=win, camera=exp.camera, formal=True)
+        if ret == 0:
+            logger.info("eyetracking failed")
+        else:
+            logger.info("eyetracking calibration succeeded")
+        return ret
+
+    send_marker(
+        lsl_outlet=lsl_outlet, marker="EYETRACKING_CALIBRATION_START", is_pre=pre
+    )
+    calibrate_eyetracking()
+    send_marker(lsl_outlet=lsl_outlet, marker="EYETRACKING_CALIBRATION_END", is_pre=pre)
+
+    logger.info("calibration done")
 
     one_trial_data["exp_start_time"] = clock.getTime()
     send_marker(lsl_outlet, "EXPERIMENT_START", is_pre=pre)
@@ -539,7 +576,7 @@ def entry(exp: Experiment | None = None):
 
 
 def main():
-    entry(Experiment(None, None, None, None, None, None))
+    entry(Experiment(None, None, None, None, None, session_info=None, camera=None))
 
 
 if __name__ == "__main__":

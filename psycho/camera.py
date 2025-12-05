@@ -166,7 +166,7 @@ def init_camera(save_dir: Path = None, file_name: str = None):
     if ret != 0:
         logger.error(f"Set gain: {ret}")
         return None
-    ret = cam.MV_CC_SetEnumValueByString("BalanceWhiteAuto", "On")
+    ret = cam.MV_CC_SetEnumValue("BalanceWhiteAuto", 1) # 自动白平衡
     if ret != 0:
         logger.error(f"Set balance white auto: {ret}")
         return None
@@ -249,7 +249,7 @@ def init_camera(save_dir: Path = None, file_name: str = None):
     record_param.nWidth = n_width
     record_param.nHeight = n_height
     record_param.fFrameRate = f_frame_rate
-    record_param.nBitRate = 4096  # 码率(kbps)
+    record_param.nBitRate = 4096 * 20 # 码率(kbps) 4 Mbps * K
     record_param.enRecordFmtType = MV_FormatType_AVI  # 录像格式为AVI
 
     if save_dir is None:

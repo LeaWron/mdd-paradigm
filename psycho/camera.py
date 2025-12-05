@@ -3,6 +3,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+
 import serial
 from pylsl import StreamOutlet
 

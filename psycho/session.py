@@ -198,7 +198,7 @@ class Session:
             label="日期", initial=datetime.now().strftime("%Y-%m-%d"), key="date"
         )
         # 受试信息
-        dlg.addField(label="受试信息", key="participant_id")
+        dlg.addField(label="受试信息 *", key="participant_id")
         # ..... 其他信息
         dlg.addField(
             label="数据保存路径",

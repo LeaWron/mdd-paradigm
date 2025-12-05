@@ -166,7 +166,7 @@ def init_camera(save_dir: Path = None, file_name: str = None):
     if ret != 0:
         logger.error(f"Set gain: {ret}")
         return None
-    ret = cam.MV_CC_SetEnumValueByString("BalanceWhiteAuto", "Off")
+    ret = cam.MV_CC_SetEnumValueByString("BalanceWhiteAuto", "On")
     if ret != 0:
         logger.error(f"Set balance white auto: {ret}")
         return None

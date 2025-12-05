@@ -229,6 +229,7 @@ class HikvisionCamera(Camera):
                     print(f"这帧丢弃了: {e}")
 
                 finally:
+                    # [ ] 这里不释放试试 ?
                     self.cam.MV_CC_FreeImageBuffer(stOutFrame)
             else:
                 if ret != 0:

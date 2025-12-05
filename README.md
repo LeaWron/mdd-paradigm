@@ -6,6 +6,7 @@
 psycho/                              # 项目根目录
 ├── pyproject.toml                   # （可选，现代项目配置，推荐）
 ├── README.md
+├── GazeFollower/                    # 眼动校准所用的包, 可在其中的 markdown 文件中查找源仓库
 ├── psycho/                          # 包的真正代码
 │   ├── __init__.py                  # 让 psycho 变成一个包
 │   ├── utils.py                     # 工具模块
@@ -17,13 +18,20 @@ psycho/                              # 项目根目录
 │   │   └── gng.py
 │   ├── conf/                        # 配置文件目录
 │   │   ├── config.yaml              # 入口
+│   │   ├── session/
+│   │   │   └── config.yaml          # session.py 的一些配置
 │   │   └── exps/                    # 范式配置文件目录
 │   │       └── <exp>                # 范式名
 │   │          ├── full.yaml         # 正式实验配置
 │   │          ├── pre.yaml          # 预实验配置
 │   │          └── <other>           # 其他会用到的配置文件
-│   └── stims/                       # 存放要使用的刺激的目录
-│       └── image_stims.png 
+│   ├── stims/                       # 存放要使用的刺激的目录
+│   │   └── image_stims.png 
+│   ├── analysis/                    # 数据分析模块
+│   │   ├── xdf.py                   # 初步分析获得的 xdf 文件, 主要是看收到的流是否正确
+│   │   ├── analyse_entry.py         # 行为学分析的入口
+│   │   ├── utils.py                 # 工具模块, 存放一些分析时会用到的共性方法/函数
+│   │   └── <other>                  # 需要分析的实验/范式的模块
 ├── libs/                            # 本地文件依赖
 │   └── <local_file>.whl
 └── tests/                           # 单元测试

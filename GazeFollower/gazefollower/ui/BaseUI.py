@@ -4,7 +4,7 @@
 
 import platform
 
-from .UIBackend import UIBackend, PyGameUIBackend, PsychoPyUIBackend
+from .UIBackend import PsychoPyUIBackend, PyGameUIBackend, UIBackend
 
 
 class BaseUI(object):

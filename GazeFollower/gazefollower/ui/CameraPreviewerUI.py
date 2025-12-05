@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pygame
 
-from .BaseUI import BaseUI
 from ..misc import FaceInfo
+from .BaseUI import BaseUI
 
 
 class CameraPreviewerUI(BaseUI):

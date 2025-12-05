@@ -11,19 +11,15 @@ import cv2
 import numpy as np
 import pygame
 
-from .calibration import Calibration, CalibrationController
-from .calibration import SVRCalibration
-from .camera import Camera
-from .camera import WebCamCamera
-from .camera import HikrobotCamera
-from .face_alignment import FaceAlignment
-from .face_alignment import MediaPipeFaceAlignment
+from .calibration import Calibration, CalibrationController, SVRCalibration
+from .camera import Camera, HikrobotCamera, WebCamCamera
+from .face_alignment import FaceAlignment, MediaPipeFaceAlignment
 from .filter import HeuristicFilter
 from .filter.Filter import Filter
 from .gaze_estimator import GazeEstimator, MGazeNetGazeEstimator
 from .logger import Log
-from .misc import CameraRunningState, clip_patch, GazeInfo, DefaultConfig
-from .ui import CameraPreviewerUI, CalibrationUI
+from .misc import CameraRunningState, DefaultConfig, GazeInfo, clip_patch
+from .ui import CalibrationUI, CameraPreviewerUI
 
 # encoding=utf-8
 # Author: GC Zhu

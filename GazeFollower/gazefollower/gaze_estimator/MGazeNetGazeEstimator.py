@@ -4,12 +4,12 @@
 
 import pathlib
 
-import MNN
 import cv2
+import MNN
 import numpy as np
 
-from .GazeEstimator import GazeEstimator
 from ..misc import FaceInfo, GazeInfo, TrackingState, clip_patch
+from .GazeEstimator import GazeEstimator
 
 
 class MGazeNetGazeEstimator(GazeEstimator):

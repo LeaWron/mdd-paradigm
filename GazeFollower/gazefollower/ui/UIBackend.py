@@ -218,7 +218,7 @@ class PsychoPyUIBackend(UIBackend):
         self.small_font_size = 16
         self.table_font_size = 18
 
-        from psychopy import visual, event, sound
+        from psychopy import event, sound, visual
 
         self.event = event
         self.sound = sound

@@ -2,7 +2,7 @@
 # Author: GC Zhu
 # Email: zhugc2016@gmail.com
 
-from ..misc import GazeInfo, FaceInfo
+from ..misc import FaceInfo, GazeInfo
 
 
 class GazeEstimator:

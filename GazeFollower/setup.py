@@ -4,7 +4,7 @@
 
 import os
 
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 package_name = "gazefollower"
 build_file = "build_number.txt"

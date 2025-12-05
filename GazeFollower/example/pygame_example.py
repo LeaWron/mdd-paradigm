@@ -4,10 +4,10 @@
 import os
 
 import pygame
-from pygame.locals import KEYDOWN, K_RETURN
+from gazefollower.gaze_estimator import MGazeNetGazeEstimator
+from pygame.locals import K_RETURN, KEYDOWN
 
 from gazefollower import GazeFollower
-from gazefollower.gaze_estimator import MGazeNetGazeEstimator
 
 if __name__ == "__main__":
     # init pygame

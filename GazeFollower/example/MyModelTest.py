@@ -1,11 +1,13 @@
-from gazefollower import GazeFollower
+import tkinter as tk
+from datetime import datetime
+from pathlib import Path
+from tkinter import simpledialog
+
+import pygame  # 用于 UI 显示
 from gazefollower.calibration import SVRCalibration
 from gazefollower.misc import DefaultConfig
-from pathlib import Path
-from datetime import datetime
-import tkinter as tk
-from tkinter import simpledialog
-import pygame  # 用于 UI 显示
+
+from gazefollower import GazeFollower
 
 # Initiate Calibration
 # 配置

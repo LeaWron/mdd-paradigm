@@ -7,8 +7,8 @@ import math
 import mediapipe as mp
 import numpy as np
 
-from .FaceAlignment import FaceAlignment
 from ..misc import FaceInfo
+from .FaceAlignment import FaceAlignment
 
 
 class MediaPipeFaceAlignment(FaceAlignment):

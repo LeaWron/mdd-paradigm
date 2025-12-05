@@ -3,7 +3,7 @@
 # Email: zhugc2016@gmail.com
 import os
 
-from psychopy import visual, core, event
+from psychopy import core, event, visual
 
 from gazefollower import GazeFollower
 

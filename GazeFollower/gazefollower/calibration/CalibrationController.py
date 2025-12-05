@@ -7,7 +7,7 @@ import time
 import numpy as np
 
 from ..logger import Log
-from ..misc import FaceInfo, GazeInfo, px2cm, generate_points, CalibrationMode, cm2px
+from ..misc import CalibrationMode, FaceInfo, GazeInfo, cm2px, generate_points, px2cm
 
 
 class CalibrationController:

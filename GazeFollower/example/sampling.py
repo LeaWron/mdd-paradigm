@@ -5,13 +5,12 @@ import sys
 from pathlib import Path
 
 import pygame
-from pygame.locals import KEYDOWN, K_ESCAPE, K_RETURN
-
-
-from gazefollower import GazeFollower
 from gazefollower.calibration import SVRCalibration
 from gazefollower.logger import Log
 from gazefollower.misc import DefaultConfig
+from pygame.locals import K_ESCAPE, K_RETURN, KEYDOWN
+
+from gazefollower import GazeFollower
 
 
 def main() -> None:

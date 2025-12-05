@@ -17,14 +17,14 @@ from typing import Tuple
 import joblib
 import numpy as np
 import pygame
+from gazefollower.calibration import Calibration
+from gazefollower.logger import Log
 from numpy import ndarray
-from pygame.locals import KEYDOWN, K_RETURN
+from pygame.locals import K_RETURN, KEYDOWN
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 
 from gazefollower import GazeFollower
-from gazefollower.calibration import Calibration
-from gazefollower.logger import Log
 
 
 class PolyCalibration(Calibration):

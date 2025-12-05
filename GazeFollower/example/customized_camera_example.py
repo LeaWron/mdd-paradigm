@@ -12,11 +12,11 @@ from ctypes import wintypes
 import cv2
 import numpy as np
 import pygame
-from pygame.locals import KEYDOWN, K_RETURN
-
-from gazefollower import GazeFollower
 from gazefollower.camera import Camera
 from gazefollower.logger import Log
+from pygame.locals import K_RETURN, KEYDOWN
+
+from gazefollower import GazeFollower
 
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 kernel32.FreeLibrary.argtypes = [wintypes.HMODULE]

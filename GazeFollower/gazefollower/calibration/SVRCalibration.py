@@ -3,14 +3,14 @@
 # Email: zhugc2016@gmail.com
 
 import pathlib
-from typing import Tuple, Any
+from typing import Any, Tuple
 
 import cv2 as cv
 import numpy as np
 from numpy import ndarray
 
-from .Calibration import Calibration
 from ..logger import Log
+from .Calibration import Calibration
 
 
 class SVRCalibration(Calibration):

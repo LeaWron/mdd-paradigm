@@ -4,22 +4,27 @@ from pathlib import Path
 sys.path.append(
     str(Path(__file__).resolve().parent.parent)
 )  # Adds GazeFollower-main/ to path
-from gazefollower import GazeFollower
+# [ ] module import 优化
+# [ ] UI 不重复使用, session info 不重复收集
+import tkinter as tk
+from datetime import datetime
+from tkinter import simpledialog
+from typing import Any
+
 from gazefollower.calibration import SVRCalibration
 from gazefollower.misc import DefaultConfig
-from datetime import datetime
-import tkinter as tk
-from tkinter import simpledialog
+from psychopy import core, visual  # 用于 UI 显示
+
+from gazefollower import GazeFollower
+
 from .HikrobotCamera import HikvisionCamera
-from psychopy import visual, core, event  # 用于 UI 显示
-from typing import Optional, Any
 
 
 def eyetracking_calibration(
     win: visual.window = None,
     formal: bool = False,
     info: dict = None,
-    camera: Optional[Any] = None,
+    camera: Any | None = None,
 ):
     ret = 0
     # Initiate Calibration

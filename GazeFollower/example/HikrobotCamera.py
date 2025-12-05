@@ -3,26 +3,27 @@
 
 import os
 import sys
-import time
 import threading
-import numpy as np
+import time
 from ctypes import *
-from typing import Optional
 from pathlib import Path
+from typing import Optional
+
+import numpy as np
 
 sys.path.append(
     str(Path(__file__).resolve().parent.parent)
 )  # Adds GazeFollower-main/ to path
-from gazefollower.logger import Log
-from gazefollower.camera import Camera
 import cv2  # 必须加，用于颜色转换 + resize（与 WebCamCamera 完全一致）
+from gazefollower.camera import Camera
+from gazefollower.logger import Log
 
 # 海康 SDK 动态导入
 HAS_MV_CAMERA = os.getenv("MVCAM_COMMON_RUNENV") is not None
 if HAS_MV_CAMERA:
     sys.path.append(os.getenv("MVCAM_COMMON_RUNENV") + "/Samples/Python/MvImport")
-    from MvCameraControl_class import *
     from CameraParams_header import *
+    from MvCameraControl_class import *
 
     print("Successfully imported MvCamera module")
 else:
@@ -30,7 +31,6 @@ else:
 
 
 from gazefollower.misc import CameraRunningState
-
 
 # from ..logger import Log   # 如果你的项目有 Log，可打开；否则用 print
 

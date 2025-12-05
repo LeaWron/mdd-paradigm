@@ -3,5 +3,5 @@
 # Email: zhugc2016@gmail.com
 
 from .Calibration import Calibration
-from .SVRCalibration import SVRCalibration
 from .CalibrationController import CalibrationController
+from .SVRCalibration import SVRCalibration

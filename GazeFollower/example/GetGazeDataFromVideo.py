@@ -1,14 +1,16 @@
-from gazefollower import GazeFollower
-from gazefollower.calibration import SVRCalibration
-from gazefollower.face_alignment import MediaPipeFaceAlignment
-from gazefollower.gaze_estimator import MGazeNetGazeEstimator
-from gazefollower.filter import HeuristicFilter
+import csv
+import os
+import time
+from pathlib import Path
+
 import cv2
 import numpy as np
-import csv
-import time
-import os
-from pathlib import Path
+from gazefollower.calibration import SVRCalibration
+from gazefollower.face_alignment import MediaPipeFaceAlignment
+from gazefollower.filter import HeuristicFilter
+from gazefollower.gaze_estimator import MGazeNetGazeEstimator
+
+from gazefollower import GazeFollower
 
 current_dir = Path(__file__).resolve().parent
 model_save_path = current_dir.joinpath("calib_models")

@@ -4,15 +4,18 @@ from pathlib import Path
 sys.path.append(
     str(Path(__file__).resolve().parent.parent)
 )  # Adds GazeFollower-main/ to path
-from gazefollower import GazeFollower
+import tkinter as tk
+from datetime import datetime
+from pathlib import Path
+from tkinter import simpledialog
+
+import pygame  # 用于 UI 显示
 from gazefollower.calibration import SVRCalibration
 from gazefollower.misc import DefaultConfig
-from pathlib import Path
-from datetime import datetime
-import tkinter as tk
-from tkinter import simpledialog
+
+from gazefollower import GazeFollower
+
 from .HikrobotCamera import HikvisionCamera
-import pygame  # 用于 UI 显示
 
 
 def eyetrakcking_calibration():

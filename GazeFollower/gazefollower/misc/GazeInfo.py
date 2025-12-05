@@ -3,6 +3,7 @@
 # Email: zhugc2016@gmail.com
 
 import numpy as np
+
 from .Enumeration import EyeMovementEvent, TrackingState
 
 

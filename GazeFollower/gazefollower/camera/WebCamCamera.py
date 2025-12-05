@@ -8,8 +8,8 @@ import time
 
 import cv2
 
-from .Camera import Camera  # Adjust import according to your package structure
 from ..logger import Log
+from .Camera import Camera  # Adjust import according to your package structure
 
 
 class WebCamCamera(Camera):

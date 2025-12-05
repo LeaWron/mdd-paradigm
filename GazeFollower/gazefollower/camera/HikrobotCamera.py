@@ -4,22 +4,23 @@
 
 import os
 import sys
-import time
 import threading
-import numpy as np
+import time
 from ctypes import *
 from typing import Optional
-from .Camera import Camera  # Adjust import according to your package structure
-from ..logger import Log
 
 import cv2  # 必须加，用于颜色转换 + resize（与 WebCamCamera 完全一致）
+import numpy as np
+
+from ..logger import Log
+from .Camera import Camera  # Adjust import according to your package structure
 
 # 海康 SDK 动态导入
 HAS_MV_CAMERA = os.getenv("MVCAM_COMMON_RUNENV") is not None
 if HAS_MV_CAMERA:
     sys.path.append(os.getenv("MVCAM_COMMON_RUNENV") + "/Samples/Python/MvImport")
-    from MvCameraControl_class import *
     from CameraParams_header import *
+    from MvCameraControl_class import *
 
     print("Successfully imported MvCamera module")
 else:
@@ -27,7 +28,6 @@ else:
 
 
 from ..misc import CameraRunningState
-
 
 # from ..logger import Log   # 如果你的项目有 Log，可打开；否则用 print
 

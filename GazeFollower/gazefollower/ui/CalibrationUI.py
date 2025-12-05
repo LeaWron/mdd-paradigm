@@ -5,8 +5,9 @@
 import numpy as np
 
 from gazefollower.calibration import CalibrationController
-from .BaseUI import BaseUI
+
 from ..misc import DefaultConfig
+from .BaseUI import BaseUI
 
 
 class CalibrationUI(BaseUI):

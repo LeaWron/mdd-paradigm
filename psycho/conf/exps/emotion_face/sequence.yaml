@@ -1,10 +1,10 @@
 0:
-  - label: 9
-    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-20.bmp
   - label: 5
     stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-05.bmp
   - label: 6
     stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-17.bmp
+  - label: 9
+    stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-20.bmp
   - label: 3
     stim_path: emotion-face\hm102-nem102-sam13\hm102-nem102-sam13-14.bmp
   - label: 8

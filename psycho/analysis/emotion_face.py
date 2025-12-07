@@ -1,3 +1,4 @@
+import json
 import warnings
 from pathlib import Path
 
@@ -15,437 +16,758 @@ from psycho.analysis.utils import extract_trials_by_block
 
 warnings.filterwarnings("ignore")
 
-print("=" * 60)
-print("面部情绪识别实验数据分析")
-print("=" * 60)
 
-# 读取CSV文件
-file_path = Path(
-    input("请输入面部情绪识别实验数据文件路径:\n").strip("'").strip()
-).resolve()
-df = pl.read_csv(file_path)
-
-print(f"数据形状: {df.shape}")
-print(f"试次总数: {len(df)}")
-print(f"数据列: {df.columns}")
-
-target_blocks = [0, 1]  # 定义要分析的区块索引
-print(f"目标分析区块: {target_blocks}")
-
-# 调用工具函数，获取清洗和填充后的指定区块数据
-df = extract_trials_by_block(
-    df=df,
-    target_block_indices=target_blocks,
+# ==================== 模块1: 数据加载与预处理 ====================
+def load_and_prepare_data(
+    df: pl.DataFrame,
+    target_blocks=None,
     block_col="block_index",
     trial_col="trial_index",
-    fill_na=True,  # 启用空字符串处理
-)
+    fill_na=True,
+):
+    # 读取原始数据
+    raw_df = df
+    print(f"原始数据形状: {raw_df.shape}")
 
-print(f"提取后数据形状: {df.shape}")
-print(f"新区列 'trial_in_block' 已添加: {'trial_in_block' in df.columns}")
+    # 设置默认目标区块
+    if target_blocks is None:
+        target_blocks = [0, 1]
 
-# 检查区块分布
-if "block_index" in df.columns:
-    block_dist = (
+    # 使用自定义工具函数提取目标区块数据
+
+    processed_df = extract_trials_by_block(
+        df=raw_df,
+        target_block_indices=target_blocks,
+        block_col=block_col,
+        trial_col=trial_col,
+        fill_na=fill_na,
+    )
+
+    print(f"处理后数据形状: {processed_df.shape}")
+
+    # 映射情绪类型
+    def map_stim_type(col_value):
+        if col_value is None:
+            return "unknown"
+        stim_lower = str(col_value).lower()
+        if "positive" in stim_lower or "pos" in stim_lower:
+            return "positive"
+        elif "negative" in stim_lower or "neg" in stim_lower:
+            return "negative"
+        elif "neutral" in stim_lower or "neu" in stim_lower:
+            return "neutral"
+        else:
+            return "unknown"
+
+    processed_df = processed_df.with_columns(
+        [
+            pl.col("stim")
+            .map_elements(map_stim_type, return_dtype=pl.Utf8)
+            .alias("stim_type"),
+            pl.col("choice")
+            .map_elements(map_stim_type, return_dtype=pl.Utf8)
+            .alias("choice_type"),
+        ]
+    )
+
+    # 清理反应时数据
+    processed_df = processed_df.with_columns(
+        pl.when(pl.col("rt") < 0.1)
+        .then(0.1)
+        .when(pl.col("rt") > 5.0)
+        .then(5.0)
+        .otherwise(pl.col("rt"))
+        .alias("rt_clean")
+    )
+
+    # 计算正确性
+    processed_df = processed_df.with_columns(
+        (pl.col("stim_type") == pl.col("choice_type")).alias("correct")
+    )
+
+    return processed_df
+
+
+# ==================== 模块2: 基本指标计算 ====================
+def calculate_basic_metrics(df):
+    """
+    计算基本行为指标
+
+    返回:
+    dict: 包含各项指标的字典
+    """
+    metrics = {}
+
+    # 总体指标
+    metrics["overall_accuracy"] = df["correct"].mean()
+    metrics["median_rt"] = df["rt_clean"].median()
+    metrics["total_trials"] = len(df)
+
+    # 分块正确率
+    block_correct = (
         df.group_by("block_index")
-        .agg(pl.count().alias("trial_count"))
+        .agg(pl.col("correct").mean().alias("correct_rate"))
         .sort("block_index")
     )
-    print("\n提取数据中的区块分布:")
-    for row in block_dist.iter_rows():
-        print(f"  区块 {row[0]}: {row[1]} 个试次")
+    metrics["block_accuracy"] = block_correct
 
-# 2. 数据映射与计算列添加 (在已处理数据上进行)
-print("\n" + "=" * 60)
-print("数据映射与衍生列计算")
-print("=" * 60)
+    # 按情绪类型统计
+    emotion_correct = (
+        df.group_by("stim_type")
+        .agg(
+            [
+                pl.col("correct").mean().alias("correct_rate"),
+                pl.col("correct").count().alias("trial_count"),
+            ]
+        )
+        .sort("stim_type")
+    )
+    metrics["emotion_accuracy"] = emotion_correct
+
+    # 反应时分析
+    rt_summary = (
+        df.group_by("stim_type")
+        .agg(
+            [
+                pl.col("rt_clean").mean().alias("mean_rt"),
+                pl.col("rt_clean").std().alias("std_rt"),
+                pl.col("rt_clean").median().alias("median_rt"),
+                pl.col("rt_clean").count().alias("trial_count"),
+            ]
+        )
+        .sort("stim_type")
+    )
+    metrics["reaction_time"] = rt_summary
+
+    return metrics
 
 
-# 定义函数映射情绪类型
-def map_stim_type(col_value):
-    if col_value is None:
-        return "unknown"
-    stim_lower = str(col_value).lower()
-    if "positive" in stim_lower or "pos" in stim_lower:
-        return "positive"
-    elif "negative" in stim_lower or "neg" in stim_lower:
-        return "negative"
-    elif "neutral" in stim_lower or "neu" in stim_lower:
-        return "neutral"
-    else:
-        return "unknown"
+# ==================== 模块3: 强度与中性阈值分析 ====================
+def calculate_intensity_metrics(df):
+    """
+    计算强度相关指标和中性阈值
 
+    返回:
+    dict: 包含强度指标和中性阈值的字典
+    """
+    metrics = {}
 
-# 应用映射函数，创建 stim_type 和 choice_type 列
-df = df.with_columns(
-    [
-        pl.col("stim")
-        .map_elements(map_stim_type, return_dtype=pl.Utf8)
-        .alias("stim_type"),
-        pl.col("choice")
-        .map_elements(map_stim_type, return_dtype=pl.Utf8)
-        .alias("choice_type"),
-    ]
-)
-
-# 3. 计算关键行为指标 (后续代码与原逻辑一致，但数据源已是处理后的 df)
-print("\n" + "=" * 60)
-print("关键行为指标计算")
-print("=" * 60)
-
-# 计算是否正确
-df = df.with_columns((pl.col("stim_type") == pl.col("choice_type")).alias("correct"))
-
-# 分块正确率 (基于已提取的区块)
-block_correct = (
-    df.group_by("block_index")
-    .agg(pl.col("correct").mean().alias("correct_rate"))
-    .sort("block_index")
-)
-print("\n分块正确率:")
-for row in block_correct.iter_rows():
-    print(f"  区块 {row[0]}: {row[1]:.2%}")
-
-# 按情绪类型统计正确率
-emotion_correct = (
-    df.group_by("stim_type")
-    .agg(
+    # 强度一致性分析（非中性刺激）
+    df_intensity = df.filter(pl.col("stim_type") != "neutral").with_columns(
         [
-            pl.col("correct").mean().alias("correct_rate"),
-            pl.col("correct").count().alias("trial_count"),
+            (pl.col("intensity") - pl.col("label_intensity")).alias("intensity_diff"),
+            (pl.col("intensity") - pl.col("label_intensity"))
+            .abs()
+            .alias("abs_intensity_diff"),
         ]
     )
-    .sort("stim_type")
-)
 
-print("\n按刺激情绪类型的正确率:")
-for row in emotion_correct.iter_rows():
-    print(f"  {row[0]}: {row[1]:.2%} (N={row[2]})")
+    if df_intensity.height > 0:
+        intensity_stats = df_intensity.group_by("stim_type").agg(
+            [
+                pl.col("intensity_diff").mean().alias("mean_diff"),
+                pl.col("intensity_diff").std().alias("std_diff"),
+                pl.col("abs_intensity_diff").mean().alias("mean_abs_diff"),
+                pl.col("label_intensity").mean().alias("mean_label_intensity"),
+            ]
+        )
+        metrics["intensity_stats"] = intensity_stats
 
-# 反应时分析与清理
-df = df.with_columns(
-    pl.when(pl.col("rt") < 0.1)
-    .then(0.1)
-    .when(pl.col("rt") > 5.0)
-    .then(5.0)
-    .otherwise(pl.col("rt"))
-    .alias("rt_clean")
-)
+        # 强度相关性分析
+        intensity_corr_data = df_intensity.filter(
+            pl.col("label_intensity").is_not_null() & pl.col("intensity").is_not_null()
+        )
 
-rt_summary = (
-    df.group_by("stim_type")
-    .agg(
-        [
-            pl.col("rt_clean").mean().alias("mean_rt"),
-            pl.col("rt_clean").std().alias("std_rt"),
-            pl.col("rt_clean").median().alias("median_rt"),
-            pl.col("rt_clean").count().alias("trial_count"),
-        ]
+        if intensity_corr_data.height >= 3:
+            # 转换为pandas进行相关性计算
+            corr_df = intensity_corr_data.select(
+                ["label_intensity", "intensity"]
+            ).to_pandas()
+            corr, p_val = stats.pearsonr(
+                corr_df["label_intensity"], corr_df["intensity"]
+            )
+            metrics["intensity_correlation"] = {
+                "r": corr,
+                "p": p_val,
+                "n": len(corr_df),
+            }
+
+    # ==================== 新增：中性阈值分析 ====================
+    # 分析1: 按刺激的实际类型，看被判断为中性的那些刺激的强度分布
+    neutral_choices_by_stim = df.filter(pl.col("choice_type") == "neutral")
+
+    if neutral_choices_by_stim.height > 0:
+        # 统计不同刺激类型被判断为中性的情况
+        neutral_threshold_by_stim = (
+            neutral_choices_by_stim.group_by("stim_type")
+            .agg(
+                [
+                    pl.count().alias("count"),
+                    pl.col("label_intensity").mean().alias("mean_label_intensity"),
+                    pl.col("label_intensity").std().alias("std_label_intensity"),
+                    pl.col("label_intensity").min().alias("min_label_intensity"),
+                    pl.col("label_intensity").max().alias("max_label_intensity"),
+                    pl.col("label_intensity").median().alias("median_label_intensity"),
+                ]
+            )
+            .sort("stim_type")
+        )
+
+        metrics["neutral_threshold_by_stimulus"] = neutral_threshold_by_stim
+
+        # 统计被判断为中性的刺激中，各原始强度的分布
+        intensity_distribution = (
+            neutral_choices_by_stim.group_by(["stim_type", "label_intensity"])
+            .agg(pl.count().alias("count"))
+            .sort(["stim_type", "label_intensity"])
+        )
+
+        metrics["neutral_intensity_distribution"] = intensity_distribution
+
+    # 分析2: 按被试的选择，看那些被判断为中性的刺激的实际强度
+    # 这反映了被试的"主观中性"对应的客观强度范围
+    metrics["neutral_judgment_summary"] = (
+        df.group_by("choice_type")
+        .agg(
+            [
+                pl.count().alias("total_judgments"),
+                pl.col("label_intensity").mean().alias("mean_label_intensity"),
+                pl.col("label_intensity").std().alias("std_label_intensity"),
+                pl.col("label_intensity").min().alias("min_label_intensity"),
+                pl.col("label_intensity").max().alias("max_label_intensity"),
+            ]
+        )
+        .sort("choice_type")
     )
-    .sort("stim_type")
-)
 
-print("\n反应时分析 (秒):")
-for row in rt_summary.iter_rows():
-    print(f"  {row[0]}: 平均={row[1]:.3f}, 中位数={row[2]:.3f}, SD={row[3]:.3f}")
+    # 分析3: 找出最可能被判断为中性的强度阈值
+    # 对于每个刺激类型，计算被判断为中性的比例随强度的变化
+    neutral_prob_by_intensity = []
+    for stim_type in ["positive", "negative"]:
+        stim_data = df.filter(pl.col("stim_type") == stim_type)
+        if stim_data.height > 0:
+            prob_data = (
+                stim_data.group_by("label_intensity")
+                .agg(
+                    [
+                        pl.count().alias("total"),
+                        pl.col("choice_type")
+                        .filter(pl.col("choice_type") == "neutral")
+                        .count()
+                        .alias("neutral_count"),
+                    ]
+                )
+                .with_columns(
+                    [
+                        (pl.col("neutral_count") / pl.col("total")).alias(
+                            "neutral_prob"
+                        ),
+                        pl.lit(stim_type).alias("stim_type"),
+                    ]
+                )
+                .select(
+                    [
+                        "stim_type",
+                        "label_intensity",
+                        "total",
+                        "neutral_count",
+                        "neutral_prob",
+                    ]
+                )
+            )
+            neutral_prob_by_intensity.append(prob_data)
 
-# 强度一致性分析 (仅对非中性刺激)
-df_intensity = df.filter(pl.col("stim_type") != "neutral").with_columns(
-    [
-        (pl.col("intensity") - pl.col("label_intensity")).alias("intensity_diff"),
-        (pl.col("intensity") - pl.col("label_intensity"))
-        .abs()
-        .alias("abs_intensity_diff"),
-    ]
-)
+    if neutral_prob_by_intensity:
+        metrics["neutral_probability_by_intensity"] = pl.concat(
+            neutral_prob_by_intensity
+        )
 
-if df_intensity.height > 0:
-    intensity_stats = df_intensity.group_by("stim_type").agg(
-        [
-            pl.col("intensity_diff").mean().alias("mean_diff"),
-            pl.col("intensity_diff").std().alias("std_diff"),
-            pl.col("abs_intensity_diff").mean().alias("mean_abs_diff"),
-            pl.col("label_intensity").mean().alias("mean_label_intensity"),
-        ]
-    )
-    print("\n强度评分差异分析:")
-    for row in intensity_stats.iter_rows():
-        print(f"  {row[0]}: 平均差异={row[1]:.2f}, 绝对差异={row[2]:.2f}")
-else:
-    print("\n强度评分差异分析: 无有效非中性刺激数据")
+    return metrics
 
 
-# 4. 使用 Plotly 创建交互式图表
-print("\n" + "=" * 60)
-print("生成交互式可视化图表")
-print("=" * 60)
+# ==================== 模块4: 统计分析 ====================
+def perform_statistical_tests(df, df_intensity=None):
+    """
+    执行统计检验
 
-emotion_correct_pd = emotion_correct.to_pandas()
-rt_summary_pd = rt_summary.to_pandas()
-intensity_stats_pd = intensity_stats.to_pandas()
-# 为绘图提取数据样本，也可以选择转换为Pandas
-scatter_sample_pd = df.sample(fraction=0.3, seed=42).to_pandas()  # 采样以提升绘图性能
-df_intensity_pd = df_intensity.to_pandas()
+    返回:
+    dict: 统计检验结果
+    """
+    results = {}
 
-# 创建包含子图的仪表板
-fig = make_subplots(
-    rows=2,
-    cols=3,
-    subplot_titles=(
-        "不同情绪类型的识别正确率",
-        "不同情绪类型的反应时分布",
-        "反应时与正确率的关系",
-        "强度评分一致性",
-        "强度评分差异分布",
-        "分块正确率变化",
-    ),
-    vertical_spacing=0.12,
-    horizontal_spacing=0.1,
-)
+    # 转换为pandas以兼容统计库
+    df_pd = df.to_pandas()
 
-# 4.1 正确率分布 (柱状图)
-fig.add_trace(
-    go.Bar(
-        x=emotion_correct_pd["stim_type"],
-        y=emotion_correct_pd["correct_rate"],
-        text=[f"{rate:.1%}" for rate in emotion_correct_pd["correct_rate"]],
-        textposition="auto",
-        marker_color=["#636efa", "#00cc96", "#ef553b"],  # 为不同情绪类型设置颜色
-    ),
-    row=1,
-    col=1,
-)
-fig.update_yaxes(range=[0, 1.05], title_text="正确率", row=1, col=1)
+    # 1. 不同情绪类型正确率的卡方检验
+    contingency_table = pd.crosstab(df_pd["stim_type"], df_pd["correct"])
+    chi2, p, dof, expected = stats.chi2_contingency(contingency_table)
+    results["chi2_test_accuracy"] = {"chi2": chi2, "p": p, "df": dof}
 
-# 4.2 反应时分布 (箱线图)
-# 为每种情绪类型准备数据列表
-for stim_type in ["positive", "neutral", "negative"]:
-    rt_data = (
-        df.filter(pl.col("stim_type") == stim_type)["rt_clean"].drop_nulls().to_list()
-    )
-    fig.add_trace(
-        go.Box(y=rt_data, name=stim_type, marker_color="lightseagreen", boxmean="sd"),
-        row=1,
-        col=2,
-    )
-fig.update_yaxes(title_text="反应时 (秒)", row=1, col=2)
-
-# 4.3 正确率与反应时的关系 (散点图)
-fig.add_trace(
-    go.Scatter(
-        x=scatter_sample_pd["rt_clean"],
-        y=scatter_sample_pd["correct"].astype(int),
-        mode="markers",
-        marker=dict(
-            size=8,
-            color=scatter_sample_pd["stim_type"].map(
-                {"positive": 0, "neutral": 1, "negative": 2}
-            ),
-            colorscale="Viridis",
-            showscale=True,
-            colorbar=dict(
-                title="情绪类型", tickvals=[0, 1, 2], ticktext=["积极", "中性", "消极"]
-            ),
-        ),
-        text=scatter_sample_pd["stim_type"],
-        hovertemplate="<b>反应时</b>: %{x:.3f}s<br><b>是否正确</b>: %{y}<br><b>类型</b>: %{text}<extra></extra>",
-    ),
-    row=1,
-    col=3,
-)
-fig.update_yaxes(
-    tickvals=[0, 1], ticktext=["错误", "正确"], title_text="是否正确", row=1, col=3
-)
-fig.update_xaxes(title_text="反应时 (秒)", row=1, col=3)
-
-# 4.4 强度评分一致性 (散点图)
-fig.add_trace(
-    go.Scatter(
-        x=df_intensity_pd["label_intensity"],
-        y=df_intensity_pd["intensity"],
-        mode="markers",
-        marker=dict(
-            size=10,
-            color=df_intensity_pd["stim_type"].map({"positive": 0, "negative": 1}),
-            colorscale=["#00cc96", "#ef553b"],
-            showscale=True,
-            colorbar=dict(title="情绪类型", tickvals=[0, 1], ticktext=["积极", "消极"]),
-        ),
-        text=df_intensity_pd["stim_type"],
-        hovertemplate="<b>标签强度</b>: %{x}<br><b>被试评分</b>: %{y}<br><b>类型</b>: %{text}<extra></extra>",
-    ),
-    row=2,
-    col=1,
-)
-# 添加对角线 (完美一致性)
-max_val = max(df_intensity_pd[["label_intensity", "intensity"]].max().max(), 9)
-fig.add_trace(
-    go.Scatter(
-        x=[0, max_val],
-        y=[0, max_val],
-        mode="lines",
-        line=dict(dash="dash", color="gray"),
-        showlegend=False,
-    ),
-    row=2,
-    col=1,
-)
-fig.update_xaxes(title_text="标签强度 (预设)", row=2, col=1)
-fig.update_yaxes(title_text="被试评分强度", row=2, col=1)
-
-# 4.5 强度评分差异分布 (箱线图)
-for stim_type in ["positive", "negative"]:
-    diff_data = (
-        df_intensity.filter(pl.col("stim_type") == stim_type)["intensity_diff"]
-        .drop_nulls()
-        .to_list()
-    )
-    fig.add_trace(
-        go.Box(y=diff_data, name=stim_type, marker_color="orange"), row=2, col=2
-    )
-# 添加零参考线
-fig.add_hline(y=0, line_dash="dot", line_color="red", row=2, col=2)
-fig.update_yaxes(title_text="评分差异 (被试评分 - 标签强度)", row=2, col=2)
-
-# 4.6 分块正确率变化 (折线图)
-fig.add_trace(
-    go.Scatter(
-        x=block_correct["block_index"].to_list(),
-        y=block_correct["correct_rate"].to_list(),
-        mode="lines+markers",
-        marker=dict(size=12),
-        line=dict(width=3),
-        hovertemplate="<b>区块</b>: %{x}<br><b>正确率</b>: %{y:.1%}<extra></extra>",
-    ),
-    row=2,
-    col=3,
-)
-fig.update_yaxes(range=[0, 1.05], title_text="正确率", row=2, col=3)
-fig.update_xaxes(title_text="区块编号", row=2, col=3)
-
-# 更新整体布局
-fig.update_layout(
-    height=900,
-    width=1400,
-    title_text="面部情绪识别实验行为数据分析",
-    title_font_size=20,
-    showlegend=False,
-    hovermode="closest",
-)
-
-# 保存图表
-try:
-    fig.write_html("facial_emotion_analysis_interactive.html")
-    fig.write_image("facial_emotion_analysis_static.png", scale=2)
-    print("交互式图表已保存为 'facial_emotion_analysis_interactive.html'")
-    print("静态图片已保存为 'facial_emotion_analysis_static.png'")
-except Exception as e:
-    print(f"保存图表时出错: {e}")
-
-# 5. 高级统计分析 (需要将数据转换为Pandas以兼容statsmodels)
-print("\n" + "=" * 60)
-print("高级统计分析")
-print("=" * 60)
-
-# 转换为Pandas DataFrame进行统计分析
-df_pd = df.to_pandas()
-
-# 5.1 不同情绪类型正确率的卡方检验
-print("\n1. 不同情绪类型正确率的差异性检验:")
-contingency_table = pd.crosstab(df_pd["stim_type"], df_pd["correct"])
-chi2, p, dof, expected = stats.chi2_contingency(contingency_table)
-print(f"   卡方检验: χ²({dof}) = {chi2:.3f}, p = {p:.4f}")
-
-# 5.2 反应时的方差分析
-print("\n2. 不同情绪类型反应时的ANOVA分析:")
-anova_data = df_pd[["stim_type", "rt_clean"]].dropna()
-model = ols("rt_clean ~ C(stim_type)", data=anova_data).fit()
-anova_table = anova_lm(model)
-print(
-    f"   ANOVA结果: F({anova_table['df'][0]}, {anova_table['df'][1]}) = {anova_table['F'][0]:.3f}, p = {anova_table['PR(>F)'][0]:.4f}"
-)
-
-# 5.3 强度评分相关性分析
-print("\n3. 强度评分相关性分析:")
-if len(df_intensity_pd) > 10:
-    # 选取相关列，并丢弃任何一列中包含NaN的整行
-    intensity_corr_data = df_intensity_pd[["label_intensity", "intensity"]].dropna()
-
-    # 再次检查丢弃缺失值后是否还有足够的数据点进行计算
-    if len(intensity_corr_data) >= 3:  # Pearson相关至少需要3个点
-        x = intensity_corr_data["label_intensity"]
-        y = intensity_corr_data["intensity"]
-        corr, p_val = stats.pearsonr(x, y)
-        print(f"   标签强度与被试评分的相关性: r = {corr:.3f}, p = {p_val:.4f}")
-        print(f"   用于计算的有效数据点: {len(intensity_corr_data)} 个")
-    else:
-        print("   警告: 在同时丢弃缺失值后，有效数据点不足，无法计算相关性。")
-        print(f"   剩余数据点: {len(intensity_corr_data)} 个")
-
-# 5.4 速度-准确性权衡分析
-print("\n4. 速度-准确性权衡分析:")
-df_pd["rt_quartile"] = pd.qcut(
-    df_pd["rt_clean"], 4, labels=["最快", "较快", "较慢", "最慢"]
-)
-speed_accuracy = df_pd.groupby("rt_quartile")["correct"].mean().reset_index()
-speed_accuracy.columns = ["反应时分组", "正确率"]
-
-print("   不同反应时分组下的正确率:")
-for _, row in speed_accuracy.iterrows():
-    print(f"     {row['反应时分组']}: {row['正确率']:.2%}")
-
-# 6. 生成详细报告
-print("\n" + "=" * 60)
-print("分析报告总结")
-print("=" * 60)
-
-overall_accuracy = df["correct"].mean()
-median_rt = df["rt_clean"].median()
-
-print(f"总体正确率: {overall_accuracy:.2%}")
-print(f"总体中位反应时: {median_rt:.3f} 秒")
-print(f"有效试次数: {len(df)}")
-
-# 按情绪类型总结
-print("\n分情绪类型总结:")
-for stim_type in ["positive", "neutral", "negative"]:
-    subset = df.filter(pl.col("stim_type") == stim_type)
-    if len(subset) > 0:
-        acc = subset["correct"].mean()
-        rt_mean = subset["rt_clean"].mean()
-        rt_std = subset["rt_clean"].std()
-        print(f"  {stim_type}:")
-        print(f"    正确率: {acc:.2%}")
-        print(f"    平均反应时: {rt_mean:.3f} ± {rt_std:.3f} 秒")
-        print(f"    试次数: {len(subset)}")
-
-# 7. 输出到文件
-print("\n" + "=" * 60)
-print("数据输出")
-print("=" * 60)
-
-# 保存处理后的数据 (使用 Polars 写 CSV)
-df.write_csv("processed_emotion_data_polars.csv")
-print("处理后的数据已保存为 'processed_emotion_data_polars.csv'")
-
-# 保存详细统计结果
-summary_stats = pl.DataFrame(
-    {
-        "指标": ["总体正确率", "总体中位反应时(秒)", "总试次数"],
-        "值": [overall_accuracy, median_rt, len(df)],
+    # 2. 反应时的方差分析
+    anova_data = df_pd[["stim_type", "rt_clean"]].dropna()
+    model = ols("rt_clean ~ C(stim_type)", data=anova_data).fit()
+    anova_table = anova_lm(model)
+    results["anova_rt"] = {
+        "F": anova_table["F"][0],
+        "p": anova_table["PR(>F)"][0],
+        "df_num": anova_table["df"][0],
+        "df_den": anova_table["df"][1],
     }
-)
-summary_stats.write_csv("experiment_summary_polars.csv")
 
-emotion_stats = emotion_correct.join(
-    rt_summary.select(["stim_type", "mean_rt"]), on="stim_type"
-)
-emotion_stats.write_csv("emotion_type_stats_polars.csv")
+    # 3. 速度-准确性权衡分析
+    df_pd["rt_quartile"] = pd.qcut(
+        df_pd["rt_clean"], 4, labels=["最快", "较快", "较慢", "最慢"]
+    )
+    speed_accuracy = df_pd.groupby("rt_quartile")["correct"].mean().reset_index()
+    results["speed_accuracy_tradeoff"] = speed_accuracy
 
-print(
-    "统计摘要已保存为 'experiment_summary_polars.csv' 和 'emotion_type_stats_polars.csv'"
-)
+    return results
 
-print("\n" + "=" * 60)
-print("分析完成!")
-print("=" * 60)
+
+# ==================== 模块5: 可视化 ====================
+def create_visualizations(df, metrics, result_dir):
+    """
+    创建可视化图表
+
+    返回:
+    dict: 图表文件路径
+    """
+    # 准备数据
+    emotion_correct_pd = metrics["emotion_accuracy"].to_pandas()
+    rt_summary_pd = metrics["reaction_time"].to_pandas()  # noqa: F841
+    df_pd = df.to_pandas()  # noqa: F841
+
+    # 准备强度数据
+    df_intensity = df.filter(pl.col("stim_type") != "neutral")
+    df_intensity_pd = df_intensity.to_pandas() if df_intensity.height > 0 else None
+
+    # 创建主仪表板
+    fig = make_subplots(
+        rows=2,
+        cols=3,
+        subplot_titles=(
+            "不同情绪类型的识别正确率",
+            "不同情绪类型的反应时分布",
+            "反应时与正确率的关系",
+            "强度评分一致性",
+            "中性阈值分析",
+            "分块正确率变化",
+        ),
+        vertical_spacing=0.12,
+        horizontal_spacing=0.1,
+    )
+
+    # 1. 正确率分布
+    fig.add_trace(
+        go.Bar(
+            x=emotion_correct_pd["stim_type"],
+            y=emotion_correct_pd["correct_rate"],
+            text=[f"{rate:.1%}" for rate in emotion_correct_pd["correct_rate"]],
+            textposition="auto",
+            marker_color=["#636efa", "#00cc96", "#ef553b"],
+        ),
+        row=1,
+        col=1,
+    )
+    fig.update_yaxes(range=[0, 1.05], title_text="正确率", row=1, col=1)
+
+    # 2. 反应时分布
+    for stim_type in ["positive", "neutral", "negative"]:
+        rt_data = (
+            df.filter(pl.col("stim_type") == stim_type)["rt_clean"]
+            .drop_nulls()
+            .to_list()
+        )
+        if rt_data:
+            fig.add_trace(
+                go.Box(
+                    y=rt_data,
+                    name=stim_type,
+                    marker_color="lightseagreen",
+                    boxmean="sd",
+                ),
+                row=1,
+                col=2,
+            )
+    fig.update_yaxes(title_text="反应时 (秒)", row=1, col=2)
+
+    # 3. 正确率与反应时的关系
+    scatter_sample = df.sample(fraction=0.3, seed=42).to_pandas()
+    fig.add_trace(
+        go.Scatter(
+            x=scatter_sample["rt_clean"],
+            y=scatter_sample["correct"].astype(int),
+            mode="markers",
+            marker=dict(
+                size=8,
+                color=scatter_sample["stim_type"].map(
+                    {"positive": 0, "neutral": 1, "negative": 2}
+                ),
+                colorscale="Viridis",
+                showscale=True,
+                colorbar=dict(
+                    title="情绪类型",
+                    tickvals=[0, 1, 2],
+                    ticktext=["积极", "中性", "消极"],
+                ),
+            ),
+            text=scatter_sample["stim_type"],
+            hovertemplate="<b>反应时</b>: %{x:.3f}s<br><b>是否正确</b>: %{y}<br><b>类型</b>: %{text}<extra></extra>",
+        ),
+        row=1,
+        col=3,
+    )
+    fig.update_yaxes(
+        tickvals=[0, 1], ticktext=["错误", "正确"], title_text="是否正确", row=1, col=3
+    )
+    fig.update_xaxes(title_text="反应时 (秒)", row=1, col=3)
+
+    # 4. 强度评分一致性
+    if df_intensity_pd is not None and len(df_intensity_pd) > 0:
+        fig.add_trace(
+            go.Scatter(
+                x=df_intensity_pd["label_intensity"],
+                y=df_intensity_pd["intensity"],
+                mode="markers",
+                marker=dict(
+                    size=10,
+                    color=df_intensity_pd["stim_type"].map(
+                        {"positive": 0, "negative": 1}
+                    ),
+                    colorscale=["#00cc96", "#ef553b"],
+                    showscale=True,
+                    colorbar=dict(
+                        title="情绪类型", tickvals=[0, 1], ticktext=["积极", "消极"]
+                    ),
+                ),
+                text=df_intensity_pd["stim_type"],
+                hovertemplate="<b>标签强度</b>: %{x}<br><b>被试评分</b>: %{y}<br><b>类型</b>: %{text}<extra></extra>",
+            ),
+            row=2,
+            col=1,
+        )
+        max_val = max(df_intensity_pd[["label_intensity", "intensity"]].max().max(), 9)
+        fig.add_trace(
+            go.Scatter(
+                x=[0, max_val],
+                y=[0, max_val],
+                mode="lines",
+                line=dict(dash="dash", color="gray"),
+                showlegend=False,
+            ),
+            row=2,
+            col=1,
+        )
+    fig.update_xaxes(title_text="标签强度 (预设)", row=2, col=1)
+    fig.update_yaxes(title_text="被试评分强度", row=2, col=1)
+
+    # 5. 中性阈值分析
+    if "neutral_probability_by_intensity" in metrics:
+        neutral_prob_data = metrics["neutral_probability_by_intensity"]
+        for stim_type in ["positive", "negative"]:
+            stim_prob = neutral_prob_data.filter(pl.col("stim_type") == stim_type)
+            if stim_prob.height > 0:
+                stim_prob_pd = stim_prob.to_pandas()
+                fig.add_trace(
+                    go.Scatter(
+                        x=stim_prob_pd["label_intensity"],
+                        y=stim_prob_pd["neutral_prob"],
+                        mode="lines+markers",
+                        name=f"{stim_type}被判断为中性的概率",
+                        line=dict(width=2),
+                        marker=dict(size=8),
+                    ),
+                    row=2,
+                    col=2,
+                )
+    fig.update_yaxes(range=[0, 1.05], title_text="被判断为中性的概率", row=2, col=2)
+    fig.update_xaxes(title_text="刺激标签强度", row=2, col=2)
+
+    # 6. 分块正确率变化
+    block_correct_pd = metrics["block_accuracy"].to_pandas()
+    fig.add_trace(
+        go.Scatter(
+            x=block_correct_pd["block_index"],
+            y=block_correct_pd["correct_rate"],
+            mode="lines+markers",
+            marker=dict(size=12),
+            line=dict(width=3),
+            hovertemplate="<b>区块</b>: %{x}<br><b>正确率</b>: %{y:.1%}<extra></extra>",
+        ),
+        row=2,
+        col=3,
+    )
+    fig.update_yaxes(range=[0, 1.05], title_text="正确率", row=2, col=3)
+    fig.update_xaxes(title_text="区块编号", row=2, col=3)
+
+    # 更新整体布局
+    fig.update_layout(
+        height=900,
+        width=1400,
+        title_text="面部情绪识别实验行为数据分析",
+        title_font_size=20,
+        showlegend=True,
+        hovermode="closest",
+    )
+
+    # 保存图表
+    html_path = result_dir / "facial_emotion_analysis.html"
+    png_path = result_dir / "facial_emotion_analysis.png"
+
+    fig.write_html(str(html_path))
+    fig.write_image(str(png_path), scale=2)
+
+    # 创建中性阈值专用图表
+    if "neutral_threshold_by_stimulus" in metrics:
+        create_neutral_threshold_visualization(metrics, result_dir)
+
+    return {"main_dashboard_html": html_path, "main_dashboard_png": png_path}
+
+
+def create_neutral_threshold_visualization(metrics, result_dir):
+    """创建中性阈值专用可视化"""
+    if "neutral_threshold_by_stimulus" not in metrics:
+        return
+
+    threshold_data = metrics["neutral_threshold_by_stimulus"].to_pandas()
+
+    fig = go.Figure()
+
+    # 柱状图：不同刺激类型被判断为中性的次数
+    fig.add_trace(
+        go.Bar(
+            x=threshold_data["stim_type"],
+            y=threshold_data["count"],
+            name="被判断为中性的次数",
+            text=threshold_data["count"],
+            textposition="auto",
+        )
+    )
+
+    # 折线图：被判断为中性的刺激的平均强度
+    fig.add_trace(
+        go.Scatter(
+            x=threshold_data["stim_type"],
+            y=threshold_data["mean_label_intensity"],
+            mode="lines+markers",
+            name="平均标签强度",
+            yaxis="y2",
+            line=dict(color="red", width=2),
+            marker=dict(size=10),
+        )
+    )
+
+    fig.update_layout(
+        title="中性阈值分析：不同刺激类型被判断为中性情况",
+        yaxis=dict(title="被判断为中性的次数"),
+        yaxis2=dict(title="平均标签强度", overlaying="y", side="right", range=[0, 10]),
+        hovermode="x unified",
+    )
+
+    threshold_path = result_dir / "neutral_threshold_analysis.html"
+    fig.write_html(str(threshold_path))
+
+    return threshold_path
+
+
+# ==================== 模块6: 结果保存 ====================
+# ==================== 模块6: 结果保存 ====================
+def save_results(df, metrics, stats_results, viz_paths, result_dir):
+    """
+    保存所有分析结果
+
+    返回:
+    dict: 保存的文件路径
+    """
+
+    # --- 新增：转换统计结果为可JSON序列化的格式 ---
+    def convert_to_serializable(obj):
+        """递归转换对象为JSON可序列化格式"""
+        if isinstance(obj, (pd.DataFrame, pd.Series)):
+            # 将DataFrame转换为字典列表
+            return obj.to_dict(orient="records")
+        elif isinstance(obj, dict):
+            return {k: convert_to_serializable(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [convert_to_serializable(item) for item in obj]
+        elif isinstance(obj, (np.integer, np.floating)):
+            # 转换numpy数值类型为Python内置类型
+            return obj.item()
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            # 其他类型（字符串、整数、浮点数、布尔值、None）直接返回
+            return obj
+
+    # 转换stats_results
+    serializable_stats = convert_to_serializable(stats_results)
+    # --- 新增结束 ---
+
+    saved_files = {}
+
+    # 1. 保存处理后的数据
+    data_path = result_dir / "processed_data.csv"
+    df.write_csv(str(data_path))
+    saved_files["processed_data"] = data_path
+
+    # 2. 保存指标结果
+    metrics_path = result_dir / "metrics_summary.json"
+
+    # 准备可JSON序列化的指标
+    json_metrics = {
+        "overall_accuracy": float(metrics["overall_accuracy"]),
+        "median_rt": float(metrics["median_rt"]),
+        "total_trials": int(metrics["total_trials"]),
+    }
+
+    # 添加其他指标
+    if "intensity_correlation" in metrics:
+        json_metrics["intensity_correlation"] = metrics["intensity_correlation"]
+
+    # 保存为JSON
+    with open(metrics_path, "w", encoding="utf-8") as f:
+        json.dump(json_metrics, f, ensure_ascii=False, indent=2)
+    saved_files["metrics_summary"] = metrics_path
+
+    # 3. 保存详细统计表
+    for metric_name, metric_df in metrics.items():
+        if isinstance(metric_df, pl.DataFrame):
+            csv_path = result_dir / f"{metric_name}.csv"
+            metric_df.write_csv(str(csv_path))
+            saved_files[metric_name] = csv_path
+
+    # 4. 保存统计检验结果 (使用转换后的serializable_stats)
+    stats_path = result_dir / "statistical_tests.json"
+    with open(stats_path, "w", encoding="utf-8") as f:
+        json.dump(
+            serializable_stats, f, ensure_ascii=False, indent=2
+        )  # 改为serializable_stats
+    saved_files["statistical_tests"] = stats_path
+
+    # 5. 记录可视化文件路径
+    saved_files.update(viz_paths)
+
+    return saved_files
+
+
+# ==================== 模块7: 主分析函数 ====================
+def analyze_emotion_data(
+    df, target_blocks=None, block_col="block_index", result_dir=None
+):
+    """
+    面部情绪识别数据分析主函数
+
+    参数:
+    df: 原始数据DataFrame
+    target_blocks: 目标区块列表
+    block_col: 区块列名
+    result_dir: 结果保存目录
+
+    返回:
+    dict: 分析结果
+    """
+    # 1. 数据预处理
+    processed_df = load_and_prepare_data(
+        df=df,
+        target_blocks=target_blocks,
+        block_col=block_col,
+        fill_na=True,
+    )
+
+    # 2. 计算基本指标
+    print("计算基本行为指标...")
+    metrics = calculate_basic_metrics(processed_df)
+
+    # 3. 计算强度指标和中性阈值
+    print("计算强度指标和中性阈值...")
+    intensity_metrics = calculate_intensity_metrics(processed_df)
+    metrics.update(intensity_metrics)
+
+    # 4. 执行统计检验
+    print("执行统计检验...")
+    stats_results = perform_statistical_tests(processed_df)
+
+    # 5. 创建可视化
+    print("创建可视化图表...")
+    viz_paths = create_visualizations(processed_df, metrics, result_dir)
+
+    # 6. 保存结果
+    print("保存分析结果...")
+    saved_files = save_results(
+        processed_df, metrics, stats_results, viz_paths, result_dir
+    )
+
+    # 7. 打印关键发现
+    print("\n" + "=" * 60)
+    print("关键发现摘要")
+    print("=" * 60)
+    print(f"总体正确率: {metrics['overall_accuracy']:.2%}")
+    print(f"中位反应时: {metrics['median_rt']:.3f} 秒")
+
+    if "neutral_threshold_by_stimulus" in metrics:
+        print("\n中性阈值分析:")
+        threshold_data = metrics["neutral_threshold_by_stimulus"]
+        for row in threshold_data.iter_rows():
+            stim_type, count, mean_intensity = row[0], row[1], row[2]
+            if count > 0:
+                print(
+                    f"  {stim_type}刺激被判断为中性: {count}次, 平均强度: {mean_intensity:.2f}"
+                )
+
+    if "intensity_correlation" in metrics:
+        corr_info = metrics["intensity_correlation"]
+        print(f"\n强度评分相关性: r = {corr_info['r']:.3f}, p = {corr_info['p']:.4f}")
+
+    return {
+        "processed_data": processed_df,
+        "metrics": metrics,
+        "statistical_results": stats_results,
+        "visualization_paths": viz_paths,
+        "saved_files": saved_files,
+    }
+
+
+# ==================== 模块8: 入口函数 ====================
+def run_emotion_analysis(cfg=None):
+    """运行面部情绪识别任务分析"""
+    print("=" * 60)
+    print("面部情绪识别分析系统")
+    print("=" * 60)
+
+    file_input = input("请输入数据文件路径: \n").strip("'").strip()
+
+    file_path = Path(file_input.strip("'").strip('"')).resolve()
+
+    if not file_path.exists():
+        print(f"❌ 文件不存在: {file_path}")
+        return
+
+    # 设置结果目录
+    if cfg is None:
+        result_dir = file_path.parent.parent / "results" / "emotion_analysis"
+    else:
+        result_dir = Path(cfg.result_dir)
+
+    result_dir.mkdir(parents=True, exist_ok=True)
+
+    # 读取数据
+    df = pl.read_csv(file_path)
+
+    # 运行分析
+    results = analyze_emotion_data(
+        df=df,
+        target_blocks=[0, 1],  # 目标区块
+        block_col="block_index",  # 区块列名
+        result_dir=result_dir,
+    )
+
+    print("\n" + "=" * 60)
+    print("分析完成！")
+    print(f"结果已保存至: {result_dir}")
+    print("=" * 60)
+
+    return results
+
+
+if __name__ == "__main__":
+    run_emotion_analysis()

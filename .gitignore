@@ -15,6 +15,7 @@ wheels/
 
 # data
 data/
+result*/
 
 # temp
 temp*

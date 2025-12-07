@@ -232,17 +232,17 @@ def calculate_probability_analysis(
 
         # A2: 前一个试次是rich但无奖励
         cond2 = lean_trials.filter(
-            (pl.col("prev_stim") == rich_stim) & (not pl.col("prev_rewarded"))
+            (pl.col("prev_stim") == rich_stim) & (pl.col("prev_rewarded") is False)
         )
 
         # 计算lean miss概率
         lean_miss_prob1 = (
-            (cond1.filter(not pl.col("correct")).height / cond1.height)
+            (cond1.filter(pl.col("correct") is False).height / cond1.height)
             if cond1.height > 0
             else 0
         )
         lean_miss_prob2 = (
-            (cond2.filter(not pl.col("correct")).height / cond2.height)
+            (cond2.filter(pl.col("correct") is False).height / cond2.height)
             if cond2.height > 0
             else 0
         )
@@ -262,12 +262,12 @@ def calculate_probability_analysis(
 
         # 计算rich miss概率
         rich_miss_prob1 = (
-            (cond3.filter(not pl.col("correct")).height / cond3.height)
+            (cond3.filter(pl.col("correct") is False).height / cond3.height)
             if cond3.height > 0
             else 0
         )
         rich_miss_prob2 = (
-            (cond4.filter(not pl.col("correct")).height / cond4.height)
+            (cond4.filter(pl.col("correct") is False).height / cond4.height)
             if cond4.height > 0
             else 0
         )

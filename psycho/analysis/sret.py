@@ -519,7 +519,7 @@ def create_valence_analysis_plot(valence_results: dict, result_dir: Path):
     fig.update_yaxes(title_text="反应时间 (ms)", row=1, col=2)
 
     fig.write_html(result_dir / "valence_analysis.html")
-    fig.show()
+    # fig.show()
 
 
 def create_rt_distribution_plot(df_pd, result_dir: Path):
@@ -539,7 +539,7 @@ def create_rt_distribution_plot(df_pd, result_dir: Path):
         template="plotly_white",
     )
     fig.write_html(result_dir / "rt_distribution.html")
-    fig.show()
+    # fig.show()
 
 
 def create_key_metrics_plot(key_metrics: dict, result_dir: Path):
@@ -622,7 +622,7 @@ def create_key_metrics_plot(key_metrics: dict, result_dir: Path):
         )
 
     fig.write_html(result_dir / "key_metrics.html")
-    fig.show()
+    # fig.show()
 
 
 def create_rt_intensity_plot(df_pd, result_dir: Path):
@@ -639,7 +639,7 @@ def create_rt_intensity_plot(df_pd, result_dir: Path):
     )
     fig.update_layout(template="plotly_white")
     fig.write_html(result_dir / "rt_intensity.html")
-    fig.show()
+    # fig.show()
 
 
 def create_visualizations(
@@ -788,7 +788,7 @@ def run_sret_analysis(cfg=None):
     print("=" * 60)
 
     # 获取文件路径
-    file_input = input("请输入数据文件路径: ").strip()
+    file_input = input("请输入数据文件路径: \n").strip()
     file_path = Path(file_input.strip("'").strip('"')).resolve()
 
     if not file_path.exists():
@@ -801,7 +801,7 @@ def run_sret_analysis(cfg=None):
     # 运行分析
 
     if cfg is None:
-        result_dir = file_path.parent.parent / "results"
+        result_dir = file_path.parent.parent / "results" / "sret_analysis"
     else:
         result_dir = Path(cfg.result_dir)
     result_dir.mkdir(parents=True, exist_ok=True)

@@ -755,7 +755,7 @@ def run_sret_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
     print("=" * 60)
     print("自我参照编码任务分析")
     print("=" * 60)
-    if data_utils.session_id is None:
+    if data_utils is None:
         file_input = input("请输入数据文件路径: \n").strip("'").strip()
         file_path = Path(file_input.strip("'").strip('"')).resolve()
     else:
@@ -773,7 +773,9 @@ def run_sret_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
         result_dir = file_path.parent.parent / "results"
     else:
         result_dir = Path(cfg.result_dir)
-    result_dir = result_dir / str(data_utils.session_id) / "sret_analysis"
+    if data_utils is not None:
+        result_dir = result_dir / str(data_utils.session_id)
+    result_dir = result_dir / "sret_analysis"
 
     result_dir.mkdir(parents=True, exist_ok=True)
     analyze_sret_data(

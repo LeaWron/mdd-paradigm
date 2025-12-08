@@ -222,17 +222,17 @@ def calculate_probability_analysis(
 
         # A2: 前一个试次是rich但无奖励
         cond2 = lean_trials.filter(
-            (pl.col("prev_stim") == rich_stim) & (pl.col("prev_rewarded") is False)
+            (pl.col("prev_stim") == rich_stim) & (~pl.col("prev_rewarded"))
         )
 
         # 计算lean miss概率
         lean_miss_prob1 = (
-            (cond1.filter(pl.col("correct") is False).height / cond1.height)
+            (cond1.filter(~pl.col("correct")).height / cond1.height)
             if cond1.height > 0
             else 0
         )
         lean_miss_prob2 = (
-            (cond2.filter(pl.col("correct") is False).height / cond2.height)
+            (cond2.filter(~pl.col("correct")).height / cond2.height)
             if cond2.height > 0
             else 0
         )
@@ -252,12 +252,12 @@ def calculate_probability_analysis(
 
         # 计算rich miss概率
         rich_miss_prob1 = (
-            (cond3.filter(pl.col("correct") is False).height / cond3.height)
+            (cond3.filter(~pl.col("correct")).height / cond3.height)
             if cond3.height > 0
             else 0
         )
         rich_miss_prob2 = (
-            (cond4.filter(pl.col("correct") is False).height / cond4.height)
+            (cond4.filter(~pl.col("correct")).height / cond4.height)
             if cond4.height > 0
             else 0
         )
@@ -656,6 +656,29 @@ def create_visualizations(
         col=3,
     )
 
+    # 图7: 反应时分布
+    # [ ] 这里实际没有数据
+    all_rt = []
+    for b in blocks:
+        block_data = prob_results[b].get("all_rt", [])
+        if block_data:
+            all_rt.extend(block_data)
+
+    if all_rt:
+        fig.add_trace(
+            go.Histogram(
+                x=all_rt,
+                name="反应时分布",
+                nbinsx=50,
+                marker_color="skyblue",
+            ),
+            row=3,
+            col=1,
+        )
+
+    fig.update_xaxes(title_text="反应时(秒)", row=3, col=1)
+    fig.update_yaxes(title_text="频数", row=3, col=1)
+
     # 图8: 学习曲线（以Block 0为例）
     if 0 in trend_results:
         block0_early = trend_results[0]["early_accuracy"]
@@ -789,11 +812,16 @@ def generate_report(
     lean_miss_diff = avg_lean_miss1 - avg_lean_miss2
     rich_miss_diff = avg_rich_miss2 - avg_rich_miss1
 
+    # 计算总体准确率和反应时
+    overall_accuracy = trials_df.filter(pl.col("correct")).height / trials_df.height
+    mean_rt = trials_df["rt"].mean()
+
     # 打印报告
     print("\n1. 数据概况:")
     print(f"   总试次数: {trials_df.height}")
     print(f"   Block数量: {len(blocks)}")
-    print(f"   平均反应时: {trials_df['rt'].mean():.3f}秒")
+    print(f"   总体准确率: {overall_accuracy:.3f}")
+    print(f"   平均反应时: {mean_rt:.3f}秒")
 
     print("\n2. 核心指标总结:")
     print(f"   平均反应偏向(Log b): {mean_log_b:.3f}")
@@ -819,6 +847,7 @@ def generate_report(
         f"      - 当前被试: Rich[{np.mean(rich_hit_rates):.3f}], Lean[{np.mean(lean_hit_rates):.3f}]"
     )
 
+    # [ ] 这里?
     print(f"   C. Lean miss概率差异: {lean_miss_diff:.3f}")
     print("      - 文献MDD组: ~0.18 (0.48 - 0.30)")
     print("      - 文献对照组: ~0.04 (0.49 - 0.45)")
@@ -897,18 +926,40 @@ def generate_report(
     rt_df = pl.DataFrame(rt_data)
     rt_df.write_csv(result_dir / "prt_reaction_time_results.csv")
 
+    # 保存综合报告
+    with open(result_dir / "prt_summary_report.txt", "w", encoding="utf-8") as f:
+        f.write("PRT（概率性奖励任务）数据分析报告\n")
+        f.write("=" * 60 + "\n\n")
+        f.write("1. 数据概况:\n")
+        f.write(f"   总试次数: {trials_df.height}\n")
+        f.write(f"   Block数量: {len(blocks)}\n")
+        f.write(f"   总体准确率: {overall_accuracy:.3f}\n")
+        f.write(f"   平均反应时: {mean_rt:.3f}秒\n\n")
+
+        f.write("2. 核心指标总结:\n")
+        f.write(f"   平均反应偏向(Log b): {mean_log_b:.3f}\n")
+        f.write(f"   平均辨别力(Log d): {mean_log_d:.3f}\n")
+        f.write(f"   平均Rich刺激击中率: {np.mean(rich_hit_rates):.3f}\n")
+        f.write(f"   平均Lean刺激击中率: {np.mean(lean_hit_rates):.3f}\n\n")
+
+        f.write("3. 概率分析结果:\n")
+        f.write(f"   Lean miss概率差异: {lean_miss_diff:.3f}\n")
+        f.write(f"   Rich miss概率差异: {rich_miss_diff:.3f}\n\n")
+
     print(f"\n结果已保存到: {result_dir}")
     print("  - prt_sdt_results.csv (SDT指标)")
     print("  - prt_probability_results.csv (概率分析结果)")
     print("  - prt_reaction_time_results.csv (反应时结果)")
     print("  - prt_visualization.html (可视化图表)")
+    print("  - prt_summary_report.txt (综合报告)")
 
     # 返回汇总结果
     return {
         "data_summary": {
             "total_trials": trials_df.height,
             "num_blocks": len(blocks),
-            "mean_rt": float(trials_df["rt"].mean()),
+            "overall_accuracy": float(overall_accuracy),
+            "mean_rt": float(mean_rt),
         },
         "sdt_metrics": {
             "mean_log_b": float(mean_log_b),
@@ -987,7 +1038,7 @@ def run_prt_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
     print("PRT（概率性奖励任务）分析")
     print("=" * 60)
 
-    if data_utils.session_id is None:
+    if data_utils is None:
         file_input = input("请输入数据文件路径: \n").strip("'").strip()
         file_path = Path(file_input.strip("'").strip('"')).resolve()
     else:
@@ -1006,7 +1057,10 @@ def run_prt_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
         result_dir = file_path.parent.parent / "results"
     else:
         result_dir = Path(cfg.result_dir)
-    result_dir = result_dir / str(data_utils.session_id) / "prt_analysis"
+
+    if data_utils is not None:
+        result_dir = result_dir / str(data_utils.session_id)
+    result_dir = result_dir / "prt_analysis"
 
     result_dir.mkdir(parents=True, exist_ok=True)
 

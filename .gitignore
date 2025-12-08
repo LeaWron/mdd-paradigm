@@ -23,3 +23,6 @@ temp*
 # hydra
 output/
 *.log
+
+# GazeFollower
+calib_models/

@@ -542,7 +542,9 @@ def entry(exp: Experiment | None = None):
         logger.info("begin eyetracking calibration")
 
         def calibrate_eyetracking():
-            ret = eyetracking_calibration(win=win, camera=exp.camera, formal=True)
+            ret = eyetracking_calibration(
+                win=win, camera=exp.camera, formal=True, info=exp.session_info
+            )
             if ret == 0:
                 logger.info("eyetracking failed")
             else:

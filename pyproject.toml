@@ -25,6 +25,7 @@ dependencies = [
     "screeninfo>=0.8.1",
     "seaborn>=0.13.2",
     "sounddevice>=0.5.3",
+    "statsmodels>=0.14.6",
 ]
 
 [tool.uv.sources]

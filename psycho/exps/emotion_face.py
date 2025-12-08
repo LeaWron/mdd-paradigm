@@ -143,6 +143,7 @@ def post_block():
     logger.info(
         f"Block {block_index + 1} end, current block correct rate: {correct_rate}"
     )
+    update_trial(one_trial_data, one_block_data)
     # resting
     text_front = "" if pre else "该区块结束\n"
     for i in range(timing["rest"], -1, -1):

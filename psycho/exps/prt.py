@@ -40,7 +40,7 @@ short_mouth = stim_folder / "short_mouth.png"
 long_mouth = stim_folder / "long_mouth.png"
 
 
-high_reward_prob = 0.3
+high_reward_prob = 0.6
 low_reward_prob = 1 - high_reward_prob
 
 
@@ -113,10 +113,10 @@ def give_reward(choice: str, right_choice: str):
                 return reward_high
             elif trial_index in reward_indice[block_index]["low"]:
                 return reward_low
-            elif right_choice == high_side and high_cache > 0:
+            elif right_choice == high_side_abrr and high_cache > 0:
                 high_cache -= 1
                 return reward_high
-            elif right_choice != high_side and low_cache > 0:
+            elif right_choice != high_side_abrr and low_cache > 0:
                 low_cache -= 1
                 return reward_low
             else:

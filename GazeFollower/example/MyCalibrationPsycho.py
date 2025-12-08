@@ -13,7 +13,6 @@ from typing import Any
 from gazefollower.calibration import SVRCalibration
 from gazefollower.misc import DefaultConfig
 from psychopy import core, visual  # 用于 UI 显示
-
 from gazefollower import GazeFollower
 
 from .HikrobotCamera import HikvisionCamera
@@ -34,49 +33,53 @@ def eyetracking_calibration(
     model_dir = Path(__file__).resolve().parent / "calib_models"
     if not model_dir.exists():
         model_dir.mkdir(exist_ok=True)
-
-    # 采集被试信息并用作文件夹名
-    root = tk.Tk()
-    root.withdraw()  # 隐藏主窗口，仅显示对话框
-    try:
-        subject_id = (
-            simpledialog.askstring("被试信息", "序号/ID:", parent=root) or "unknown"
-        )
-        subject_name = (
-            simpledialog.askstring("被试信息", "姓名:", parent=root) or "unknown"
-        )
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    finally:
-        root.destroy()
-
     def _sanitize(s: str) -> str:
         # 仅保留字母数字、下划线与中划线，其他替换为下划线
         return (
             "".join(c if (c.isalnum() or c in ("_", "-")) else "_" for c in s.strip())
             or "unknown"
         )
-
-    subject_id_s = _sanitize(subject_id)
-    subject_name_s = _sanitize(subject_name)
-    default_folder = f"{subject_id_s}_{subject_name_s}_{timestamp}"
-
-    # 再次弹窗允许用户自定义文件夹名（默认带入建议）
-    root2 = tk.Tk()
-    root2.withdraw()
-    try:
-        custom_folder = (
-            simpledialog.askstring(
-                "保存位置",
-                "自定义文件夹名称:",
-                initialvalue=default_folder,
-                parent=root2,
+    # 采集被试信息并用作文件夹名
+    if formal is False:
+        root = tk.Tk()
+        root.withdraw()  # 隐藏主窗口，仅显示对话框
+        try:
+            subject_id = (
+                simpledialog.askstring("被试信息", "序号/ID:", parent=root) or "unknown"
             )
-            or default_folder
-        )
-    finally:
-        root2.destroy()
+            subject_name = (
+                simpledialog.askstring("被试信息", "姓名:", parent=root) or "unknown"
+            )
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        finally:
+            root.destroy()
+        # 再次弹窗允许用户自定义文件夹名（默认带入建议）
+        root2 = tk.Tk()
+        root2.withdraw()
+        try:
+            custom_folder = (
+                simpledialog.askstring(
+                    "保存位置",
+                    "自定义文件夹名称:",
+                    initialvalue=default_folder,
+                    parent=root2,
+                )
+                or default_folder
+            )
+        finally:
+            root2.destroy()
 
-    folder_name = _sanitize(custom_folder)
+        
+        subject_id_s = info.get("session_id", "unknown")
+        subject_name_s = info.get("participant_id", "unknown")
+        default_folder = f"{subject_id_s}_{subject_name_s}_{timestamp}"
+        folder_name = _sanitize(custom_folder)
+    else: 
+        subject_id_s = info.get("session_id", "unknown") 
+        subject_name_s = info.get("participant_id", "unknown")
+        folder_name = f"{subject_id_s}_{subject_name_s}"
+
+    
     target_dir = model_dir / folder_name
     target_dir.mkdir(parents=True, exist_ok=True)
 

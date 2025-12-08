@@ -78,7 +78,7 @@ class CalibrationUI(BaseUI):
 
         uni_p, avg_labels, avg_predictions = [], [], []
         if cali_controller.predictions is not None:
-            text += "\nRed dot: ground truth point, Green dot: predicted point"
+            text += "\n红色点: 基准点位, 绿色点: 预测点位"
             ids = np.array(cali_controller.feature_ids)
             n_point, n_frame, ids_dim = ids.shape
             point_ids = ids.reshape(-1)
@@ -104,7 +104,7 @@ class CalibrationUI(BaseUI):
                 avg_labels[idx] = cali_controller.convert_to_pixel(avg_label)
                 avg_predictions[idx] = cali_controller.convert_to_pixel(avg_pred)
 
-        text += "\nPress `Space` to continue OR `R` to recalibration"
+        text += "\n请等待主试确认校准情况"
         while self.running:
             key = self.backend.listen_keys(key=("space", "r"))
             if key == "space":

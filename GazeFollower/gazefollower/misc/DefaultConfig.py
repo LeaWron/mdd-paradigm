@@ -50,7 +50,7 @@ class DefaultConfig:
 
         self.camera_position: Tuple = (17.15, -0.68)
         self.screen_physical_size = None
-        self.cali_instruction = "Please look at the dot.\nPress `SPACE` to continue."
+        self.cali_instruction = "请看向并注视校准点。\n按 `空格键` 后开始校准."
 
     @property
     def cali_mode(self):

@@ -6,15 +6,13 @@ import plotly.express as px
 import plotly.graph_objects as go
 import plotly.subplots as sp
 import polars as pl
+from omegaconf import DictConfig
 from plotly.subplots import make_subplots
 
-from psycho.analysis.utils import extract_trials_by_block
-
-# ==================== 数据处理模块 ====================
+from psycho.analysis.utils import DataUtils, extract_trials_by_block
 
 
 def load_and_preprocess_data(file_path: Path) -> pl.DataFrame:
-    """加载并预处理数据"""
     try:
         print(f"正在读取数据文件: {file_path}")
         df = pl.read_csv(file_path)
@@ -50,9 +48,6 @@ def load_and_preprocess_data(file_path: Path) -> pl.DataFrame:
         return None
 
 
-# ==================== Rich刺激识别模块 ====================
-
-
 def identify_rich_stimulus(trials_df: pl.DataFrame) -> dict[int, dict[str, Any]]:
     """识别每个Block的Rich刺激"""
     print("=" * 60)
@@ -75,6 +70,7 @@ def identify_rich_stimulus(trials_df: pl.DataFrame) -> dict[int, dict[str, Any]]
         ).height
 
         # 确定rich刺激（奖励次数多的）
+        # 或者给分数高的作为Rich刺激
         rich_stim = "s" if s_rewards > l_rewards else "l"
         lean_stim = "l" if rich_stim == "s" else "s"
 
@@ -94,9 +90,6 @@ def identify_rich_stimulus(trials_df: pl.DataFrame) -> dict[int, dict[str, Any]]
         print(f"  总试次数: {block_data.height}")
 
     return rich_stim_results
-
-
-# ==================== SDT指标计算模块 ====================
 
 
 def calculate_sdt_metrics(
@@ -190,15 +183,12 @@ def calculate_sdt_metrics(
     return sdt_results
 
 
-# ==================== 概率分析模块 ====================
-
-
 def calculate_probability_analysis(
     trials_df: pl.DataFrame, rich_stim_results: dict[int, dict[str, Any]]
 ) -> dict[int, dict[str, Any]]:
-    """进行概率分析（论文图3的关键分析）"""
+    """进行概率分析, 前一试次为高且无奖等的情况下的影响"""
     print("\n" + "=" * 60)
-    print("概率分析（论文图3的关键分析）")
+    print("概率分析")
     print("=" * 60)
 
     prob_results = {}
@@ -304,9 +294,6 @@ def calculate_probability_analysis(
     return prob_results
 
 
-# ==================== 反应时分析模块 ====================
-
-
 def analyze_reaction_time(
     trials_df: pl.DataFrame, rich_stim_results: dict[int, dict[str, Any]]
 ) -> dict[int, dict[str, float]]:
@@ -360,13 +347,10 @@ def analyze_reaction_time(
     return rt_by_block
 
 
-# ==================== 性能趋势分析模块 ====================
-
-
 def analyze_performance_trends(trials_df: pl.DataFrame) -> dict[int, dict[str, Any]]:
-    """分析性能随时间和试次的变化趋势"""
+    """分析表现随时间和试次的变化趋势"""
     print("\n" + "=" * 60)
-    print("性能趋势分析")
+    print("表现趋势分析")
     print("=" * 60)
 
     results = {}
@@ -413,9 +397,6 @@ def analyze_performance_trends(trials_df: pl.DataFrame) -> dict[int, dict[str, A
     return results
 
 
-# ==================== 可视化模块 ====================
-
-
 def create_visualizations(
     sdt_results: dict[int, dict[str, float]],
     prob_results: dict[int, dict[str, Any]],
@@ -423,7 +404,7 @@ def create_visualizations(
     trend_results: dict[int, dict[str, Any]],
     result_dir: Path,
 ) -> go.Figure:
-    """创建可视化图表"""
+    """可视化"""
     print("\n" + "=" * 60)
     print("创建可视化图表")
     print("=" * 60)
@@ -458,8 +439,8 @@ def create_visualizations(
     log_b_values = [sdt_results[b]["log_b"] for b in blocks]
 
     # 文献参考值
-    md_reference = [0.10, 0.12, 0.15]
-    control_reference = [0.19, 0.20, 0.21]
+    md_reference = [0.08, 0.12, 0.10]
+    control_reference = [0.19, 0.24, 0.23]
 
     fig.add_trace(
         go.Scatter(
@@ -772,9 +753,6 @@ def create_visualizations(
     return fig
 
 
-# ==================== 报告生成模块 ====================
-
-
 def generate_report(
     trials_df: pl.DataFrame,
     sdt_results: dict[int, dict[str, float]],
@@ -827,49 +805,29 @@ def generate_report(
     )
 
     print("\n3. 概率分析总结（关键发现）:")
-    print(f"   A. Lean miss概率差异: {lean_miss_diff:.3f}")
+    print(f"   A. Response Bias差异: {mean_log_b:.3f}")
+    print("      - 文献对照组: ~0.20, ~0.23, ~0.22")
+    print("      - 文献MDD组: ~0.08, ~0.11, ~0.10")
+    print(f"      - 当前被试: {mean_log_b:.3f}")
+
+    print(
+        f"   B. 击中率差异(Hit Rate): Rich[{np.mean(rich_hit_rates):.3f}], Lean[{np.mean(lean_hit_rates):.3f}]"
+    )
+    print("      - 文献对照组: Rich[0.88±0.06], Lean[0.75±0.03]")
+    print("      - 文献MDD组: Rich[0.86±0.08], Lean[0.77±0.05]")
+    print(
+        f"      - 当前被试: Rich[{np.mean(rich_hit_rates):.3f}], Lean[{np.mean(lean_hit_rates):.3f}]"
+    )
+
+    print(f"   C. Lean miss概率差异: {lean_miss_diff:.3f}")
     print("      - 文献MDD组: ~0.18 (0.48 - 0.30)")
     print("      - 文献对照组: ~0.04 (0.49 - 0.45)")
     print(f"      - 当前被试: {lean_miss_diff:.3f}")
 
-    print(f"\n   B. Rich miss概率差异: {rich_miss_diff:.3f}")
+    print(f"\n   D. Rich miss概率差异: {rich_miss_diff:.3f}")
     print("      - 文献MDD组: ~0.13 (0.25 - 0.12)")
     print("      - 文献对照组: ~-0.03 (0.10 - 0.13)")
     print(f"      - 当前被试: {rich_miss_diff:.3f}")
-
-    print("\n4. 临床模式评估:")
-    print("   =======================================")
-    print("   模式            | 反应偏向 | Lean miss差异 | Rich miss差异")
-    print("   ----------------|----------|---------------|-------------")
-    print("   文献MDD组       | <0.15    | >0.15         | >0.10")
-    print("   文献对照组      | >0.18    | <0.10         | <0.00")
-    print(
-        f"   当前被试        | {mean_log_b:.3f}    | {lean_miss_diff:.3f}         | {rich_miss_diff:.3f}"
-    )
-    print("   =======================================")
-
-    print("\n5. 综合临床评估:")
-    if mean_log_b < 0.15 and lean_miss_diff > 0.15 and rich_miss_diff > 0.10:
-        assessment = "MDD模式"
-        print("   🔴 强烈提示MDD模式：")
-        print("      - 低反应偏向 (<0.15)")
-        print("      - 无奖励后偏好迅速下降 (Lean miss差异大)")
-        print("      - 对贫刺激奖励过度反应 (Rich miss差异大)")
-    elif mean_log_b > 0.18 and lean_miss_diff < 0.10 and rich_miss_diff < 0.00:
-        assessment = "对照组模式"
-        print("   🟢 符合对照组模式：")
-        print("      - 高反应偏向 (>0.18)")
-        print("      - 良好奖励整合能力")
-        print("      - 能抵抗贫刺激奖励的干扰")
-    else:
-        assessment = "混合模式"
-        print("   🟡 混合模式或中间型：")
-        if mean_log_b < 0.15:
-            print("      - 反应偏向较低 (可能提示快感缺乏倾向)")
-        if lean_miss_diff > 0.15:
-            print("      - 奖励整合能力受损 (无奖励后偏好下降明显)")
-        if rich_miss_diff > 0.10:
-            print("      - 对贫刺激奖励过度反应 (干扰抵抗能力弱)")
 
     # 保存结果到文件
     # 保存SDT结果
@@ -962,7 +920,6 @@ def generate_report(
             "lean_miss_difference": float(lean_miss_diff),
             "rich_miss_difference": float(rich_miss_diff),
         },
-        "clinical_assessment": assessment,
     }
 
 
@@ -974,23 +931,6 @@ def analyze_prt_data(
     target_blocks: list[int] = [0, 1, 2],
     result_dir: Path = Path("results"),
 ) -> dict[str, Any]:
-    """
-    主分析函数：执行PRT数据分析
-
-    参数:
-    ----------
-    df : pl.DataFrame
-        原始数据
-    target_blocks : list[int]
-        目标区块列表
-    result_dir : Path
-        结果保存目录
-
-    返回:
-    -------
-    dict[str, Any]
-        分析结果汇总
-    """
     print("开始PRT数据分析...")
 
     # 1. 加载并预处理数据
@@ -1042,35 +982,34 @@ def analyze_prt_data(
     return results
 
 
-def run_prt_analysis(cfg=None):
-    """运行PRT（概率性奖励任务）分析"""
+def run_prt_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
     print("=" * 60)
-    print("PRT（概率性奖励任务）分析系统")
+    print("PRT（概率性奖励任务）分析")
     print("=" * 60)
 
-    # 获取文件路径
-    file_input = input("请输入数据文件路径: \n").strip("'").strip()
-
-    file_path = Path(file_input.strip("'").strip('"')).resolve()
+    if data_utils.session_id is None:
+        file_input = input("请输入数据文件路径: \n").strip("'").strip()
+        file_path = Path(file_input.strip("'").strip('"')).resolve()
+    else:
+        file_path = (
+            Path(cfg.output_dir) / data_utils.date / f"{data_utils.session_id}-prt.csv"
+        )
 
     if not file_path.exists():
         print(f"❌ 文件不存在: {file_path}")
         return
 
-    # 读取数据
     print(f"正在读取数据文件: {file_path}")
     df = pl.read_csv(file_path)
 
-    # 设置结果目录
     if cfg is None:
-        result_dir = file_path.parent / "prt_results"
-        result_dir = file_path.parent.parent / "results" / "prt_analysis"
+        result_dir = file_path.parent.parent / "results"
     else:
         result_dir = Path(cfg.result_dir)
+    result_dir = result_dir / str(data_utils.session_id) / "prt_analysis"
 
     result_dir.mkdir(parents=True, exist_ok=True)
 
-    # 运行分析
     results = analyze_prt_data(df=df, target_blocks=[0, 1, 2], result_dir=result_dir)
 
     print("\n" + "=" * 60)

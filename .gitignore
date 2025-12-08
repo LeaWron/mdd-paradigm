@@ -22,6 +22,4 @@ temp*
 
 # hydra
 output/
-session.log
-main.log
-xdf.log
+*.log

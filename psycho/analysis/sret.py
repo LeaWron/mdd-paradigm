@@ -7,9 +7,10 @@ import plotly.express as px
 import plotly.graph_objects as go
 import plotly.subplots as sp
 import polars as pl
+from omegaconf import DictConfig
 from scipy import stats
 
-from psycho.analysis.utils import extract_trials_by_block
+from psycho.analysis.utils import DataUtils, extract_trials_by_block
 
 # ============================================================================
 # 图片参考值（基于图片估计）
@@ -699,39 +700,12 @@ def save_results(results: dict, result_dir: Path):
     print(f"  结果已保存到: {result_dir}")
 
 
-# ============================================================================
-# 主分析函数
-# ============================================================================
-
-
 def analyze_sret_data(
     df: pl.DataFrame,
     target_blocks: int | list[int] = None,
     block_col: str = "block_index",
     result_dir: Path = None,
 ) -> dict:
-    """
-    主分析函数
-
-    Parameters:
-    -----------
-    df : pl.DataFrame
-        原始数据框
-    target_blocks : Optional[Union[int, List[int]]]
-        目标区块索引
-    block_col : str
-        区块列名
-    result_dir : Optional[Path]
-        结果保存目录
-
-    Returns:
-    --------
-    Dict: 分析结果
-    """
-    print("=" * 60)
-    print("自我参照编码任务分析")
-    print("=" * 60)
-
     # 设置结果目录
     if result_dir is None:
         result_dir = Path.cwd() / "sret_results"
@@ -776,34 +750,31 @@ def analyze_sret_data(
     return results
 
 
-# ============================================================================
-# 运行函数
-# ============================================================================
-
-
-def run_sret_analysis(cfg=None):
+def run_sret_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
     """运行自我参照编码任务分析"""
     print("=" * 60)
-    print("自我参照编码任务分析系统")
+    print("自我参照编码任务分析")
     print("=" * 60)
-
-    # 获取文件路径
-    file_input = input("请输入数据文件路径: \n").strip()
-    file_path = Path(file_input.strip("'").strip('"')).resolve()
+    if data_utils.session_id is None:
+        file_input = input("请输入数据文件路径: \n").strip("'").strip()
+        file_path = Path(file_input.strip("'").strip('"')).resolve()
+    else:
+        file_path = (
+            Path(cfg.output_dir) / data_utils.date / f"{data_utils.session_id}-sret.csv"
+        )
 
     if not file_path.exists():
         print(f"❌ 文件不存在: {file_path}")
         return
 
-    # 读取数据
     df = pl.read_csv(file_path)
 
-    # 运行分析
-
     if cfg is None:
-        result_dir = file_path.parent.parent / "results" / "sret_analysis"
+        result_dir = file_path.parent.parent / "results"
     else:
         result_dir = Path(cfg.result_dir)
+    result_dir = result_dir / str(data_utils.session_id) / "sret_analysis"
+
     result_dir.mkdir(parents=True, exist_ok=True)
     analyze_sret_data(
         df=df,

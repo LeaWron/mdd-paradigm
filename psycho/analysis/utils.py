@@ -1,4 +1,13 @@
+from dataclasses import dataclass
+from datetime import datetime
+
 import polars as pl
+
+
+@dataclass
+class DataUtils:
+    date: str = datetime.now().strftime("%Y-%m-%d")
+    session_id: int = 0
 
 
 def extract_trials_by_block(

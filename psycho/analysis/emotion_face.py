@@ -7,12 +7,13 @@ import pandas as pd
 import plotly.graph_objects as go
 import polars as pl
 import statsmodels.api as sm
+from omegaconf import DictConfig
 from plotly.subplots import make_subplots
 from scipy import stats
 from statsmodels.formula.api import ols
 from statsmodels.stats.anova import anova_lm
 
-from psycho.analysis.utils import extract_trials_by_block
+from psycho.analysis.utils import DataUtils, extract_trials_by_block
 
 warnings.filterwarnings("ignore")
 
@@ -727,37 +728,39 @@ def analyze_emotion_data(
     }
 
 
-# ==================== 模块8: 入口函数 ====================
-def run_emotion_analysis(cfg=None):
-    """运行面部情绪识别任务分析"""
+def run_emotion_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
     print("=" * 60)
-    print("面部情绪识别分析系统")
+    print("面部情绪识别分析")
     print("=" * 60)
 
-    file_input = input("请输入数据文件路径: \n").strip("'").strip()
-
-    file_path = Path(file_input.strip("'").strip('"')).resolve()
+    if data_utils.session_id is None:
+        file_input = input("请输入数据文件路径: \n").strip("'").strip()
+        file_path = Path(file_input.strip("'").strip('"')).resolve()
+    else:
+        file_path = (
+            Path(cfg.output_dir)
+            / data_utils.date
+            / f"{data_utils.session_id}-face_recognition.csv"
+        )
 
     if not file_path.exists():
         print(f"❌ 文件不存在: {file_path}")
         return
 
-    # 设置结果目录
     if cfg is None:
-        result_dir = file_path.parent.parent / "results" / "emotion_analysis"
+        result_dir = file_path.parent.parent / "results"
     else:
         result_dir = Path(cfg.result_dir)
+    result_dir = result_dir / str(data_utils.session_id) / "emotion_analysis"
 
     result_dir.mkdir(parents=True, exist_ok=True)
 
-    # 读取数据
     df = pl.read_csv(file_path)
 
-    # 运行分析
     results = analyze_emotion_data(
         df=df,
-        target_blocks=[0, 1],  # 目标区块
-        block_col="block_index",  # 区块列名
+        target_blocks=[0, 1],
+        block_col="block_index",
         result_dir=result_dir,
     )
 

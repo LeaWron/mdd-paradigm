@@ -46,7 +46,7 @@ class Experiment:
     logger: logging.Logger
     session_info: dict
     test: bool = False
-    camera = None  # transfer camera handler
+    camera: None = None  # transfer camera handler
 
 
 class Session:

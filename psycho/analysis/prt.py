@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -11,8 +12,34 @@ from plotly.subplots import make_subplots
 
 from psycho.analysis.utils import DataUtils, extract_trials_by_block
 
+REFERENCE_VALUES = {
+    "control": {
+        "log_b": [0.19, 0.24, 0.23],  # 对照组log b (三个block)
+        "rich_hit_rate": 0.88,
+        "lean_hit_rate": 0.75,
+        "lean_miss_diff": 0.04,  # 0.49-0.45
+        "rich_miss_diff": -0.03,  # 0.10-0.13
+        "lean_miss_after_rewarded_rich": 0.49,
+        "lean_miss_after_nonrewarded_rich": 0.45,
+        "rich_miss_after_rewarded_rich": 0.13,
+        "rich_miss_after_rewarded_lean": 0.10,
+    },
+    "mdd": {
+        "log_b": [0.08, 0.12, 0.10],  # MDD组log b (三个block)
+        "rich_hit_rate": 0.86,
+        "lean_hit_rate": 0.77,
+        "lean_miss_diff": 0.18,  # 0.48-0.30
+        "rich_miss_diff": 0.13,  # 0.25-0.12
+        "lean_miss_after_rewarded_rich": 0.48,
+        "lean_miss_after_nonrewarded_rich": 0.30,
+        "rich_miss_after_rewarded_rich": 0.12,
+        "rich_miss_after_rewarded_lean": 0.25,
+    },
+}
+
 
 def load_and_preprocess_data(file_path: Path) -> pl.DataFrame:
+    """加载并预处理数据"""
     try:
         print(f"正在读取数据文件: {file_path}")
         df = pl.read_csv(file_path)
@@ -70,7 +97,6 @@ def identify_rich_stimulus(trials_df: pl.DataFrame) -> dict[int, dict[str, Any]]
         ).height
 
         # 确定rich刺激（奖励次数多的）
-        # 或者给分数高的作为Rich刺激
         rich_stim = "s" if s_rewards > l_rewards else "l"
         lean_stim = "l" if rich_stim == "s" else "s"
 
@@ -175,6 +201,8 @@ def calculate_sdt_metrics(
 
         print(f"Block {block}:")
         print(f"  log_b (反应偏向) = {log_b:.3f}")
+        print(f"    文献对照组参考: {REFERENCE_VALUES['control']['log_b'][block]:.3f}")
+        print(f"    文献MDD组参考: {REFERENCE_VALUES['mdd']['log_b'][block]:.3f}")
         print(f"  log_d (辨别力) = {log_d:.3f}")
         print(f"  Rich刺激击中率 = {rich_hit_rate:.3f}")
         print(f"  Lean刺激击中率 = {lean_hit_rate:.3f}")
@@ -183,12 +211,12 @@ def calculate_sdt_metrics(
     return sdt_results
 
 
-def calculate_probability_analysis(
+def calculate_probability_analysis_improved(
     trials_df: pl.DataFrame, rich_stim_results: dict[int, dict[str, Any]]
 ) -> dict[int, dict[str, Any]]:
-    """进行概率分析, 前一试次为高且无奖等的情况下的影响"""
+    """改进的概率分析，更贴近文献方法"""
     print("\n" + "=" * 60)
-    print("概率分析")
+    print("概率分析（改进版）")
     print("=" * 60)
 
     prob_results = {}
@@ -262,11 +290,17 @@ def calculate_probability_analysis(
             else 0
         )
 
+        # 计算关键差异
+        lean_miss_diff = lean_miss_prob1 - lean_miss_prob2
+        rich_miss_diff = rich_miss_prob2 - rich_miss_prob1
+
         prob_results[block] = {
             "lean_miss_after_rewarded_rich": lean_miss_prob1,
             "lean_miss_after_nonrewarded_rich": lean_miss_prob2,
             "rich_miss_after_rewarded_rich": rich_miss_prob1,
             "rich_miss_after_rewarded_lean": rich_miss_prob2,
+            "lean_miss_difference": lean_miss_diff,
+            "rich_miss_difference": rich_miss_diff,
             "counts": {
                 "cond1": cond1.height,
                 "cond2": cond2.height,
@@ -280,16 +314,57 @@ def calculate_probability_analysis(
             f"  1. Lean miss概率（前试次富刺激有奖励）: {lean_miss_prob1:.3f} (n={cond1.height})"
         )
         print(
+            f"     文献对照组参考: {REFERENCE_VALUES['control']['lean_miss_after_rewarded_rich']:.3f}"
+        )
+        print(
+            f"     文献MDD组参考: {REFERENCE_VALUES['mdd']['lean_miss_after_rewarded_rich']:.3f}"
+        )
+
+        print(
             f"  2. Lean miss概率（前试次富刺激无奖励）: {lean_miss_prob2:.3f} (n={cond2.height})"
         )
-        print(f"  差异（1-2）: {lean_miss_prob1 - lean_miss_prob2:.3f}")
+        print(
+            f"     文献对照组参考: {REFERENCE_VALUES['control']['lean_miss_after_nonrewarded_rich']:.3f}"
+        )
+        print(
+            f"     文献MDD组参考: {REFERENCE_VALUES['mdd']['lean_miss_after_nonrewarded_rich']:.3f}"
+        )
+
+        print(f"  差异（1-2）: {lean_miss_diff:.3f}")
+        print(
+            f"     文献对照组参考差异: {REFERENCE_VALUES['control']['lean_miss_diff']:.3f}"
+        )
+        print(
+            f"     文献MDD组参考差异: {REFERENCE_VALUES['mdd']['lean_miss_diff']:.3f}"
+        )
+
         print(
             f"  3. Rich miss概率（前试次富刺激有奖励）: {rich_miss_prob1:.3f} (n={cond3.height})"
         )
         print(
+            f"     文献对照组参考: {REFERENCE_VALUES['control']['rich_miss_after_rewarded_rich']:.3f}"
+        )
+        print(
+            f"     文献MDD组参考: {REFERENCE_VALUES['mdd']['rich_miss_after_rewarded_rich']:.3f}"
+        )
+
+        print(
             f"  4. Rich miss概率（前试次贫刺激有奖励）: {rich_miss_prob2:.3f} (n={cond4.height})"
         )
-        print(f"  差异（4-3）: {rich_miss_prob2 - rich_miss_prob1:.3f}")
+        print(
+            f"     文献对照组参考: {REFERENCE_VALUES['control']['rich_miss_after_rewarded_lean']:.3f}"
+        )
+        print(
+            f"     文献MDD组参考: {REFERENCE_VALUES['mdd']['rich_miss_after_rewarded_lean']:.3f}"
+        )
+
+        print(f"  差异（4-3）: {rich_miss_diff:.3f}")
+        print(
+            f"     文献对照组参考差异: {REFERENCE_VALUES['control']['rich_miss_diff']:.3f}"
+        )
+        print(
+            f"     文献MDD组参考差异: {REFERENCE_VALUES['mdd']['rich_miss_diff']:.3f}"
+        )
 
     return prob_results
 
@@ -397,22 +472,148 @@ def analyze_performance_trends(trials_df: pl.DataFrame) -> dict[int, dict[str, A
     return results
 
 
+def calculate_diagnostic_indices(
+    sdt_results: dict[int, dict[str, float]],
+    prob_results: dict[int, dict[str, Any]],
+    rt_by_block: dict[int, dict[str, float]],
+) -> dict[str, float]:
+    """计算用于诊断的综合指标"""
+    print("\n" + "=" * 60)
+    print("计算诊断指标")
+    print("=" * 60)
+
+    blocks = sorted(sdt_results.keys())
+
+    # 平均log b
+    mean_log_b = np.mean([sdt_results[b]["log_b"] for b in blocks])
+
+    # 平均Lean miss差异
+    mean_lean_miss_diff = np.mean(
+        [prob_results[b]["lean_miss_difference"] for b in blocks]
+    )
+
+    # 平均Rich miss差异
+    mean_rich_miss_diff = np.mean(
+        [prob_results[b]["rich_miss_difference"] for b in blocks]
+    )
+
+    # 平均Rich击中率
+    mean_rich_hit_rate = np.mean([sdt_results[b]["rich_hit_rate"] for b in blocks])
+
+    # 平均Lean击中率
+    mean_lean_hit_rate = np.mean([sdt_results[b]["lean_hit_rate"] for b in blocks])
+
+    # 反应时差异
+    mean_rt_diff = np.mean([rt_by_block[b]["rt_diff"] for b in blocks])
+
+    # 4. 计算奖励整合指数
+    reward_integration_index = mean_lean_miss_diff - mean_rich_miss_diff
+
+    diagnostic_indices = {
+        "mean_log_b": mean_log_b,
+        "mean_lean_miss_diff": mean_lean_miss_diff,
+        "mean_rich_miss_diff": mean_rich_miss_diff,
+        "mean_rich_hit_rate": mean_rich_hit_rate,
+        "mean_lean_hit_rate": mean_lean_hit_rate,
+        "mean_rt_diff": mean_rt_diff,
+        "reward_integration_index": reward_integration_index,
+    }
+
+    print("关键诊断指标:")
+    print(f"  平均log b: {mean_log_b:.3f}")
+    print(f"  平均Lean miss差异: {mean_lean_miss_diff:.3f}")
+    print(f"  平均Rich miss差异: {mean_rich_miss_diff:.3f}")
+    print(f"  奖励整合指数: {reward_integration_index:.3f}")
+
+    return diagnostic_indices
+
+
+def generate_clinical_interpretation(
+    diagnostic_indices: dict[str, float],
+    sdt_results: dict[int, dict[str, float]],
+    prob_results: dict[int, dict[str, Any]],
+) -> str:
+    """生成临床解释报告"""
+
+    blocks = sorted(sdt_results.keys())
+
+    interpretation = []
+    interpretation.append("=" * 60)
+    interpretation.append("PRT解释报告")
+    interpretation.append("=" * 60)
+    interpretation.append("")
+
+    # 1. 总体概况
+    interpretation.append("1. 总体概况:")
+    mean_accuracy = np.mean([sdt_results[b]["overall_accuracy"] for b in blocks])
+    interpretation.append(f"   - 总体准确率: {mean_accuracy:.1%}")
+    interpretation.append(
+        f"   - 平均反应偏向(log b): {diagnostic_indices['mean_log_b']:.3f}"
+    )
+    interpretation.append("")
+
+    # 2. 反应偏向分析
+    interpretation.append("2. 反应偏向分析:")
+    mean_log_b = diagnostic_indices["mean_log_b"]
+    control_ref = np.mean(REFERENCE_VALUES["control"]["log_b"])
+    mdd_ref = np.mean(REFERENCE_VALUES["mdd"]["log_b"])
+
+    if mean_log_b > (control_ref + mdd_ref) / 2:
+        interpretation.append(
+            f"   - 反应偏向({mean_log_b:.3f})相对较高，接近对照组水平({control_ref:.3f})"
+        )
+        interpretation.append("   - 提示对奖励的反应相对正常")
+    elif mean_log_b < (control_ref + mdd_ref) / 2:
+        interpretation.append(
+            f"   - 反应偏向({mean_log_b:.3f})相对较低，接近MDD组水平({mdd_ref:.3f})"
+        )
+        interpretation.append("   - 提示可能存在奖励反应性降低")
+    else:
+        interpretation.append(f"   - 反应偏向({mean_log_b:.3f})处于中间水平")
+
+    interpretation.append("")
+
+    # 3. 奖励整合分析
+    interpretation.append("3. 奖励整合分析:")
+    lean_diff = diagnostic_indices["mean_lean_miss_diff"]
+    rich_diff = diagnostic_indices["mean_rich_miss_diff"]
+
+    if lean_diff > 0.1:  # 高于MDD-对照组的中间值
+        interpretation.append(f"   - Lean miss差异({lean_diff:.3f})较大")
+        interpretation.append("   - 提示对富刺激奖励的依赖较强，符合MDD模式")
+    else:
+        interpretation.append(f"   - Lean miss差异({lean_diff:.3f})较小")
+        interpretation.append("   - 提示奖励整合相对均衡")
+
+    if rich_diff > 0:
+        interpretation.append(f"   - Rich miss差异({rich_diff:.3f})为正")
+        interpretation.append("   - 提示对贫刺激奖励的反应过度，可能反映对惩罚的敏感")
+    else:
+        interpretation.append(f"   - Rich miss差异({rich_diff:.3f})为负或接近零")
+        interpretation.append("   - 提示对惩罚的反应在正常范围")
+
+    interpretation.append("")
+
+    return "\n".join(interpretation)
+
+
 def create_visualizations(
     sdt_results: dict[int, dict[str, float]],
     prob_results: dict[int, dict[str, Any]],
     rt_by_block: dict[int, dict[str, float]],
     trend_results: dict[int, dict[str, Any]],
+    diagnostic_indices: dict[str, float],
     result_dir: Path,
-) -> go.Figure:
-    """可视化"""
+) -> tuple[go.Figure, go.Figure]:
+    """创建可视化图表"""
     print("\n" + "=" * 60)
     print("创建可视化图表")
     print("=" * 60)
 
     blocks = sorted(sdt_results.keys())
 
-    # 创建子图
-    fig = make_subplots(
+    # ========== 主分析图 ==========
+    fig_main = make_subplots(
         rows=3,
         cols=3,
         subplot_titles=(
@@ -424,7 +625,7 @@ def create_visualizations(
             "6. 反应时对比",
             "7. 反应时分布",
             "8. 学习曲线",
-            "9. 奖励整合指数",
+            "9. 诊断指标",
         ),
         specs=[
             [{"type": "scatter"}, {"type": "bar"}, {"type": "scatter"}],
@@ -438,11 +639,7 @@ def create_visualizations(
     # 图1: 反应偏向(Log b)随Block变化
     log_b_values = [sdt_results[b]["log_b"] for b in blocks]
 
-    # 文献参考值
-    md_reference = [0.08, 0.12, 0.10]
-    control_reference = [0.19, 0.24, 0.23]
-
-    fig.add_trace(
+    fig_main.add_trace(
         go.Scatter(
             x=blocks,
             y=log_b_values,
@@ -457,10 +654,10 @@ def create_visualizations(
         col=1,
     )
 
-    fig.add_trace(
+    fig_main.add_trace(
         go.Scatter(
             x=blocks,
-            y=md_reference,
+            y=REFERENCE_VALUES["mdd"]["log_b"],
             mode="lines",
             name="文献MDD组",
             line=dict(width=2, color="red", dash="dash"),
@@ -470,10 +667,10 @@ def create_visualizations(
         col=1,
     )
 
-    fig.add_trace(
+    fig_main.add_trace(
         go.Scatter(
             x=blocks,
-            y=control_reference,
+            y=REFERENCE_VALUES["control"]["log_b"],
             mode="lines",
             name="文献对照组",
             line=dict(width=2, color="green", dash="dash"),
@@ -489,7 +686,7 @@ def create_visualizations(
 
     x_positions = np.arange(len(blocks))
 
-    fig.add_trace(
+    fig_main.add_trace(
         go.Bar(
             x=x_positions - 0.2,
             y=rich_hit_rates,
@@ -502,7 +699,7 @@ def create_visualizations(
         col=2,
     )
 
-    fig.add_trace(
+    fig_main.add_trace(
         go.Bar(
             x=x_positions + 0.2,
             y=lean_hit_rates,
@@ -515,12 +712,12 @@ def create_visualizations(
         col=2,
     )
 
-    fig.update_xaxes(
+    fig_main.update_xaxes(
         ticktext=[f"Block {b}" for b in blocks], tickvals=x_positions, row=1, col=2
     )
 
     # 图3: 准确率趋势
-    fig.add_trace(
+    fig_main.add_trace(
         go.Scatter(
             x=blocks,
             y=[sdt_results[b]["overall_accuracy"] for b in blocks],
@@ -540,7 +737,7 @@ def create_visualizations(
         [prob_results[b]["lean_miss_after_nonrewarded_rich"] for b in prob_results]
     )
 
-    fig.add_trace(
+    fig_main.add_trace(
         go.Bar(
             x=["前试次富刺激有奖励", "前试次富刺激无奖励"],
             y=[avg_lean_miss1, avg_lean_miss2],
@@ -554,10 +751,13 @@ def create_visualizations(
     )
 
     # 添加文献参考值
-    fig.add_trace(
+    fig_main.add_trace(
         go.Scatter(
             x=["前试次富刺激有奖励", "前试次富刺激无奖励"],
-            y=[0.48, 0.30],
+            y=[
+                REFERENCE_VALUES["mdd"]["lean_miss_after_rewarded_rich"],
+                REFERENCE_VALUES["mdd"]["lean_miss_after_nonrewarded_rich"],
+            ],
             mode="markers",
             name="文献MDD组",
             marker=dict(size=12, color="red", symbol="diamond"),
@@ -567,10 +767,13 @@ def create_visualizations(
         col=1,
     )
 
-    fig.add_trace(
+    fig_main.add_trace(
         go.Scatter(
             x=["前试次富刺激有奖励", "前试次富刺激无奖励"],
-            y=[0.49, 0.45],
+            y=[
+                REFERENCE_VALUES["control"]["lean_miss_after_rewarded_rich"],
+                REFERENCE_VALUES["control"]["lean_miss_after_nonrewarded_rich"],
+            ],
             mode="markers",
             name="文献对照组",
             marker=dict(size=12, color="green", symbol="diamond"),
@@ -588,7 +791,7 @@ def create_visualizations(
         [prob_results[b]["rich_miss_after_rewarded_lean"] for b in prob_results]
     )
 
-    fig.add_trace(
+    fig_main.add_trace(
         go.Bar(
             x=["前试次富刺激有奖励", "前试次贫刺激有奖励"],
             y=[avg_rich_miss1, avg_rich_miss2],
@@ -602,10 +805,13 @@ def create_visualizations(
     )
 
     # 添加文献参考值
-    fig.add_trace(
+    fig_main.add_trace(
         go.Scatter(
             x=["前试次富刺激有奖励", "前试次贫刺激有奖励"],
-            y=[0.12, 0.25],
+            y=[
+                REFERENCE_VALUES["mdd"]["rich_miss_after_rewarded_rich"],
+                REFERENCE_VALUES["mdd"]["rich_miss_after_rewarded_lean"],
+            ],
             mode="markers",
             name="文献MDD组",
             marker=dict(size=12, color="red", symbol="diamond"),
@@ -615,10 +821,13 @@ def create_visualizations(
         col=2,
     )
 
-    fig.add_trace(
+    fig_main.add_trace(
         go.Scatter(
             x=["前试次富刺激有奖励", "前试次贫刺激有奖励"],
-            y=[0.13, 0.10],
+            y=[
+                REFERENCE_VALUES["control"]["rich_miss_after_rewarded_rich"],
+                REFERENCE_VALUES["control"]["rich_miss_after_rewarded_lean"],
+            ],
             mode="markers",
             name="文献对照组",
             marker=dict(size=12, color="green", symbol="diamond"),
@@ -632,7 +841,7 @@ def create_visualizations(
     rt_rich_values = [rt_by_block[b]["rt_rich"] for b in blocks]
     rt_lean_values = [rt_by_block[b]["rt_lean"] for b in blocks]
 
-    fig.add_trace(
+    fig_main.add_trace(
         go.Scatter(
             x=blocks,
             y=rt_rich_values,
@@ -644,7 +853,7 @@ def create_visualizations(
         col=3,
     )
 
-    fig.add_trace(
+    fig_main.add_trace(
         go.Scatter(
             x=blocks,
             y=rt_lean_values,
@@ -657,34 +866,25 @@ def create_visualizations(
     )
 
     # 图7: 反应时分布
-    # [ ] 这里实际没有数据
-    all_rt = []
-    for b in blocks:
-        block_data = prob_results[b].get("all_rt", [])
-        if block_data:
-            all_rt.extend(block_data)
-
-    if all_rt:
-        fig.add_trace(
-            go.Histogram(
-                x=all_rt,
-                name="反应时分布",
-                nbinsx=50,
-                marker_color="skyblue",
-            ),
-            row=3,
-            col=1,
-        )
-
-    fig.update_xaxes(title_text="反应时(秒)", row=3, col=1)
-    fig.update_yaxes(title_text="频数", row=3, col=1)
+    # [ ] 需要从原始数据获取RT数据
+    # 这里假设trials_df在外部可用，暂时留空
+    fig_main.add_trace(
+        go.Histogram(
+            x=[],  # 将在外部填充
+            name="反应时分布",
+            nbinsx=50,
+            marker_color="skyblue",
+        ),
+        row=3,
+        col=1,
+    )
 
     # 图8: 学习曲线（以Block 0为例）
     if 0 in trend_results:
         block0_early = trend_results[0]["early_accuracy"]
         block0_late = trend_results[0]["late_accuracy"]
 
-        fig.add_trace(
+        fig_main.add_trace(
             go.Scatter(
                 x=["早期", "晚期"],
                 y=[block0_early, block0_late],
@@ -696,30 +896,24 @@ def create_visualizations(
             col=2,
         )
 
-    # 图9: 奖励整合指数
-    reward_integration_idx = []
-    for block in blocks:
-        lean_diff = (
-            prob_results[block]["lean_miss_after_rewarded_rich"]
-            - prob_results[block]["lean_miss_after_nonrewarded_rich"]
-        )
-        rich_diff = (
-            prob_results[block]["rich_miss_after_rewarded_lean"]
-            - prob_results[block]["rich_miss_after_rewarded_rich"]
-        )
-        # 综合指数：负值表示MDD模式，正值表示对照组模式
-        integration_idx = (lean_diff - 0.1) - (rich_diff - 0.02)
-        reward_integration_idx.append(integration_idx)
-
-    fig.add_trace(
+    # 图9: 诊断指标
+    fig_main.add_trace(
         go.Bar(
-            x=[f"Block {b}" for b in blocks],
-            y=reward_integration_idx,
-            name="奖励整合指数",
-            marker_color=[
-                "crimson" if idx < 0 else "green" for idx in reward_integration_idx
+            x=["反应偏向", "Lean miss差异", "Rich miss差异", "奖励整合指数"],
+            y=[
+                diagnostic_indices["mean_log_b"],
+                diagnostic_indices["mean_lean_miss_diff"],
+                diagnostic_indices["mean_rich_miss_diff"],
+                diagnostic_indices["reward_integration_index"],
             ],
-            text=[f"{idx:.3f}" for idx in reward_integration_idx],
+            name="诊断指标",
+            marker_color=["blue", "orange", "red", "green"],
+            text=[
+                f"{diagnostic_indices['mean_log_b']:.3f}",
+                f"{diagnostic_indices['mean_lean_miss_diff']:.3f}",
+                f"{diagnostic_indices['mean_rich_miss_diff']:.3f}",
+                f"{diagnostic_indices['reward_integration_index']:.3f}",
+            ],
             textposition="outside",
         ),
         row=3,
@@ -727,53 +921,39 @@ def create_visualizations(
     )
 
     # 添加参考线
-    fig.add_hline(y=0, line=dict(width=1, dash="dash"), row=3, col=3)
-
-    # 更新布局
-    fig.update_layout(
-        title=dict(
-            text="PRT（概率性奖励任务）行为学分析 - 综合报告",
-            font=dict(size=24, family="Arial Black"),
-            x=0.5,
-        ),
-        height=1400,
-        width=1600,
-        showlegend=True,
-        template="plotly_white",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-    )
+    fig_main.add_hline(y=0, line=dict(width=1, dash="dash"), row=3, col=3)
 
     # 更新坐标轴标签
-    fig.update_xaxes(title_text="Block", row=1, col=1)
-    fig.update_yaxes(title_text="Log b (反应偏向)", row=1, col=1)
+    fig_main.update_xaxes(title_text="Block", row=1, col=1)
+    fig_main.update_yaxes(title_text="Log b (反应偏向)", row=1, col=1)
 
-    fig.update_xaxes(title_text="Block", row=1, col=2)
-    fig.update_yaxes(title_text="击中率", range=[0.5, 1.0], row=1, col=2)
+    fig_main.update_xaxes(title_text="Block", row=1, col=2)
+    fig_main.update_yaxes(title_text="击中率", range=[0.5, 1.0], row=1, col=2)
 
-    fig.update_xaxes(title_text="Block", row=1, col=3)
-    fig.update_yaxes(title_text="准确率", range=[0.5, 1.0], row=1, col=3)
+    fig_main.update_xaxes(title_text="Block", row=1, col=3)
+    fig_main.update_yaxes(title_text="准确率", range=[0.5, 1.0], row=1, col=3)
 
-    fig.update_xaxes(title_text="条件", row=2, col=1)
-    fig.update_yaxes(title_text="Lean miss概率", range=[0, 0.6], row=2, col=1)
+    fig_main.update_xaxes(title_text="条件", row=2, col=1)
+    fig_main.update_yaxes(title_text="Lean miss概率", range=[0, 0.6], row=2, col=1)
 
-    fig.update_xaxes(title_text="条件", row=2, col=2)
-    fig.update_yaxes(title_text="Rich miss概率", range=[0, 0.35], row=2, col=2)
+    fig_main.update_xaxes(title_text="条件", row=2, col=2)
+    fig_main.update_yaxes(title_text="Rich miss概率", range=[0, 0.35], row=2, col=2)
 
-    fig.update_xaxes(title_text="Block", row=2, col=3)
-    fig.update_yaxes(title_text="反应时(秒)", row=2, col=3)
+    fig_main.update_xaxes(title_text="Block", row=2, col=3)
+    fig_main.update_yaxes(title_text="反应时(秒)", row=2, col=3)
 
-    fig.update_xaxes(title_text="学习阶段", row=3, col=2)
-    fig.update_yaxes(title_text="准确率", range=[0.5, 1.0], row=3, col=2)
+    fig_main.update_xaxes(title_text="学习阶段", row=3, col=2)
+    fig_main.update_yaxes(title_text="准确率", range=[0.5, 1.0], row=3, col=2)
 
-    fig.update_xaxes(title_text="Block", row=3, col=3)
-    fig.update_yaxes(title_text="奖励整合指数", row=3, col=3)
+    fig_main.update_xaxes(title_text="指标", row=3, col=3)
+    fig_main.update_yaxes(title_text="值", row=3, col=3)
 
     # 保存图表
-    html_path = result_dir / "prt_visualization.html"
-    fig.write_html(str(html_path))
-    print(f"可视化图表已保存: {html_path}")
+    html_path_main = result_dir / "prt_visualization.html"
+    fig_main.write_html(str(html_path_main))
+    print(f"主分析图表已保存: {html_path_main}")
 
-    return fig
+    return fig_main
 
 
 def generate_report(
@@ -782,6 +962,8 @@ def generate_report(
     prob_results: dict[int, dict[str, Any]],
     rt_by_block: dict[int, dict[str, float]],
     trend_results: dict[int, dict[str, Any]],
+    diagnostic_indices: dict[str, float],
+    clinical_interpretation: str,
     result_dir: Path,
 ) -> dict[str, Any]:
     """生成分析报告并保存结果"""
@@ -847,7 +1029,6 @@ def generate_report(
         f"      - 当前被试: Rich[{np.mean(rich_hit_rates):.3f}], Lean[{np.mean(lean_hit_rates):.3f}]"
     )
 
-    # [ ] 这里?
     print(f"   C. Lean miss概率差异: {lean_miss_diff:.3f}")
     print("      - 文献MDD组: ~0.18 (0.48 - 0.30)")
     print("      - 文献对照组: ~0.04 (0.49 - 0.45)")
@@ -926,6 +1107,10 @@ def generate_report(
     rt_df = pl.DataFrame(rt_data)
     rt_df.write_csv(result_dir / "prt_reaction_time_results.csv")
 
+    # 保存诊断指标
+    diagnostic_df = pl.DataFrame([diagnostic_indices])
+    diagnostic_df.write_csv(result_dir / "prt_diagnostic_indices.csv")
+
     # 保存综合报告
     with open(result_dir / "prt_summary_report.txt", "w", encoding="utf-8") as f:
         f.write("PRT（概率性奖励任务）数据分析报告\n")
@@ -950,7 +1135,8 @@ def generate_report(
     print("  - prt_sdt_results.csv (SDT指标)")
     print("  - prt_probability_results.csv (概率分析结果)")
     print("  - prt_reaction_time_results.csv (反应时结果)")
-    print("  - prt_visualization.html (可视化图表)")
+    print("  - prt_diagnostic_indices.csv (诊断指标)")
+    print("  - prt_visualization.html (主分析图表)")
     print("  - prt_summary_report.txt (综合报告)")
 
     # 返回汇总结果
@@ -971,6 +1157,7 @@ def generate_report(
             "lean_miss_difference": float(lean_miss_diff),
             "rich_miss_difference": float(rich_miss_diff),
         },
+        "diagnostic_indices": diagnostic_indices,
     }
 
 
@@ -982,9 +1169,16 @@ def analyze_prt_data(
     target_blocks: list[int] = [0, 1, 2],
     result_dir: Path = Path("results"),
 ) -> dict[str, Any]:
+    """主分析函数"""
     print("开始PRT数据分析...")
 
-    # 1. 加载并预处理数据
+    # 确保结果目录存在
+    result_dir.mkdir(parents=True, exist_ok=True)
+
+    # 记录开始时间
+    start_time = datetime.now()
+
+    # 1. 提取试次数据
     trials_df = extract_trials_by_block(
         df,
         target_block_indices=target_blocks,
@@ -1012,7 +1206,7 @@ def analyze_prt_data(
     sdt_results = calculate_sdt_metrics(trials_df, rich_stim_results)
 
     # 4. 概率分析
-    prob_results = calculate_probability_analysis(trials_df, rich_stim_results)
+    prob_results = calculate_probability_analysis_improved(trials_df, rich_stim_results)
 
     # 5. 反应时分析
     rt_by_block = analyze_reaction_time(trials_df, rich_stim_results)
@@ -1020,20 +1214,49 @@ def analyze_prt_data(
     # 6. 性能趋势分析
     trend_results = analyze_performance_trends(trials_df)
 
-    # 7. 创建可视化
-    _ = create_visualizations(
-        sdt_results, prob_results, rt_by_block, trend_results, result_dir
+    # 7. 计算诊断指标
+    diagnostic_indices = calculate_diagnostic_indices(
+        sdt_results, prob_results, rt_by_block
     )
 
-    # 8. 生成报告
-    results = generate_report(
-        trials_df, sdt_results, prob_results, rt_by_block, trend_results, result_dir
+    # 8. 生成临床解释
+    clinical_interpretation = generate_clinical_interpretation(
+        diagnostic_indices, sdt_results, prob_results
     )
+
+    # 9. 创建可视化
+    fig_main = create_visualizations(  # noqa: F841
+        sdt_results,
+        prob_results,
+        rt_by_block,
+        trend_results,
+        diagnostic_indices,
+        result_dir,
+    )
+
+    # 10. 生成报告
+    results = generate_report(
+        trials_df,
+        sdt_results,
+        prob_results,
+        rt_by_block,
+        trend_results,
+        diagnostic_indices,
+        clinical_interpretation,
+        result_dir,
+    )
+
+    # 记录结束时间
+    end_time = datetime.now()
+    duration = (end_time - start_time).total_seconds()
+
+    print(f"\n分析完成，耗时: {duration:.2f}秒")
 
     return results
 
 
 def run_prt_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
+    """运行PRT分析的主函数"""
     print("=" * 60)
     print("PRT（概率性奖励任务）分析")
     print("=" * 60)

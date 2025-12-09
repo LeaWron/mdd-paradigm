@@ -78,7 +78,6 @@ def load_and_prepare_data(
         .alias("rt_clean")
     )
 
-    print(processed_df["choice_type"].unique())
     processed_df = processed_df.with_columns(
         (pl.col("stim_type") == pl.col("choice_type")).alias("correct")
     )
@@ -374,9 +373,14 @@ def create_visualizations(df: pl.DataFrame, metrics, result_dir):
                 colorscale="Viridis",
                 showscale=True,
                 colorbar=dict(
-                    title="情绪类型",
+                    title=dict(text="反应时与正确率情绪类型", side="top"),
                     tickvals=[0, 1, 2],
                     ticktext=["积极", "中性", "消极"],
+                    len=0.1,
+                    y=0.5,
+                    x=1.1,
+                    thickness=15,
+                    orientation="h",
                 ),
             ),
             text=scatter_sample["stim_type"],
@@ -405,9 +409,14 @@ def create_visualizations(df: pl.DataFrame, metrics, result_dir):
                     colorscale=["#00cc96", "#ef553b"],
                     showscale=True,
                     colorbar=dict(
-                        title="情绪类型",
+                        title=dict(text="强度评分一致性情绪类型", side="top"),
                         tickvals=[0, 1],
                         ticktext=["积极", "消极"],
+                        len=0.1,
+                        y=0.2,
+                        x=1.1,
+                        thickness=15,
+                        orientation="h",
                     ),
                 ),
                 text=df_intensity_pd["stim_type"],

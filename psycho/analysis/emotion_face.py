@@ -18,7 +18,6 @@ from psycho.analysis.utils import DataUtils, extract_trials_by_block
 warnings.filterwarnings("ignore")
 
 
-# ==================== 模块1: 数据加载与预处理 ====================
 def load_and_prepare_data(
     df: pl.DataFrame,
     target_blocks=None,
@@ -26,15 +25,11 @@ def load_and_prepare_data(
     trial_col="trial_index",
     fill_na=True,
 ):
-    # 读取原始数据
     raw_df = df
     print(f"原始数据形状: {raw_df.shape}")
 
-    # 设置默认目标区块
     if target_blocks is None:
         target_blocks = [0, 1]
-
-    # 使用自定义工具函数提取目标区块数据
 
     processed_df = extract_trials_by_block(
         df=raw_df,
@@ -46,9 +41,8 @@ def load_and_prepare_data(
 
     print(f"处理后数据形状: {processed_df.shape}")
 
-    # 映射情绪类型
     def map_stim_type(col_value):
-        if col_value is None:
+        if col_value is None or col_value == "" or col_value == "null":
             return "unknown"
         stim_lower = str(col_value).lower()
         if "positive" in stim_lower or "pos" in stim_lower:
@@ -63,25 +57,27 @@ def load_and_prepare_data(
     processed_df = processed_df.with_columns(
         [
             pl.col("stim")
-            .map_elements(map_stim_type, return_dtype=pl.Utf8)
+            .map_elements(map_stim_type, return_dtype=pl.Utf8, skip_nulls=False)
             .alias("stim_type"),
             pl.col("choice")
-            .map_elements(map_stim_type, return_dtype=pl.Utf8)
+            .map_elements(map_stim_type, return_dtype=pl.Utf8, skip_nulls=False)
             .alias("choice_type"),
         ]
     )
 
-    # 清理反应时数据
+    # [ ] 没有反应的是否要加惩罚处理
+    # [ ] 反应太快的是否抛弃
     processed_df = processed_df.with_columns(
         pl.when(pl.col("rt") < 0.1)
         .then(0.1)
         .when(pl.col("rt") > 5.0)
         .then(5.0)
+        .when(pl.col("rt").is_null())
+        .then(pl.col("rt").max() + 0.6)
         .otherwise(pl.col("rt"))
         .alias("rt_clean")
     )
 
-    # 计算正确性
     processed_df = processed_df.with_columns(
         (pl.col("stim_type") == pl.col("choice_type")).alias("correct")
     )
@@ -89,14 +85,7 @@ def load_and_prepare_data(
     return processed_df
 
 
-# ==================== 模块2: 基本指标计算 ====================
 def calculate_basic_metrics(df):
-    """
-    计算基本行为指标
-
-    返回:
-    dict: 包含各项指标的字典
-    """
     metrics = {}
 
     # 总体指标
@@ -143,14 +132,7 @@ def calculate_basic_metrics(df):
     return metrics
 
 
-# ==================== 模块3: 强度与中性阈值分析 ====================
 def calculate_intensity_metrics(df):
-    """
-    计算强度相关指标和中性阈值
-
-    返回:
-    dict: 包含强度指标和中性阈值的字典
-    """
     metrics = {}
 
     # 强度一致性分析（非中性刺激）
@@ -193,8 +175,8 @@ def calculate_intensity_metrics(df):
                 "n": len(corr_df),
             }
 
-    # ==================== 新增：中性阈值分析 ====================
-    # 分析1: 按刺激的实际类型，看被判断为中性的那些刺激的强度分布
+    # 中性阈值分析
+    # 按刺激的实际类型，看被判断为中性的那些刺激的强度分布
     neutral_choices_by_stim = df.filter(pl.col("choice_type") == "neutral")
 
     if neutral_choices_by_stim.height > 0:
@@ -225,8 +207,7 @@ def calculate_intensity_metrics(df):
 
         metrics["neutral_intensity_distribution"] = intensity_distribution
 
-    # 分析2: 按被试的选择，看那些被判断为中性的刺激的实际强度
-    # 这反映了被试的"主观中性"对应的客观强度范围
+    # 按被试的选择，看那些被判断为中性的刺激的实际强度
     metrics["neutral_judgment_summary"] = (
         df.group_by("choice_type")
         .agg(
@@ -241,7 +222,7 @@ def calculate_intensity_metrics(df):
         .sort("choice_type")
     )
 
-    # 分析3: 找出最可能被判断为中性的强度阈值
+    # 找出最可能被判断为中性的强度阈值
     # 对于每个刺激类型，计算被判断为中性的比例随强度的变化
     neutral_prob_by_intensity = []
     for stim_type in ["positive", "negative"]:
@@ -286,25 +267,18 @@ def calculate_intensity_metrics(df):
     return metrics
 
 
-# ==================== 模块4: 统计分析 ====================
 def perform_statistical_tests(df, df_intensity=None):
-    """
-    执行统计检验
-
-    返回:
-    dict: 统计检验结果
-    """
     results = {}
 
     # 转换为pandas以兼容统计库
     df_pd = df.to_pandas()
 
-    # 1. 不同情绪类型正确率的卡方检验
+    # 不同情绪类型正确率的卡方检验
     contingency_table = pd.crosstab(df_pd["stim_type"], df_pd["correct"])
     chi2, p, dof, expected = stats.chi2_contingency(contingency_table)
     results["chi2_test_accuracy"] = {"chi2": chi2, "p": p, "df": dof}
 
-    # 2. 反应时的方差分析
+    # 反应时的方差分析
     anova_data = df_pd[["stim_type", "rt_clean"]].dropna()
     model = ols("rt_clean ~ C(stim_type)", data=anova_data).fit()
     anova_table = anova_lm(model)
@@ -315,7 +289,7 @@ def perform_statistical_tests(df, df_intensity=None):
         "df_den": anova_table["df"][1],
     }
 
-    # 3. 速度-准确性权衡分析
+    # 速度-准确性权衡分析
     df_pd["rt_quartile"] = pd.qcut(
         df_pd["rt_clean"], 4, labels=["最快", "较快", "较慢", "最慢"]
     )
@@ -325,20 +299,12 @@ def perform_statistical_tests(df, df_intensity=None):
     return results
 
 
-# ==================== 模块5: 可视化 ====================
-def create_visualizations(df, metrics, result_dir):
-    """
-    创建可视化图表
-
-    返回:
-    dict: 图表文件路径
-    """
-    # 准备数据
+def create_visualizations(df: pl.DataFrame, metrics, result_dir):
     emotion_correct_pd = metrics["emotion_accuracy"].to_pandas()
     rt_summary_pd = metrics["reaction_time"].to_pandas()  # noqa: F841
     df_pd = df.to_pandas()  # noqa: F841
 
-    # 准备强度数据
+    # 强度数据
     df_intensity = df.filter(pl.col("stim_type") != "neutral")
     df_intensity_pd = df_intensity.to_pandas() if df_intensity.height > 0 else None
 
@@ -358,7 +324,7 @@ def create_visualizations(df, metrics, result_dir):
         horizontal_spacing=0.1,
     )
 
-    # 1. 正确率分布
+    # 正确率分布
     fig.add_trace(
         go.Bar(
             x=emotion_correct_pd["stim_type"],
@@ -372,7 +338,7 @@ def create_visualizations(df, metrics, result_dir):
     )
     fig.update_yaxes(range=[0, 1.05], title_text="正确率", row=1, col=1)
 
-    # 2. 反应时分布
+    # 反应时分布
     for stim_type in ["positive", "neutral", "negative"]:
         rt_data = (
             df.filter(pl.col("stim_type") == stim_type)["rt_clean"]
@@ -392,7 +358,7 @@ def create_visualizations(df, metrics, result_dir):
             )
     fig.update_yaxes(title_text="反应时 (秒)", row=1, col=2)
 
-    # 3. 正确率与反应时的关系
+    # 正确率与反应时的关系
     scatter_sample = df.sample(fraction=0.3, seed=42).to_pandas()
     fig.add_trace(
         go.Scatter(
@@ -407,9 +373,14 @@ def create_visualizations(df, metrics, result_dir):
                 colorscale="Viridis",
                 showscale=True,
                 colorbar=dict(
-                    title="情绪类型",
+                    title=dict(text="反应时与正确率情绪类型", side="top"),
                     tickvals=[0, 1, 2],
                     ticktext=["积极", "中性", "消极"],
+                    len=0.1,
+                    y=0.5,
+                    x=1.1,
+                    thickness=15,
+                    orientation="h",
                 ),
             ),
             text=scatter_sample["stim_type"],
@@ -423,7 +394,7 @@ def create_visualizations(df, metrics, result_dir):
     )
     fig.update_xaxes(title_text="反应时 (秒)", row=1, col=3)
 
-    # 4. 强度评分一致性
+    # 强度评分一致性
     if df_intensity_pd is not None and len(df_intensity_pd) > 0:
         fig.add_trace(
             go.Scatter(
@@ -438,7 +409,14 @@ def create_visualizations(df, metrics, result_dir):
                     colorscale=["#00cc96", "#ef553b"],
                     showscale=True,
                     colorbar=dict(
-                        title="情绪类型", tickvals=[0, 1], ticktext=["积极", "消极"]
+                        title=dict(text="强度评分一致性情绪类型", side="top"),
+                        tickvals=[0, 1],
+                        ticktext=["积极", "消极"],
+                        len=0.1,
+                        y=0.2,
+                        x=1.1,
+                        thickness=15,
+                        orientation="h",
                     ),
                 ),
                 text=df_intensity_pd["stim_type"],
@@ -462,7 +440,7 @@ def create_visualizations(df, metrics, result_dir):
     fig.update_xaxes(title_text="标签强度 (预设)", row=2, col=1)
     fig.update_yaxes(title_text="被试评分强度", row=2, col=1)
 
-    # 5. 中性阈值分析
+    # 中性阈值分析
     if "neutral_probability_by_intensity" in metrics:
         neutral_prob_data = metrics["neutral_probability_by_intensity"]
         for stim_type in ["positive", "negative"]:
@@ -473,7 +451,7 @@ def create_visualizations(df, metrics, result_dir):
                     go.Scatter(
                         x=stim_prob_pd["label_intensity"],
                         y=stim_prob_pd["neutral_prob"],
-                        mode="lines+markers",
+                        mode="markers",
                         name=f"{stim_type}被判断为中性的概率",
                         line=dict(width=2),
                         marker=dict(size=8),
@@ -484,7 +462,7 @@ def create_visualizations(df, metrics, result_dir):
     fig.update_yaxes(range=[0, 1.05], title_text="被判断为中性的概率", row=2, col=2)
     fig.update_xaxes(title_text="刺激标签强度", row=2, col=2)
 
-    # 6. 分块正确率变化
+    # 分块正确率变化
     block_correct_pd = metrics["block_accuracy"].to_pandas()
     fig.add_trace(
         go.Scatter(
@@ -571,17 +549,7 @@ def create_neutral_threshold_visualization(metrics, result_dir):
     return threshold_path
 
 
-# ==================== 模块6: 结果保存 ====================
-# ==================== 模块6: 结果保存 ====================
 def save_results(df, metrics, stats_results, viz_paths, result_dir):
-    """
-    保存所有分析结果
-
-    返回:
-    dict: 保存的文件路径
-    """
-
-    # --- 新增：转换统计结果为可JSON序列化的格式 ---
     def convert_to_serializable(obj):
         """递归转换对象为JSON可序列化格式"""
         if isinstance(obj, (pd.DataFrame, pd.Series)):
@@ -602,72 +570,54 @@ def save_results(df, metrics, stats_results, viz_paths, result_dir):
 
     # 转换stats_results
     serializable_stats = convert_to_serializable(stats_results)
-    # --- 新增结束 ---
 
     saved_files = {}
 
-    # 1. 保存处理后的数据
+    # 处理后的数据
     data_path = result_dir / "processed_data.csv"
     df.write_csv(str(data_path))
     saved_files["processed_data"] = data_path
 
-    # 2. 保存指标结果
+    # 指标结果
     metrics_path = result_dir / "metrics_summary.json"
 
-    # 准备可JSON序列化的指标
+    # JSON序列化
     json_metrics = {
         "overall_accuracy": float(metrics["overall_accuracy"]),
         "median_rt": float(metrics["median_rt"]),
         "total_trials": int(metrics["total_trials"]),
     }
 
-    # 添加其他指标
     if "intensity_correlation" in metrics:
         json_metrics["intensity_correlation"] = metrics["intensity_correlation"]
 
-    # 保存为JSON
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(json_metrics, f, ensure_ascii=False, indent=2)
     saved_files["metrics_summary"] = metrics_path
 
-    # 3. 保存详细统计表
+    # 详细统计表
     for metric_name, metric_df in metrics.items():
         if isinstance(metric_df, pl.DataFrame):
             csv_path = result_dir / f"{metric_name}.csv"
             metric_df.write_csv(str(csv_path))
             saved_files[metric_name] = csv_path
 
-    # 4. 保存统计检验结果 (使用转换后的serializable_stats)
+    # 统计检验结果
     stats_path = result_dir / "statistical_tests.json"
     with open(stats_path, "w", encoding="utf-8") as f:
-        json.dump(
-            serializable_stats, f, ensure_ascii=False, indent=2
-        )  # 改为serializable_stats
+        json.dump(serializable_stats, f, ensure_ascii=False, indent=2)
     saved_files["statistical_tests"] = stats_path
 
-    # 5. 记录可视化文件路径
+    # 可视化文件路径
     saved_files.update(viz_paths)
 
     return saved_files
 
 
-# ==================== 模块7: 主分析函数 ====================
 def analyze_emotion_data(
     df, target_blocks=None, block_col="block_index", result_dir=None
 ):
-    """
-    面部情绪识别数据分析主函数
-
-    参数:
-    df: 原始数据DataFrame
-    target_blocks: 目标区块列表
-    block_col: 区块列名
-    result_dir: 结果保存目录
-
-    返回:
-    dict: 分析结果
-    """
-    # 1. 数据预处理
+    # 预处理
     processed_df = load_and_prepare_data(
         df=df,
         target_blocks=target_blocks,
@@ -675,32 +625,26 @@ def analyze_emotion_data(
         fill_na=True,
     )
 
-    # 2. 计算基本指标
     print("计算基本行为指标...")
     metrics = calculate_basic_metrics(processed_df)
 
-    # 3. 计算强度指标和中性阈值
     print("计算强度指标和中性阈值...")
     intensity_metrics = calculate_intensity_metrics(processed_df)
     metrics.update(intensity_metrics)
 
-    # 4. 执行统计检验
     print("执行统计检验...")
     stats_results = perform_statistical_tests(processed_df)
 
-    # 5. 创建可视化
     print("创建可视化图表...")
     viz_paths = create_visualizations(processed_df, metrics, result_dir)
 
-    # 6. 保存结果
     print("保存分析结果...")
     saved_files = save_results(
         processed_df, metrics, stats_results, viz_paths, result_dir
     )
 
-    # 7. 打印关键发现
     print("\n" + "=" * 60)
-    print("关键发现摘要")
+    print("摘要")
     print("=" * 60)
     print(f"总体正确率: {metrics['overall_accuracy']:.2%}")
     print(f"中位反应时: {metrics['median_rt']:.3f} 秒")
@@ -733,7 +677,7 @@ def run_emotion_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
     print("面部情绪识别分析")
     print("=" * 60)
 
-    if data_utils.session_id is None:
+    if data_utils is None:
         file_input = input("请输入数据文件路径: \n").strip("'").strip()
         file_path = Path(file_input.strip("'").strip('"')).resolve()
     else:
@@ -751,7 +695,9 @@ def run_emotion_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
         result_dir = file_path.parent.parent / "results"
     else:
         result_dir = Path(cfg.result_dir)
-    result_dir = result_dir / str(data_utils.session_id) / "emotion_analysis"
+    if data_utils is not None:
+        result_dir = result_dir / str(data_utils.session_id)
+    result_dir = result_dir / "emotion_analysis"
 
     result_dir.mkdir(parents=True, exist_ok=True)
 

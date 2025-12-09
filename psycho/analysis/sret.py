@@ -3,6 +3,7 @@ import warnings
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import plotly.subplots as sp
@@ -12,76 +13,17 @@ from scipy import stats
 
 from psycho.analysis.utils import DataUtils, extract_trials_by_block
 
-# ============================================================================
-# 图片参考值（基于图片估计）
-# ============================================================================
-
 PICTURE_REFERENCE = {
     # 注意：这些值是估计值，需要根据实际情况调整
     "endorsement_count": {
-        "HCO": {"positive": 1400, "negative": 400},  # 估计值
-        "MDD": {"positive": 600, "negative": 1000},  # 估计值
+        "HCO": {"positive": 30, "negative": 2},
+        "MDD": {"positive": 12, "negative": 24},
     },
     "reaction_time": {
-        "HCO": {"positive": 1000, "negative": 1200},  # 估计值
-        "MDD": {"positive": 1400, "negative": 1600},  # 估计值
-    },
-    # 关键指标参考模式（从图片推断）
-    "key_indicators": {
-        "positive_bias_hco": 0.3,  # HCO组的积极偏向
-        "positive_bias_mdd": -0.2,  # MDD组的消极偏向
-        "rt_neg_pos_difference": 200,  # 消极-积极词RT差异
-        "endorsed_not_difference": 100,  # 认同-不认同RT差异
+        "HCO": {"positive": 500, "negative": 1150},
+        "MDD": {"positive": 900, "negative": 600},
     },
 }
-
-
-# ============================================================================
-# 辅助函数
-# ============================================================================
-
-
-def _interpret_positive_bias(bias: float) -> str:
-    """解释积极偏向"""
-    if bias > 0.1:
-        return "强烈的积极自我概念偏向（类似HCO组模式）"
-    elif bias > 0:
-        return "轻微的积极自我概念偏向"
-    elif bias < -0.1:
-        return "强烈的消极自我概念偏向（类似MDD组模式）"
-    elif bias < 0:
-        return "轻微的消极自我概念偏向"
-    else:
-        return "中性，无偏向"
-
-
-def _interpret_rt_difference(diff: float) -> str:
-    """解释RT差异"""
-    if diff > 300:
-        return "处理消极词明显慢于积极词"
-    elif diff > 100:
-        return "处理消极词慢于积极词（正常范围）"
-    elif diff > -100:
-        return "处理积极词和消极词速度相当"
-    else:
-        return "处理积极词慢于消极词（非典型）"
-
-
-def _interpret_endorsed_rt_difference(diff: float) -> str:
-    """解释认同-不认同RT差异"""
-    if diff > 200:
-        return "认同判断明显慢于不认同判断"
-    elif diff > 50:
-        return "认同判断慢于不认同判断（典型）"
-    elif diff > -50:
-        return "认同与不认同判断速度相当"
-    else:
-        return "认同判断快于不认同判断（非典型）"
-
-
-# ============================================================================
-# 数据预处理函数
-# ============================================================================
 
 
 def preprocess_sret_data(
@@ -91,7 +33,6 @@ def preprocess_sret_data(
 ) -> pl.DataFrame:
     print("1. 数据预处理...")
 
-    # 提取目标区块
     if target_blocks is not None:
         print(f"  提取区块 {target_blocks} 的数据...")
         df_processed = extract_trials_by_block(
@@ -115,7 +56,16 @@ def preprocess_sret_data(
         return None
 
     # 转换反应时为毫秒
-    df_processed = df_processed.with_columns((pl.col("rt") * 1000).alias("rt_ms"))
+    df_processed = df_processed.with_columns(
+        (
+            pl.when(pl.col("rt").is_null())
+            .then(pl.col("rt").max() + 1)
+            .otherwise(pl.col("rt"))
+        ),
+    )
+    df_processed = df_processed.with_columns(
+        (pl.col("rt") * 1000).alias("rt_ms"),
+    )
 
     # 处理强度评分（如果有）
     if "intensity" in df_processed.columns:
@@ -132,13 +82,7 @@ def preprocess_sret_data(
     return df_processed
 
 
-# ============================================================================
-# 分析函数
-# ============================================================================
-
-
 def analyze_basic(df: pl.DataFrame) -> dict:
-    """基础分析"""
     print("\n2. 基础分析...")
 
     results = {}
@@ -215,7 +159,6 @@ def analyze_basic(df: pl.DataFrame) -> dict:
 
 
 def analyze_valence(df: pl.DataFrame) -> dict:
-    """词性分析（积极/消极）"""
     print("\n3. 词性分析...")
 
     results = {}
@@ -271,7 +214,6 @@ def analyze_valence(df: pl.DataFrame) -> dict:
 
 
 def calculate_key_metrics(df: pl.DataFrame, valence_results: dict) -> dict:
-    """计算关键指标"""
     print("\n4. 计算关键指标...")
 
     metrics = {}
@@ -346,82 +288,7 @@ def calculate_key_metrics(df: pl.DataFrame, valence_results: dict) -> dict:
     return metrics
 
 
-def compare_with_picture_reference(key_metrics: dict) -> dict:
-    """与图片参考值比较"""
-    print("\n5. 与图片参考值比较...")
-
-    comparison = {}
-    pic_ref = PICTURE_REFERENCE["key_indicators"]
-
-    print("  图片参考模式:")
-    print(
-        f"  1. 积极偏向参考值: HCO组≈{pic_ref['positive_bias_hco']:.2f}, MDD组≈{pic_ref['positive_bias_mdd']:.2f}"
-    )
-    print(f"  2. 消极-积极词RT差异: ≈{pic_ref['rt_neg_pos_difference']} ms")
-    print(f"  3. 认同-不认同RT差异: ≈{pic_ref['endorsed_not_difference']} ms")
-
-    # 比较每个指标
-    for metric_name, metric_value in key_metrics.items():
-        if metric_name == "positive_bias":
-            # 比较积极偏向
-            comparison[metric_name] = {
-                "value": metric_value,
-                "interpretation": _interpret_positive_bias(metric_value),
-            }
-            print("\n  积极偏向分析:")
-            print(f"    你的数据: {metric_value:.3f}")
-            print(f"    解释: {comparison[metric_name]['interpretation']}")
-
-        elif metric_name == "rt_negative_minus_positive":
-            # 比较RT差异
-            ref_value = pic_ref["rt_neg_pos_difference"]
-            difference = metric_value - ref_value
-            percent_diff = (difference / ref_value) * 100 if ref_value != 0 else 0
-
-            comparison[metric_name] = {
-                "value": metric_value,
-                "reference": ref_value,
-                "difference": difference,
-                "percent_difference": percent_diff,
-                "interpretation": _interpret_rt_difference(metric_value),
-            }
-
-            print("\n  消极-积极词RT差异分析:")
-            print(f"    你的数据: {metric_value:.1f} ms")
-            print(f"    图片参考: {ref_value} ms")
-            print(f"    差异: {difference:.1f} ms ({percent_diff:.1f}%)")
-            print(f"    解释: {comparison[metric_name]['interpretation']}")
-
-        elif metric_name == "rt_endorsed_minus_not":
-            # 比较认同-不认同RT差异
-            ref_value = pic_ref["endorsed_not_difference"]
-            difference = metric_value - ref_value
-            percent_diff = (difference / ref_value) * 100 if ref_value != 0 else 0
-
-            comparison[metric_name] = {
-                "value": metric_value,
-                "reference": ref_value,
-                "difference": difference,
-                "percent_difference": percent_diff,
-                "interpretation": _interpret_endorsed_rt_difference(metric_value),
-            }
-
-            print("\n  认同-不认同RT差异分析:")
-            print(f"    你的数据: {metric_value:.1f} ms")
-            print(f"    图片参考: {ref_value} ms")
-            print(f"    差异: {difference:.1f} ms ({percent_diff:.1f}%)")
-            print(f"    解释: {comparison[metric_name]['interpretation']}")
-
-    return comparison
-
-
-# ============================================================================
-# 可视化函数
-# ============================================================================
-
-
 def create_valence_analysis_plot(valence_results: dict, result_dir: Path):
-    """创建词性分析图（类似参考图片）"""
     if "valence_stats" not in valence_results:
         return
 
@@ -474,6 +341,37 @@ def create_valence_analysis_plot(valence_results: dict, result_dir: Path):
             col=1,
         )
 
+        fig.add_trace(
+            go.Scatter(
+                x=["积极词", "消极词"],
+                y=[
+                    PICTURE_REFERENCE["endorsement_count"]["HCO"]["positive"],
+                    PICTURE_REFERENCE["endorsement_count"]["HCO"]["negative"],
+                ],
+                mode="markers",
+                name="对照组参考",
+                marker=dict(size=12, color="red", symbol="diamond"),
+                opacity=0.7,
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=["积极词", "消极词"],
+                y=[
+                    PICTURE_REFERENCE["endorsement_count"]["MDD"]["positive"],
+                    PICTURE_REFERENCE["endorsement_count"]["MDD"]["negative"],
+                ],
+                mode="markers",
+                name="MDD参考",
+                marker=dict(size=12, color="green", symbol="diamond"),
+                opacity=0.7,
+            ),
+            row=1,
+            col=1,
+        )
+
     # 图表2：反应时间
     if "positive" in valence_dict and "negative" in valence_dict:
         pos_data = valence_dict["positive"]
@@ -506,10 +404,40 @@ def create_valence_analysis_plot(valence_results: dict, result_dir: Path):
             row=1,
             col=2,
         )
+        fig.add_trace(
+            go.Scatter(
+                x=["积极词", "消极词"],
+                y=[
+                    PICTURE_REFERENCE["reaction_time"]["HCO"]["positive"],
+                    PICTURE_REFERENCE["reaction_time"]["HCO"]["negative"],
+                ],
+                mode="markers",
+                name="对照组参考",
+                marker=dict(size=12, color="red", symbol="diamond"),
+                opacity=0.7,
+            ),
+            row=1,
+            col=2,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=["积极词", "消极词"],
+                y=[
+                    PICTURE_REFERENCE["reaction_time"]["MDD"]["positive"],
+                    PICTURE_REFERENCE["reaction_time"]["MDD"]["negative"],
+                ],
+                mode="markers",
+                name="MDD参考",
+                marker=dict(size=12, color="green", symbol="diamond"),
+                opacity=0.7,
+            ),
+            row=1,
+            col=2,
+        )
 
     # 更新布局
     fig.update_layout(
-        title="词性分析（类似参考图片）",
+        title="词性分析",
         template="plotly_white",
         showlegend=True,
         height=400,
@@ -519,12 +447,11 @@ def create_valence_analysis_plot(valence_results: dict, result_dir: Path):
     fig.update_yaxes(title_text="认同数量", row=1, col=1)
     fig.update_yaxes(title_text="反应时间 (ms)", row=1, col=2)
 
-    fig.write_html(result_dir / "valence_analysis.html")
+    fig.write_html(result_dir / "key_analysis.html")
     # fig.show()
 
 
-def create_rt_distribution_plot(df_pd, result_dir: Path):
-    """创建反应时分布图"""
+def create_rt_distribution_plot(df_pd: pd.DataFrame, result_dir: Path):
     fig = px.histogram(
         df_pd,
         x="rt_ms",
@@ -544,8 +471,7 @@ def create_rt_distribution_plot(df_pd, result_dir: Path):
 
 
 def create_key_metrics_plot(key_metrics: dict, result_dir: Path):
-    """创建关键指标可视化"""
-    # 筛选要显示的指标
+    # 要显示的指标
     display_metrics = {
         "positive_bias": "积极偏向",
         "rt_negative_minus_positive": "消极-积极RT差",
@@ -564,7 +490,6 @@ def create_key_metrics_plot(key_metrics: dict, result_dir: Path):
             value = key_metrics[metric_key]
             metric_values.append(abs(value) if metric_key != "positive_bias" else value)
 
-            # 根据值设置颜色
             if metric_key == "positive_bias":
                 if value > 0.1:
                     metric_colors.append("lightblue")  # 强积极偏向
@@ -581,19 +506,28 @@ def create_key_metrics_plot(key_metrics: dict, result_dir: Path):
         return
 
     # 创建条形图
-    fig = go.Figure(
-        data=[
-            go.Bar(
-                x=metric_names,
-                y=metric_values,
-                marker_color=metric_colors,
-                text=[
-                    f"{v:.3f}" if metric_names[i] == "积极偏向" else f"{v:.1f}"
-                    for i, v in enumerate(metric_values)
-                ],
-                textposition="auto",
-            )
-        ]
+    fig = sp.make_subplots(rows=1, cols=2, subplot_titles="关键指标")
+    fig.add_trace(
+        go.Bar(
+            x=["消极-积极RT差", "认同-不认同RT差"],
+            y=[
+                key_metrics["rt_negative_minus_positive"],
+                key_metrics["rt_endorsed_minus_not"],
+            ],
+            marker_color=["lightcoral", "lightskyblue"],
+        ),
+        row=1,
+        col=1,
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=["积极偏向", "认同率"],
+            y=[key_metrics["positive_bias"], key_metrics["endorsement_rate"]],
+            marker_color=["lightblue", "lightgreen"],
+        ),
+        row=1,
+        col=2,
     )
 
     fig.update_layout(
@@ -601,7 +535,7 @@ def create_key_metrics_plot(key_metrics: dict, result_dir: Path):
         xaxis_title="指标",
         yaxis_title="数值",
         template="plotly_white",
-        showlegend=False,
+        showlegend=True,
     )
 
     # 添加参考线（针对积极偏向）
@@ -611,15 +545,19 @@ def create_key_metrics_plot(key_metrics: dict, result_dir: Path):
             y=0.1,
             line_dash="dash",
             line_color="blue",
-            annotation_text="HCO模式阈值",
+            annotation_text="HC阈值",
             annotation_position="top right",
+            row=1,
+            col=2,
         )
         fig.add_hline(
             y=-0.1,
             line_dash="dash",
             line_color="red",
-            annotation_text="MDD模式阈值",
+            annotation_text="MDD阈值",
             annotation_position="bottom right",
+            row=1,
+            col=2,
         )
 
     fig.write_html(result_dir / "key_metrics.html")
@@ -628,6 +566,7 @@ def create_key_metrics_plot(key_metrics: dict, result_dir: Path):
 
 def create_rt_intensity_plot(df_pd, result_dir: Path):
     """创建反应时与强度关系图"""
+    # [ ] 未必是线性拟合, 先用着
     fig = px.scatter(
         df_pd,
         x="rt_ms",
@@ -636,8 +575,9 @@ def create_rt_intensity_plot(df_pd, result_dir: Path):
         title="反应时与强度关系",
         labels={"rt_ms": "反应时 (ms)", "intensity": "强度评分 (0-10)"},
         hover_data=["stim_word"],
-        trendline="ols",
+        trendline="lowess",
     )
+    # ['lowess', 'rolling', 'ewm', 'expanding', 'ols']
     fig.update_layout(template="plotly_white")
     fig.write_html(result_dir / "rt_intensity.html")
     # fig.show()
@@ -650,13 +590,12 @@ def create_visualizations(
     key_metrics: dict,
     result_dir: Path,
 ):
-    """创建可视化图表"""
     print("\n6. 生成可视化图表...")
 
     # 转换为pandas用于Plotly
     df_pd = df.to_pandas() if df.height < 10000 else df.head(1000).to_pandas()
 
-    # 图表1：词性分析图（类似参考图片）
+    # 图表1：词性分析图
     if "valence_stats" in valence_results:
         create_valence_analysis_plot(valence_results, result_dir)
 
@@ -671,20 +610,13 @@ def create_visualizations(
         create_rt_intensity_plot(df_pd, result_dir)
 
 
-# ============================================================================
-# 保存结果函数
-# ============================================================================
-
-
 def save_results(results: dict, result_dir: Path):
-    """保存分析结果"""
     print("\n7. 保存分析结果...")
 
-    # 保存为JSON
     with open(result_dir / "sret_analysis_results.json", "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
 
-    # 保存关键指标为CSV
+    # 关键指标
     if "key_metrics" in results:
         metrics_data = []
         for key, value in results["key_metrics"].items():
@@ -706,43 +638,34 @@ def analyze_sret_data(
     block_col: str = "block_index",
     result_dir: Path = None,
 ) -> dict:
-    # 设置结果目录
-    if result_dir is None:
-        result_dir = Path.cwd() / "sret_results"
-    result_dir.mkdir(parents=True, exist_ok=True)
-
-    # 1. 数据预处理
+    # 数据预处理
     df_processed = preprocess_sret_data(df, target_blocks, block_col)
     if df_processed is None:
         return {}
 
-    # 2. 基础分析
+    # 基础分析
     basic_results = analyze_basic(df_processed)
 
-    # 3. 词性分析
+    # 词性分析
     if "stim_type" in df_processed.columns:
         valence_results = analyze_valence(df_processed)
     else:
         valence_results = {}
         warnings.warn("未找到stim_type列，跳过词性分析")
 
-    # 4. 计算关键指标
+    # 计算关键指标
     key_metrics = calculate_key_metrics(df_processed, valence_results)
 
-    # 5. 与图片参考值比较
-    comparison_results = compare_with_picture_reference(key_metrics)
-
-    # 6. 生成可视化
+    # 生成可视化
     create_visualizations(
         df_processed, basic_results, valence_results, key_metrics, result_dir
     )
 
-    # 7. 保存结果
+    # 保存结果
     results = {
         "basic": basic_results,
         "valence": valence_results,
         "key_metrics": key_metrics,
-        "comparison": comparison_results,
     }
 
     save_results(results, result_dir)
@@ -751,11 +674,10 @@ def analyze_sret_data(
 
 
 def run_sret_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
-    """运行自我参照编码任务分析"""
     print("=" * 60)
     print("自我参照编码任务分析")
     print("=" * 60)
-    if data_utils.session_id is None:
+    if data_utils is None:
         file_input = input("请输入数据文件路径: \n").strip("'").strip()
         file_path = Path(file_input.strip("'").strip('"')).resolve()
     else:
@@ -773,7 +695,9 @@ def run_sret_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
         result_dir = file_path.parent.parent / "results"
     else:
         result_dir = Path(cfg.result_dir)
-    result_dir = result_dir / str(data_utils.session_id) / "sret_analysis"
+    if data_utils is not None:
+        result_dir = result_dir / str(data_utils.session_id)
+    result_dir = result_dir / "sret_analysis"
 
     result_dir.mkdir(parents=True, exist_ok=True)
     analyze_sret_data(

@@ -324,6 +324,9 @@ def trial():
     # 选择了中性情绪, 则强度为0
     if resp_emotion == "neutral":
         one_trial_data["intensity"] = 0
+        logger.info(
+            f"neutral, while true intensity is {one_trial_data['label_intensity']:.2f}"
+        )
         send_marker(lsl_outlet, "RESPONSE_3", is_pre=pre)
 
 
@@ -542,7 +545,9 @@ def entry(exp: Experiment | None = None):
         logger.info("begin eyetracking calibration")
 
         def calibrate_eyetracking():
-            ret = eyetracking_calibration(win=win, camera=exp.camera, formal=True, info=exp.session_info)
+            ret = eyetracking_calibration(
+                win=win, camera=exp.camera, formal=True, info=exp.session_info
+            )
             if ret == 0:
                 logger.info("eyetracking failed")
             else:

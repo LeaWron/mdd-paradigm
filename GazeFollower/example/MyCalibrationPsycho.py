@@ -4,7 +4,6 @@ from pathlib import Path
 sys.path.append(
     str(Path(__file__).resolve().parent.parent)
 )  # Adds GazeFollower-main/ to path
-# [ ] UI 不重复使用, session info 不重复收集
 import tkinter as tk
 from datetime import datetime
 from tkinter import simpledialog
@@ -30,7 +29,7 @@ def eyetracking_calibration(
     config = DefaultConfig()
     config.cali_mode = 13  # 13 点校准
 
-    model_dir = Path(__file__).resolve().parent / "calib_models"
+    model_dir = Path(__file__).resolve().parent.parent.parent / "data" / "calib_models"
     if not model_dir.exists():
         model_dir.mkdir(exist_ok=True)
     def _sanitize(s: str) -> str:
@@ -71,12 +70,12 @@ def eyetracking_calibration(
 
         
         subject_id_s = info.get("session_id", "unknown")
-        subject_name_s = info.get("participant_id", "unknown")
+        subject_name_s = info.get("name", "unknown")
         default_folder = f"{subject_id_s}_{subject_name_s}_{timestamp}"
         folder_name = _sanitize(custom_folder)
     else: 
         subject_id_s = info.get("session_id", "unknown") 
-        subject_name_s = info.get("participant_id", "unknown")
+        subject_name_s = info.get("name", "unknown")
         folder_name = f"{subject_id_s}_{subject_name_s}"
 
     
@@ -88,7 +87,7 @@ def eyetracking_calibration(
     mycamera = camera
     print(f"camera is f{camera}")
     # 初始化 GazeFollower
-    if mycamera == None:
+    if mycamera is None:
         mycamera = HikvisionCamera()
     else:
         mycamera = HikvisionCamera(camera_handler=mycamera, formal=True)
@@ -118,7 +117,7 @@ def eyetracking_calibration(
 
     # 释放资源
     gf.release()
-    if formal is 0:
+    if formal is False:
         ret = 1
         win.close()
         core.quit()

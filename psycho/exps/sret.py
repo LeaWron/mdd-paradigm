@@ -134,9 +134,10 @@ def draw_fixation(time: float):
 
 def rating_slider(resp: Literal["yes", "no"]):
     win.setMouseVisible(visibility=True)
+    verb = "<c=#51d237>符合</c>" if resp == "yes" else "<c=#eb5555>不符合</c>"
     prompt = visual.TextBox2(
         win,
-        text=intensity_prompt,
+        text=f"{intensity_prompt}{verb}程度",
         color="white",
         pos=(0, 0.4),
         size=(1.2, None),

@@ -3,6 +3,7 @@ import warnings
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import plotly.subplots as sp
@@ -55,7 +56,16 @@ def preprocess_sret_data(
         return None
 
     # 转换反应时为毫秒
-    df_processed = df_processed.with_columns((pl.col("rt") * 1000).alias("rt_ms"))
+    df_processed = df_processed.with_columns(
+        (
+            pl.when(pl.col("rt").is_null())
+            .then(pl.col("rt").max() + 1)
+            .otherwise(pl.col("rt"))
+        ),
+    )
+    df_processed = df_processed.with_columns(
+        (pl.col("rt") * 1000).alias("rt_ms"),
+    )
 
     # 处理强度评分（如果有）
     if "intensity" in df_processed.columns:
@@ -73,7 +83,6 @@ def preprocess_sret_data(
 
 
 def analyze_basic(df: pl.DataFrame) -> dict:
-    """基础分析"""
     print("\n2. 基础分析...")
 
     results = {}
@@ -332,6 +341,37 @@ def create_valence_analysis_plot(valence_results: dict, result_dir: Path):
             col=1,
         )
 
+        fig.add_trace(
+            go.Scatter(
+                x=["积极词", "消极词"],
+                y=[
+                    PICTURE_REFERENCE["endorsement_count"]["HCO"]["positive"],
+                    PICTURE_REFERENCE["endorsement_count"]["HCO"]["negative"],
+                ],
+                mode="markers",
+                name="对照组参考",
+                marker=dict(size=12, color="red", symbol="diamond"),
+                opacity=0.7,
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=["积极词", "消极词"],
+                y=[
+                    PICTURE_REFERENCE["endorsement_count"]["MDD"]["positive"],
+                    PICTURE_REFERENCE["endorsement_count"]["MDD"]["negative"],
+                ],
+                mode="markers",
+                name="MDD参考",
+                marker=dict(size=12, color="green", symbol="diamond"),
+                opacity=0.7,
+            ),
+            row=1,
+            col=1,
+        )
+
     # 图表2：反应时间
     if "positive" in valence_dict and "negative" in valence_dict:
         pos_data = valence_dict["positive"]
@@ -364,6 +404,36 @@ def create_valence_analysis_plot(valence_results: dict, result_dir: Path):
             row=1,
             col=2,
         )
+        fig.add_trace(
+            go.Scatter(
+                x=["积极词", "消极词"],
+                y=[
+                    PICTURE_REFERENCE["reaction_time"]["HCO"]["positive"],
+                    PICTURE_REFERENCE["reaction_time"]["HCO"]["negative"],
+                ],
+                mode="markers",
+                name="对照组参考",
+                marker=dict(size=12, color="red", symbol="diamond"),
+                opacity=0.7,
+            ),
+            row=1,
+            col=2,
+        )
+        fig.add_trace(
+            go.Scatter(
+                x=["积极词", "消极词"],
+                y=[
+                    PICTURE_REFERENCE["reaction_time"]["MDD"]["positive"],
+                    PICTURE_REFERENCE["reaction_time"]["MDD"]["negative"],
+                ],
+                mode="markers",
+                name="MDD参考",
+                marker=dict(size=12, color="green", symbol="diamond"),
+                opacity=0.7,
+            ),
+            row=1,
+            col=2,
+        )
 
     # 更新布局
     fig.update_layout(
@@ -377,11 +447,11 @@ def create_valence_analysis_plot(valence_results: dict, result_dir: Path):
     fig.update_yaxes(title_text="认同数量", row=1, col=1)
     fig.update_yaxes(title_text="反应时间 (ms)", row=1, col=2)
 
-    fig.write_html(result_dir / "valence_analysis.html")
+    fig.write_html(result_dir / "key_analysis.html")
     # fig.show()
 
 
-def create_rt_distribution_plot(df_pd, result_dir: Path):
+def create_rt_distribution_plot(df_pd: pd.DataFrame, result_dir: Path):
     fig = px.histogram(
         df_pd,
         x="rt_ms",
@@ -436,19 +506,28 @@ def create_key_metrics_plot(key_metrics: dict, result_dir: Path):
         return
 
     # 创建条形图
-    fig = go.Figure(
-        data=[
-            go.Bar(
-                x=metric_names,
-                y=metric_values,
-                marker_color=metric_colors,
-                text=[
-                    f"{v:.3f}" if metric_names[i] == "积极偏向" else f"{v:.1f}"
-                    for i, v in enumerate(metric_values)
-                ],
-                textposition="auto",
-            )
-        ]
+    fig = sp.make_subplots(rows=1, cols=2, subplot_titles="关键指标")
+    fig.add_trace(
+        go.Bar(
+            x=["消极-积极RT差", "认同-不认同RT差"],
+            y=[
+                key_metrics["rt_negative_minus_positive"],
+                key_metrics["rt_endorsed_minus_not"],
+            ],
+            marker_color=["lightcoral", "lightskyblue"],
+        ),
+        row=1,
+        col=1,
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=["积极偏向", "认同率"],
+            y=[key_metrics["positive_bias"], key_metrics["endorsement_rate"]],
+            marker_color=["lightblue", "lightgreen"],
+        ),
+        row=1,
+        col=2,
     )
 
     fig.update_layout(
@@ -456,7 +535,7 @@ def create_key_metrics_plot(key_metrics: dict, result_dir: Path):
         xaxis_title="指标",
         yaxis_title="数值",
         template="plotly_white",
-        showlegend=False,
+        showlegend=True,
     )
 
     # 添加参考线（针对积极偏向）
@@ -466,15 +545,19 @@ def create_key_metrics_plot(key_metrics: dict, result_dir: Path):
             y=0.1,
             line_dash="dash",
             line_color="blue",
-            annotation_text="HCO模式阈值",
+            annotation_text="HC阈值",
             annotation_position="top right",
+            row=1,
+            col=2,
         )
         fig.add_hline(
             y=-0.1,
             line_dash="dash",
             line_color="red",
-            annotation_text="MDD模式阈值",
+            annotation_text="MDD阈值",
             annotation_position="bottom right",
+            row=1,
+            col=2,
         )
 
     fig.write_html(result_dir / "key_metrics.html")
@@ -492,8 +575,9 @@ def create_rt_intensity_plot(df_pd, result_dir: Path):
         title="反应时与强度关系",
         labels={"rt_ms": "反应时 (ms)", "intensity": "强度评分 (0-10)"},
         hover_data=["stim_word"],
-        trendline="ols",
+        trendline="lowess",
     )
+    # ['lowess', 'rolling', 'ewm', 'expanding', 'ols']
     fig.update_layout(template="plotly_white")
     fig.write_html(result_dir / "rt_intensity.html")
     # fig.show()

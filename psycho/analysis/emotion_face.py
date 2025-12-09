@@ -73,7 +73,7 @@ def load_and_prepare_data(
         .when(pl.col("rt") > 5.0)
         .then(5.0)
         .when(pl.col("rt").is_null())
-        .then(pl.col("rt").mean() + 0.6)
+        .then(pl.col("rt").max() + 0.6)
         .otherwise(pl.col("rt"))
         .alias("rt_clean")
     )

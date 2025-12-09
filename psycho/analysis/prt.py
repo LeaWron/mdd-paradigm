@@ -74,7 +74,6 @@ def load_and_preprocess_data(file_path: Path) -> pl.DataFrame:
 
 
 def identify_rich_stimulus(trials_df: pl.DataFrame) -> dict[int, dict[str, Any]]:
-    """识别每个Block的Rich刺激"""
     print("=" * 60)
     print("识别每个Block的Rich刺激")
     print("=" * 60)
@@ -119,7 +118,6 @@ def identify_rich_stimulus(trials_df: pl.DataFrame) -> dict[int, dict[str, Any]]
 def calculate_sdt_metrics(
     trials_df: pl.DataFrame, rich_stim_results: dict[int, dict[str, Any]]
 ) -> dict[int, dict[str, float]]:
-    """计算信号检测理论指标"""
     print("\n" + "=" * 60)
     print("计算SDT指标（反应偏向和辨别力）")
     print("=" * 60)
@@ -212,9 +210,8 @@ def calculate_sdt_metrics(
 def calculate_probability_analysis_improved(
     trials_df: pl.DataFrame, rich_stim_results: dict[int, dict[str, Any]]
 ) -> dict[int, dict[str, Any]]:
-    """改进的概率分析，更贴近文献方法"""
     print("\n" + "=" * 60)
-    print("概率分析（改进版）")
+    print("概率分析")
     print("=" * 60)
 
     prob_results = {}
@@ -252,12 +249,12 @@ def calculate_probability_analysis_improved(
         )
 
         # 计算lean miss概率
-        lean_miss_prob1 = (
+        lean_miss_rate1 = (
             (cond1.filter(~pl.col("correct")).height / cond1.height)
             if cond1.height > 0
             else 0
         )
-        lean_miss_prob2 = (
+        lean_miss_rate2 = (
             (cond2.filter(~pl.col("correct")).height / cond2.height)
             if cond2.height > 0
             else 0
@@ -277,22 +274,22 @@ def calculate_probability_analysis_improved(
         )
 
         # 计算rich miss概率
-        rich_miss_prob1 = (
+        rich_miss_rate1 = (
             (cond3.filter(~pl.col("correct")).height / cond3.height)
             if cond3.height > 0
             else 0
         )
-        rich_miss_prob2 = (
+        rich_miss_rate2 = (
             (cond4.filter(~pl.col("correct")).height / cond4.height)
             if cond4.height > 0
             else 0
         )
 
         prob_results[block] = {
-            "lean_miss_after_rewarded_rich": lean_miss_prob1,
-            "lean_miss_after_nonrewarded_rich": lean_miss_prob2,
-            "rich_miss_after_rewarded_rich": rich_miss_prob1,
-            "rich_miss_after_rewarded_lean": rich_miss_prob2,
+            "lean_miss_after_rewarded_rich": lean_miss_rate1,
+            "lean_miss_after_nonrewarded_rich": lean_miss_rate2,
+            "rich_miss_after_rewarded_rich": rich_miss_rate1,
+            "rich_miss_after_rewarded_lean": rich_miss_rate2,
             "counts": {
                 "cond1": cond1.height,
                 "cond2": cond2.height,
@@ -303,7 +300,7 @@ def calculate_probability_analysis_improved(
 
         print(f"\nBlock {block}:")
         print(
-            f"  1. Lean miss概率（前试次富刺激有奖励）: {lean_miss_prob1:.3f} (n={cond1.height})"
+            f"  1. Lean miss概率（前试次富刺激有奖励）: {lean_miss_rate1:.3f} (n={cond1.height})"
         )
         print(
             f"     文献对照组参考: {REFERENCE_VALUES['control']['lean_miss_after_rewarded_rich']:.3f}"
@@ -313,7 +310,7 @@ def calculate_probability_analysis_improved(
         )
 
         print(
-            f"  2. Lean miss概率（前试次富刺激无奖励）: {lean_miss_prob2:.3f} (n={cond2.height})"
+            f"  2. Lean miss概率（前试次富刺激无奖励）: {lean_miss_rate2:.3f} (n={cond2.height})"
         )
         print(
             f"     文献对照组参考: {REFERENCE_VALUES['control']['lean_miss_after_nonrewarded_rich']:.3f}"
@@ -323,7 +320,7 @@ def calculate_probability_analysis_improved(
         )
 
         print(
-            f"  3. Rich miss概率（前试次富刺激有奖励）: {rich_miss_prob1:.3f} (n={cond3.height})"
+            f"  3. Rich miss概率（前试次富刺激有奖励）: {rich_miss_rate1:.3f} (n={cond3.height})"
         )
         print(
             f"     文献对照组参考: {REFERENCE_VALUES['control']['rich_miss_after_rewarded_rich']:.3f}"
@@ -333,7 +330,7 @@ def calculate_probability_analysis_improved(
         )
 
         print(
-            f"  4. Rich miss概率（前试次贫刺激有奖励）: {rich_miss_prob2:.3f} (n={cond4.height})"
+            f"  4. Rich miss概率（前试次贫刺激有奖励）: {rich_miss_rate2:.3f} (n={cond4.height})"
         )
         print(
             f"     文献对照组参考: {REFERENCE_VALUES['control']['rich_miss_after_rewarded_lean']:.3f}"
@@ -348,7 +345,6 @@ def calculate_probability_analysis_improved(
 def analyze_reaction_time(
     trials_df: pl.DataFrame, rich_stim_results: dict[int, dict[str, Any]]
 ) -> dict[int, dict[str, float]]:
-    """分析反应时"""
     print("\n" + "=" * 60)
     print("反应时分析")
     print("=" * 60)
@@ -356,9 +352,9 @@ def analyze_reaction_time(
     rt_by_block = {}
 
     # 总体反应时统计
-    mean_rt = trials_df["rt"].mean()
-    median_rt = trials_df["rt"].median()
-    std_rt = trials_df["rt"].std()
+    mean_rt = trials_df["rt_clean"].mean()
+    median_rt = trials_df["rt_clean"].median()
+    std_rt = trials_df["rt_clean"].std()
 
     print("总体反应时:")
     print(f"  均值: {mean_rt:.3f}秒")
@@ -371,14 +367,14 @@ def analyze_reaction_time(
         rich_stim = rich_stim_results[block]["rich_stim"]
 
         # Rich刺激的反应时
-        rt_rich = block_data.filter(pl.col("stim") == rich_stim)["rt"].mean()
+        rt_rich = block_data.filter(pl.col("stim") == rich_stim)["rt_clean"].mean()
 
         # Lean刺激的反应时
-        rt_lean = block_data.filter(pl.col("stim") != rich_stim)["rt"].mean()
+        rt_lean = block_data.filter(pl.col("stim") != rich_stim)["rt_clean"].mean()
 
         # 正确和错误试次的反应时
-        rt_correct = block_data.filter(pl.col("correct"))["rt"].mean()
-        rt_error = block_data.filter(~pl.col("correct"))["rt"].mean()
+        rt_correct = block_data.filter(pl.col("correct"))["rt_clean"].mean()
+        rt_error = block_data.filter(~pl.col("correct"))["rt_clean"].mean()
 
         rt_by_block[block] = {
             "rt_rich": rt_rich,
@@ -399,7 +395,6 @@ def analyze_reaction_time(
 
 
 def analyze_performance_trends(trials_df: pl.DataFrame) -> dict[int, dict[str, Any]]:
-    """分析表现随时间和试次的变化趋势"""
     print("\n" + "=" * 60)
     print("表现趋势分析")
     print("=" * 60)
@@ -423,8 +418,8 @@ def analyze_performance_trends(trials_df: pl.DataFrame) -> dict[int, dict[str, A
             late_accuracy = late_trials.filter(pl.col("correct")).height / third
 
             # 反应时变化
-            early_rt = early_trials["rt"].mean()
-            late_rt = late_trials["rt"].mean()
+            early_rt = early_trials["rt_clean"].mean()
+            late_rt = late_trials["rt_clean"].mean()
 
             results[block] = {
                 "early_accuracy": early_accuracy,
@@ -453,9 +448,8 @@ def calculate_diagnostic_indices(
     prob_results: dict[int, dict[str, Any]],
     rt_by_block: dict[int, dict[str, float]],
 ) -> dict[str, float]:
-    """计算用于诊断的综合指标"""
     print("\n" + "=" * 60)
-    print("计算诊断指标")
+    print("计算指标")
     print("=" * 60)
 
     blocks = sorted(sdt_results.keys())
@@ -479,13 +473,13 @@ def calculate_diagnostic_indices(
         "mean_rt_diff": mean_rt_diff,
     }
 
-    print("关键诊断指标:")
+    print("关键指标:")
     print(f"  平均log b: {mean_log_b:.3f}")
 
     return diagnostic_indices
 
 
-def generate_clinical_interpretation(
+def generate_interpretation(
     diagnostic_indices: dict[str, float],
     sdt_results: dict[int, dict[str, float]],
     prob_results: dict[int, dict[str, Any]],
@@ -498,7 +492,6 @@ def generate_clinical_interpretation(
     interpretation.append("=" * 60)
     interpretation.append("")
 
-    # 1. 总体概况
     interpretation.append("1. 总体概况:")
     mean_accuracy = np.mean([sdt_results[b]["overall_accuracy"] for b in blocks])
     interpretation.append(f"   - 总体准确率: {mean_accuracy:.1%}")
@@ -507,7 +500,6 @@ def generate_clinical_interpretation(
     )
     interpretation.append("")
 
-    # 2. 反应偏向分析
     interpretation.append("2. 反应偏向分析:")
     mean_log_b = diagnostic_indices["mean_log_b"]
     control_ref = np.mean(REFERENCE_VALUES["control"]["log_b"])
@@ -901,7 +893,6 @@ def generate_report(
     clinical_interpretation: str,
     result_dir: Path,
 ) -> dict[str, Any]:
-    """生成分析报告并保存结果"""
     print("\n" + "=" * 60)
     print("PRT数据分析报告")
     print("=" * 60)
@@ -912,22 +903,6 @@ def generate_report(
     mean_log_d = np.mean([sdt_results[b]["log_d"] for b in blocks])
     rich_hit_rates = [sdt_results[b]["rich_hit_rate"] for b in blocks]
     lean_hit_rates = [sdt_results[b]["lean_hit_rate"] for b in blocks]
-
-    avg_lean_miss1 = np.mean(
-        [prob_results[b]["lean_miss_after_rewarded_rich"] for b in prob_results]
-    )
-    avg_lean_miss2 = np.mean(
-        [prob_results[b]["lean_miss_after_nonrewarded_rich"] for b in prob_results]
-    )
-    avg_rich_miss1 = np.mean(
-        [prob_results[b]["rich_miss_after_rewarded_rich"] for b in prob_results]
-    )
-    avg_rich_miss2 = np.mean(
-        [prob_results[b]["rich_miss_after_rewarded_lean"] for b in prob_results]
-    )
-
-    lean_miss_diff = avg_lean_miss1 - avg_lean_miss2
-    rich_miss_diff = avg_rich_miss2 - avg_rich_miss1
 
     # 计算总体准确率和反应时
     overall_accuracy = trials_df.filter(pl.col("correct")).height / trials_df.height
@@ -963,16 +938,6 @@ def generate_report(
     print(
         f"      - 当前被试: Rich[{np.mean(rich_hit_rates):.3f}], Lean[{np.mean(lean_hit_rates):.3f}]"
     )
-
-    print(f"   C. Lean miss概率差异: {lean_miss_diff:.3f}")
-    print("      - 文献MDD组: ~0.18 (0.48 - 0.30)")
-    print("      - 文献对照组: ~0.04 (0.49 - 0.45)")
-    print(f"      - 当前被试: {lean_miss_diff:.3f}")
-
-    print(f"\n   D. Rich miss概率差异: {rich_miss_diff:.3f}")
-    print("      - 文献MDD组: ~0.13 (0.25 - 0.12)")
-    print("      - 文献对照组: ~-0.03 (0.10 - 0.13)")
-    print(f"      - 当前被试: {rich_miss_diff:.3f}")
 
     # 保存结果到文件
     # 保存SDT结果
@@ -1011,14 +976,6 @@ def generate_report(
                 "rich_miss_after_rewarded_lean": prob_results[block][
                     "rich_miss_after_rewarded_lean"
                 ],
-                "lean_miss_difference": prob_results[block][
-                    "lean_miss_after_rewarded_rich"
-                ]
-                - prob_results[block]["lean_miss_after_nonrewarded_rich"],
-                "rich_miss_difference": prob_results[block][
-                    "rich_miss_after_rewarded_lean"
-                ]
-                - prob_results[block]["rich_miss_after_rewarded_rich"],
             }
         )
 
@@ -1062,10 +1019,6 @@ def generate_report(
         f.write(f"   平均Rich刺激击中率: {np.mean(rich_hit_rates):.3f}\n")
         f.write(f"   平均Lean刺激击中率: {np.mean(lean_hit_rates):.3f}\n\n")
 
-        f.write("3. 概率分析结果:\n")
-        f.write(f"   Lean miss概率差异: {lean_miss_diff:.3f}\n")
-        f.write(f"   Rich miss概率差异: {rich_miss_diff:.3f}\n\n")
-
     print(f"\n结果已保存到: {result_dir}")
     print("  - prt_sdt_results.csv (SDT指标)")
     print("  - prt_probability_results.csv (概率分析结果)")
@@ -1088,10 +1041,6 @@ def generate_report(
             "mean_rich_hit_rate": float(np.mean(rich_hit_rates)),
             "mean_lean_hit_rate": float(np.mean(lean_hit_rates)),
         },
-        "probability_analysis": {
-            "lean_miss_difference": float(lean_miss_diff),
-            "rich_miss_difference": float(rich_miss_diff),
-        },
         "diagnostic_indices": diagnostic_indices,
     }
 
@@ -1101,12 +1050,8 @@ def analyze_prt_data(
     target_blocks: list[int] = [0, 1, 2],
     result_dir: Path = Path("results"),
 ) -> dict[str, Any]:
-    """主分析函数"""
     global all_raw_df
     print("开始PRT数据分析...")
-
-    # 确保结果目录存在
-    result_dir.mkdir(parents=True, exist_ok=True)
 
     # 记录开始时间
     start_time = datetime.now()
@@ -1125,8 +1070,15 @@ def analyze_prt_data(
 
     all_raw_df = trials_df.clone()
     # 添加分析需要的列
+    # [ ] 无反应的列是否需要额外处理
     trials_df = trials_df.with_columns(
         [
+            pl.when(pl.col("rt") < 0.1)
+            .then(0.1)
+            .when(pl.col("rt").is_null())
+            .then(pl.col("rt").max() + 0.6)
+            .otherwise(pl.col("rt"))
+            .alias("rt_clean"),
             (pl.col("stim") == pl.col("choice")).alias("correct"),
             pl.col("reward").gt(0).alias("rewarded"),
             (pl.col("reward") == -1).alias("error"),
@@ -1148,13 +1100,13 @@ def analyze_prt_data(
     # 性能趋势分析
     trend_results = analyze_performance_trends(trials_df)
 
-    # 计算诊断指标
+    # 计算指标
     diagnostic_indices = calculate_diagnostic_indices(
         sdt_results, prob_results, rt_by_block
     )
 
-    # 8. 生成临床解释
-    clinical_interpretation = generate_clinical_interpretation(
+    # 8. 生成解释
+    clinical_interpretation = generate_interpretation(
         diagnostic_indices, sdt_results, prob_results
     )
 

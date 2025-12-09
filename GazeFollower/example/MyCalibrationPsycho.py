@@ -4,7 +4,6 @@ from pathlib import Path
 sys.path.append(
     str(Path(__file__).resolve().parent.parent)
 )  # Adds GazeFollower-main/ to path
-# [ ] UI 不重复使用, session info 不重复收集
 import tkinter as tk
 from datetime import datetime
 from tkinter import simpledialog

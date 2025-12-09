@@ -324,6 +324,9 @@ def trial():
     # 选择了中性情绪, 则强度为0
     if resp_emotion == "neutral":
         one_trial_data["intensity"] = 0
+        logger.info(
+            f"neutral, while true intensity is {one_trial_data['label_intensity']:.2f}"
+        )
         send_marker(lsl_outlet, "RESPONSE_3", is_pre=pre)
 
 

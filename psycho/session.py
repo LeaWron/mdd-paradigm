@@ -202,7 +202,7 @@ class Session:
         dlg.addField(label="姓名 *", key="name", required=True)
         dlg.addField(label="性别", key="gender")
         dlg.addField(label="年龄", key="age")
-        dlg.addField(label="组别", choices=["HC", "MDD", "Other"], key="group")
+        dlg.addField(label="组别", choices=["HC", "MDD", "OHC", "OMDD"], key="group")
         # ..... 其他信息
         dlg.addField(
             label="数据保存路径",

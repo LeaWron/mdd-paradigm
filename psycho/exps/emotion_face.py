@@ -557,7 +557,7 @@ def entry(exp: Experiment | None = None):
         send_marker(
             lsl_outlet=lsl_outlet, marker="EYETRACKING_CALIBRATION_START", is_pre=pre
         )
-        calibrate_eyetracking() 
+        calibrate_eyetracking()
         send_marker(
             lsl_outlet=lsl_outlet, marker="EYETRACKING_CALIBRATION_END", is_pre=pre
         )
@@ -579,7 +579,11 @@ def entry(exp: Experiment | None = None):
 
         update_trial(one_trial_data, one_block_data)
         update_block(one_block_data, data_to_save)
-        save_csv_data(data_to_save, exp.session_info["save_path"] + "-face_recognition")
+        save_csv_data(
+            data_to_save,
+            exp.session_info["save_path"] + "-face_recognition",
+            exp.session_info["group"],
+        )
 
 
 def main():

@@ -37,6 +37,75 @@ REFERENCE_VALUES = {
 }
 
 
+def calculate_sample_size(
+    effect_size: float,
+    alpha: float = 0.05,
+    power: float = 0.8,
+    test_type: str = "two_sample",
+) -> dict[str, Any]:
+    """
+    根据效应量计算所需样本量
+
+    参数:
+    - effect_size: 效应量 (Cohen's d)
+    - alpha: 显著性水平 (默认0.05)
+    - power: 统计功效 (默认0.8)
+    - test_type: 检验类型 ("one_sample", "paired", "two_sample")
+
+    返回:
+    - dict: 包含样本量计算结果
+    """
+    from scipy import stats
+
+    # 计算Z分数
+    z_alpha = stats.norm.ppf(1 - alpha / 2)  # 双侧检验
+    z_beta = stats.norm.ppf(power)
+
+    # 根据检验类型计算样本量
+    if test_type == "one_sample":
+        # 单样本t检验
+        n = ((z_alpha + z_beta) ** 2) / (effect_size**2)
+    elif test_type == "paired":
+        # 配对样本t检验
+        n = ((z_alpha + z_beta) ** 2) / (effect_size**2)
+    elif test_type == "two_sample":
+        # 独立样本t检验（每组样本量）
+        n_per_group = 2 * ((z_alpha + z_beta) ** 2) / (effect_size**2)
+        n_total = 2 * n_per_group
+        n = {
+            "per_group": n_per_group,
+            "total": n_total,
+            "per_group_rounded": int(np.ceil(n_per_group)),
+            "total_rounded": int(np.ceil(n_total)),
+        }
+    else:
+        raise ValueError(f"不支持的检验类型: {test_type}")
+
+    # 解释效应量大小
+    effect_size_magnitude = ""
+    if abs(effect_size) < 0.2:
+        effect_size_magnitude = "很小 (very small)"
+    elif abs(effect_size) < 0.5:
+        effect_size_magnitude = "小 (small)"
+    elif abs(effect_size) < 0.8:
+        effect_size_magnitude = "中等 (medium)"
+    else:
+        effect_size_magnitude = "大 (large)"
+
+    return {
+        "effect_size": effect_size,
+        "effect_size_magnitude": effect_size_magnitude,
+        "alpha": alpha,
+        "power": power,
+        "test_type": test_type,
+        "required_n": n if test_type != "two_sample" else n["per_group_rounded"],
+        "required_n_total": n["total_rounded"] if test_type == "two_sample" else None,
+        "z_alpha": z_alpha,
+        "z_beta": z_beta,
+        "formula_used": f"n = {2 if test_type == 'two_sample' else 1} * ((Z_α + Z_β)² / d²)",
+    }
+
+
 def find_prt_files(data_dir: Path) -> list[Path]:
     """查找指定目录下的PRT实验结果文件"""
     EXP_TYPE = "prt"
@@ -1243,6 +1312,16 @@ def perform_group_comparisons(
                     effect_size_type = "Non-parametric"
                     effect_size_desc = "非参数效应量"
 
+            # 计算样本量
+            sample_size_info = {}
+            if cohens_d is not None:
+                sample_size_info = calculate_sample_size(
+                    effect_size=abs(cohens_d),
+                    alpha=0.05,
+                    power=0.8,
+                    test_type="two_sample",
+                )
+
             results[metric] = {
                 "test_type": test_type,
                 "statistic": float(statistic) if not np.isnan(statistic) else None,
@@ -1256,6 +1335,19 @@ def perform_group_comparisons(
                 "effect_size_magnitude": effect_size_desc.split("(")[0].strip()
                 if "(" in effect_size_desc
                 else effect_size_desc,
+                # 样本量信息
+                "required_sample_size_per_group": sample_size_info.get("required_n")
+                if sample_size_info
+                else None,
+                "required_total_sample_size": sample_size_info.get("required_n_total")
+                if sample_size_info
+                else None,
+                "sample_size_power": sample_size_info.get("power")
+                if sample_size_info
+                else None,
+                "sample_size_alpha": sample_size_info.get("alpha")
+                if sample_size_info
+                else None,
                 # 描述性统计
                 "control_mean": float(np.mean(control_values)),
                 "control_std": float(np.std(control_values, ddof=1)),
@@ -1292,7 +1384,7 @@ def create_group_comparison_visualizations_single_group(
     metric_names = ["反应偏向(Log b)", "击中率差异", "反应时差异"]
 
     fig = make_subplots(
-        rows=2,
+        rows=3,
         cols=3,
         subplot_titles=(
             "1. 各被试反应偏向分布",
@@ -1301,12 +1393,16 @@ def create_group_comparison_visualizations_single_group(
             "4. 统计检验结果",
             "5. 效应量分析",
             "6. 指标分布箱形图",
+            "7. 样本量计算",
+            "8. 样本量需求曲线",
+            "9. 效应量分布",
         ),
         specs=[
             [{"type": "bar"}, {"type": "heatmap"}, {"type": "scatter"}],
             [{"type": "table"}, {"type": "bar"}, {"type": "box"}],
+            [{"type": "table"}, {"type": "scatter"}, {"type": "histogram"}],
         ],
-        vertical_spacing=0.15,
+        vertical_spacing=0.12,
         horizontal_spacing=0.08,
     )
 
@@ -1346,7 +1442,7 @@ def create_group_comparison_visualizations_single_group(
         col=2,
     )
     fig.update_traces(
-        colorbar=dict(len=0.5, y=0.25),
+        colorbar=dict(len=0.25, y=0.5),
         selector=dict(type="heatmap"),
     )
 
@@ -1361,6 +1457,8 @@ def create_group_comparison_visualizations_single_group(
             y=[group_mean, control_ref, mdd_ref],
             name="反应偏向比较",
             marker_color=["blue", "green", "red"],
+            text=[f"{group_mean:.3f}", f"{control_ref:.3f}", f"{mdd_ref:.3f}"],
+            textposition="auto",
         ),
         row=1,
         col=3,
@@ -1375,10 +1473,10 @@ def create_group_comparison_visualizations_single_group(
                 test_data.append(
                     [
                         name,
-                        f"{result['t_statistic']:.3f}",
-                        f"{result['p_value']:.3f}",
-                        f"{result['cohens_d']:.3f}",
-                        f"{result['effect_size_desc']}",
+                        f"{result.get('t_statistic', result.get('statistic', 'N/A')):.3f}",
+                        f"{result.get('p_value', 'N/A'):.4f}",
+                        f"{result.get('cohens_d', 'N/A')}",
+                        f"{result.get('effect_size_desc', 'N/A')}",
                     ]
                 )
 
@@ -1388,11 +1486,13 @@ def create_group_comparison_visualizations_single_group(
                     values=["指标", "t值", "p值", "效应量", "效应大小"],
                     fill_color="lightblue",
                     align="left",
+                    font=dict(size=10),
                 ),
                 cells=dict(
                     values=np.array(test_data).T if test_data else [[]],
                     fill_color="lavender",
                     align="left",
+                    font=dict(size=9),
                 ),
                 columnwidth=[0.2, 0.15, 0.15, 0.15, 0.3],
             ),
@@ -1408,21 +1508,23 @@ def create_group_comparison_visualizations_single_group(
         for metric, name in zip(key_metrics_list, metric_names):
             if metric in statistical_results:
                 result = statistical_results[metric]
-                effect_sizes.append(abs(result["cohens_d"]))
-                metrics_names.append(name.split("(")[0].strip())
+                if "cohens_d" in result and result["cohens_d"] is not None:
+                    effect_sizes.append(abs(result["cohens_d"]))
+                    metrics_names.append(name.split("(")[0].strip())
 
-        fig.add_trace(
-            go.Bar(
-                x=metrics_names,
-                y=effect_sizes,
-                name="效应量(绝对值)",
-                marker_color="lightgreen",
-                text=[f"{v:.2f}" for v in effect_sizes],
-                textposition="auto",
-            ),
-            row=2,
-            col=2,
-        )
+        if effect_sizes:
+            fig.add_trace(
+                go.Bar(
+                    x=metrics_names,
+                    y=effect_sizes,
+                    name="效应量(绝对值)",
+                    marker_color="lightgreen",
+                    text=[f"{v:.2f}" for v in effect_sizes],
+                    textposition="auto",
+                ),
+                row=2,
+                col=2,
+            )
 
     # 图6: 指标分布箱形图
     for i, (metric, name) in enumerate(zip(key_metrics_list, metric_names)):
@@ -1435,24 +1537,145 @@ def create_group_comparison_visualizations_single_group(
                 jitter=0.3,
                 pointpos=-1.8,
                 marker_color="lightblue",
+                showlegend=False,
             ),
             row=2,
             col=3,
         )
 
+    # 图7: 样本量计算表格
+    if "error" not in statistical_results:
+        sample_size_data = []
+        for metric, name in zip(key_metrics_list, metric_names):
+            if metric in statistical_results:
+                result = statistical_results[metric]
+                if (
+                    "required_sample_size_per_group" in result
+                    and result["required_sample_size_per_group"]
+                ):
+                    sample_size_data.append(
+                        [
+                            name,
+                            f"{result.get('cohens_d', 'N/A'):.3f}",
+                            f"{result['required_sample_size_per_group']}",
+                            f"{result['required_total_sample_size'] if result.get('required_total_sample_size') else 'N/A'}",
+                        ]
+                    )
+
+        if sample_size_data:
+            fig.add_trace(
+                go.Table(
+                    header=dict(
+                        values=["指标", "效应量(d)", "每组需样本量", "总需样本量"],
+                        fill_color="lightcoral",
+                        align="left",
+                        font=dict(size=10),
+                    ),
+                    cells=dict(
+                        values=np.array(sample_size_data).T,
+                        fill_color="mistyrose",
+                        align="left",
+                        font=dict(size=9),
+                    ),
+                ),
+                row=3,
+                col=1,
+            )
+
+    # 图8: 样本量需求曲线
+    if "error" not in statistical_results and "mean_log_b" in statistical_results:
+        # 生成不同效应量下的样本量需求曲线
+        effect_sizes = np.linspace(0.1, 1.0, 20)
+        sample_sizes = []
+
+        for d in effect_sizes:
+            sample_size_info = calculate_sample_size(
+                effect_size=d, alpha=0.05, power=0.8, test_type="two_sample"
+            )
+            sample_sizes.append(sample_size_info["required_n"])
+
+        # 获取当前效应量
+        current_d = statistical_results["mean_log_b"].get("cohens_d")
+
+        fig.add_trace(
+            go.Scatter(
+                x=effect_sizes,
+                y=sample_sizes,
+                mode="lines",
+                name="样本量需求曲线",
+                line=dict(width=3, color="blue"),
+                fill="tozeroy",
+                fillcolor="rgba(0, 0, 255, 0.1)",
+            ),
+            row=3,
+            col=2,
+        )
+
+        if current_d is not None:
+            current_sample_size = calculate_sample_size(
+                effect_size=abs(current_d),
+                alpha=0.05,
+                power=0.8,
+                test_type="two_sample",
+            )["required_n"]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=[abs(current_d)],
+                    y=[current_sample_size],
+                    mode="markers+text",
+                    name="当前效应量",
+                    marker=dict(size=15, color="red", symbol="diamond"),
+                    text=[f"d={abs(current_d):.2f}<br>n={current_sample_size}"],
+                    textposition="top center",
+                ),
+                row=3,
+                col=2,
+            )
+
+        fig.update_xaxes(title_text="效应量 (Cohen's d)", row=3, col=2)
+        fig.update_yaxes(title_text="每组所需样本量", row=3, col=2)
+
+    # 图9: 效应量分布直方图
+    if "error" not in statistical_results:
+        cohens_d_values = []
+        for metric in key_metrics_list:
+            if metric in statistical_results:
+                d = statistical_results[metric].get("cohens_d")
+                if d is not None:
+                    cohens_d_values.append(abs(d))
+
+        if cohens_d_values:
+            fig.add_trace(
+                go.Histogram(
+                    x=cohens_d_values,
+                    nbinsx=10,
+                    name="效应量分布",
+                    marker_color="lightblue",
+                    opacity=0.7,
+                ),
+                row=3,
+                col=3,
+            )
+
+            fig.update_xaxes(title_text="效应量 (Cohen's d)", row=3, col=3)
+            fig.update_yaxes(title_text="频数", row=3, col=3)
+
     # 更新布局
     fig.update_layout(
         title=dict(
-            text="PRT组分析报告", font=dict(size=24, family="Arial Black"), x=0.5
+            text="PRT组分析报告（含样本量计算）",
+            font=dict(size=22, family="Arial Black"),
+            x=0.5,
         ),
-        height=1000,
+        height=1400,
         width=1600,
         showlegend=True,
         template="plotly_white",
     )
 
     # 保存图表
-    fig.write_html(str(result_dir / "group_analysis_report.html"))
+    fig.write_html(str(result_dir / "prt_group_analysis_report.html"))
 
 
 def create_group_comparison_visualizations(
@@ -1473,7 +1696,7 @@ def create_group_comparison_visualizations(
 
     # 创建图表
     fig = make_subplots(
-        rows=2,
+        rows=3,
         cols=3,
         subplot_titles=(
             "1. 反应偏向(Log b)分布",
@@ -1482,10 +1705,14 @@ def create_group_comparison_visualizations(
             "4. 关键指标对比",
             "5. 统计检验结果",
             "6. 效应量分析",
+            "7. 样本量计算",
+            "8. 样本量需求曲线",
+            "9. 效应量与样本量关系",
         ),
         specs=[
             [{"type": "box"}, {"type": "box"}, {"type": "box"}],
             [{"type": "bar"}, {"type": "table"}, {"type": "bar"}],
+            [{"type": "table"}, {"type": "scatter"}, {"type": "scatter"}],
         ],
         vertical_spacing=0.15,
         horizontal_spacing=0.2,
@@ -1591,7 +1818,7 @@ def create_group_comparison_visualizations(
                             result.get("analysis_type", result.get("test_type", "N/A"))
                         ),
                         f"{stat_val:.3f}" if stat_val is not None else "N/A",
-                        f"{p_val:.3f}" if p_val is not None else "N/A",
+                        f"{p_val:.4f}" if p_val is not None else "N/A",
                         f"{eff_size:.3f}" if eff_size is not None else "N/A",
                         str(eff_mag),
                     ]
@@ -1603,11 +1830,13 @@ def create_group_comparison_visualizations(
                     values=["指标", "检验方法", "统计量", "p值", "效应量", "效应大小"],
                     fill_color="lightblue",
                     align="left",
+                    font=dict(size=10),
                 ),
                 cells=dict(
                     values=np.array(table_data).T if table_data else [[]],
                     fill_color="lavender",
                     align="left",
+                    font=dict(size=9),
                 ),
             ),
             row=2,
@@ -1644,19 +1873,194 @@ def create_group_comparison_visualizations(
                 col=3,
             )
 
+    # 图7: 样本量计算表格
+    if comparison_results:
+        sample_size_data = []
+        for metric, name in zip(key_metrics, metric_names):
+            if metric in comparison_results:
+                result = comparison_results[metric]
+                if (
+                    "required_sample_size_per_group" in result
+                    and result["required_sample_size_per_group"]
+                ):
+                    sample_size_data.append(
+                        [
+                            name,
+                            f"{result.get('cohens_d', 'N/A'):.3f}",
+                            f"{result['required_sample_size_per_group']}",
+                            f"{result.get('required_total_sample_size', 'N/A')}",
+                            f"{result.get('sample_size_power', 0.8):.2f}",
+                            f"{result.get('sample_size_alpha', 0.05):.3f}",
+                        ]
+                    )
+
+        if sample_size_data:
+            fig.add_trace(
+                go.Table(
+                    header=dict(
+                        values=[
+                            "指标",
+                            "效应量",
+                            "每组需样本",
+                            "总需样本",
+                            "功效",
+                            "α水平",
+                        ],
+                        fill_color="lightcoral",
+                        align="left",
+                        font=dict(size=9),
+                    ),
+                    cells=dict(
+                        values=np.array(sample_size_data).T,
+                        fill_color="mistyrose",
+                        align="left",
+                        font=dict(size=8),
+                    ),
+                ),
+                row=3,
+                col=1,
+            )
+
+    # 图8: 样本量需求曲线
+    if comparison_results:
+        # 生成不同效应量下的样本量需求曲线
+        effect_sizes = np.linspace(0.1, 1.0, 20)
+        sample_sizes_per_group = []
+        sample_sizes_total = []
+
+        for d in effect_sizes:
+            sample_size_info = calculate_sample_size(
+                effect_size=d, alpha=0.05, power=0.8, test_type="two_sample"
+            )
+            sample_sizes_per_group.append(sample_size_info["required_n"])
+            sample_sizes_total.append(sample_size_info["required_n_total"])
+
+        # 获取当前效应量（使用第一个指标）
+        first_metric = key_metrics[0]
+        if first_metric in comparison_results:
+            current_d = comparison_results[first_metric].get("cohens_d")
+
+            fig.add_trace(
+                go.Scatter(
+                    x=effect_sizes,
+                    y=sample_sizes_per_group,
+                    mode="lines",
+                    name="每组样本量",
+                    line=dict(width=3, color="blue"),
+                ),
+                row=3,
+                col=2,
+            )
+
+            fig.add_trace(
+                go.Scatter(
+                    x=effect_sizes,
+                    y=sample_sizes_total,
+                    mode="lines",
+                    name="总样本量",
+                    line=dict(width=3, color="red", dash="dash"),
+                ),
+                row=3,
+                col=2,
+            )
+
+            if current_d is not None:
+                current_sample_size = calculate_sample_size(
+                    effect_size=abs(current_d),
+                    alpha=0.05,
+                    power=0.8,
+                    test_type="two_sample",
+                )
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=[abs(current_d)],
+                        y=[current_sample_size["required_n"]],
+                        mode="markers+text",
+                        name="当前效应量",
+                        marker=dict(size=15, color="green", symbol="diamond"),
+                        text=[
+                            f"d={abs(current_d):.2f}<br>n={current_sample_size['required_n']}"
+                        ],
+                        textposition="top center",
+                    ),
+                    row=3,
+                    col=2,
+                )
+
+            fig.update_xaxes(title_text="效应量 (Cohen's d)", row=3, col=2)
+            fig.update_yaxes(title_text="所需样本量", row=3, col=2)
+
+    # 图9: 效应量与样本量关系（散点图）
+    if comparison_results:
+        d_values = []
+        n_values = []
+        metric_labels = []
+
+        for metric, name in zip(key_metrics, metric_names):
+            if metric in comparison_results:
+                d = comparison_results[metric].get("cohens_d")
+                if d is not None:
+                    d_values.append(abs(d))
+                    n_values.append(
+                        comparison_results[metric].get(
+                            "required_sample_size_per_group", 0
+                        )
+                    )
+                    metric_labels.append(name)
+
+        if d_values:
+            fig.add_trace(
+                go.Scatter(
+                    x=d_values,
+                    y=n_values,
+                    mode="markers+text",
+                    name="效应量vs样本量",
+                    marker=dict(size=15, color="purple"),
+                    text=metric_labels,
+                    textposition="top center",
+                ),
+                row=3,
+                col=3,
+            )
+
+            # 添加趋势线
+            if len(d_values) > 1:
+                z = np.polyfit(d_values, n_values, 2)
+                p = np.poly1d(z)
+                d_range = np.linspace(min(d_values), max(d_values), 50)
+                n_fitted = p(d_range)
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=d_range,
+                        y=n_fitted,
+                        mode="lines",
+                        name="趋势线",
+                        line=dict(width=2, color="orange", dash="dash"),
+                    ),
+                    row=3,
+                    col=3,
+                )
+
+            fig.update_xaxes(title_text="效应量 (Cohen's d)", row=3, col=3)
+            fig.update_yaxes(title_text="每组所需样本量", row=3, col=3)
+
     # 更新布局
     fig.update_layout(
         title=dict(
-            text="PRT组间比较分析报告", font=dict(size=24, family="Arial Black"), x=0.5
+            text="PRT组间比较分析报告",
+            font=dict(size=22, family="Arial Black"),
+            x=0.5,
         ),
-        height=1000,
+        height=1400,
         width=1600,
         showlegend=True,
         template="plotly_white",
     )
 
     # 保存图表
-    fig.write_html(str(result_dir / "group_comparison_report.html"))
+    fig.write_html(str(result_dir / "prt_group_comparison_report.html"))
 
 
 def run_single_prt_analysis(file_path: Path, result_dir: Path = None):
@@ -1791,6 +2195,16 @@ def run_group_prt_analysis(
 
         effect_size_desc = f"{size} (d={cohens_d:.2f})"
 
+        # 计算样本量
+        sample_size_info = {}
+        if cohens_d is not None:
+            sample_size_info = calculate_sample_size(
+                effect_size=abs(cohens_d),
+                alpha=0.05,
+                power=0.8,
+                test_type="one_sample",  # 与参考值比较是单样本检验
+            )
+
         statistical_results[metric] = {
             "group_mean": float(np.mean(group_values)),
             "group_std": float(np.std(group_values, ddof=1)),
@@ -1801,6 +2215,16 @@ def run_group_prt_analysis(
             "p_value": float(p_value),
             "cohens_d": float(cohens_d),
             "effect_size_desc": effect_size_desc,
+            # 样本量信息
+            "required_sample_size": sample_size_info.get("required_n")
+            if sample_size_info
+            else None,
+            "sample_size_power": sample_size_info.get("power")
+            if sample_size_info
+            else None,
+            "sample_size_alpha": sample_size_info.get("alpha")
+            if sample_size_info
+            else None,
         }
 
     # 保存组分析结果
@@ -1820,6 +2244,28 @@ def run_group_prt_analysis(
         [group_mean_metrics, group_std_metrics], index=["mean", "std"]
     ).T
     stats_df.to_csv(result_dir / "group_statistics.csv")
+
+    # 保存样本量计算结果
+    sample_size_data = []
+    for metric, result in statistical_results.items():
+        if "required_sample_size" in result:
+            sample_size_data.append(
+                {
+                    "metric": metric,
+                    "effect_size": result.get("cohens_d"),
+                    "required_sample_size": result.get("required_sample_size"),
+                    "current_sample_size": result.get("group_n"),
+                    "power": result.get("sample_size_power"),
+                    "alpha": result.get("sample_size_alpha"),
+                    "effect_size_magnitude": result.get("effect_size_desc", "")
+                    .split("(")[0]
+                    .strip(),
+                }
+            )
+
+    if sample_size_data:
+        sample_size_df = pd.DataFrame(sample_size_data)
+        sample_size_df.to_csv(result_dir / "sample_size_calculations.csv", index=False)
 
     # 保存统计检验结果
     if "error" not in statistical_results:
@@ -1963,6 +2409,28 @@ def run_groups_prt_analysis(
     control_stats.to_csv(result_dir / "control_group_statistics.csv")
     experimental_stats.to_csv(result_dir / "experimental_group_statistics.csv")
 
+    # 保存样本量计算结果
+    sample_size_data = []
+    for metric, result in comparison_results.items():
+        if "required_sample_size_per_group" in result:
+            sample_size_data.append(
+                {
+                    "metric": metric,
+                    "effect_size": result.get("cohens_d"),
+                    "required_per_group": result.get("required_sample_size_per_group"),
+                    "required_total": result.get("required_total_sample_size"),
+                    "control_n": result.get("control_n"),
+                    "experimental_n": result.get("experimental_n"),
+                    "power": result.get("sample_size_power"),
+                    "alpha": result.get("sample_size_alpha"),
+                    "effect_size_magnitude": result.get("effect_size_magnitude", ""),
+                }
+            )
+
+    if sample_size_data:
+        sample_size_df = pd.DataFrame(sample_size_data)
+        sample_size_df.to_csv(result_dir / "sample_size_calculations.csv", index=False)
+
     # 保存统计检验结果
     if normality_results:
         normality_df = pd.DataFrame(normality_results).T
@@ -2079,7 +2547,9 @@ def run_prt_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
             return None
     else:
         # 使用DataUtils参数
-        if data_utils.session_id is None or len(data_utils.groups) > 0:
+        if data_utils.session_id is None or (
+            data_utils.groups is not None and len(data_utils.groups) > 0
+        ):
             # 组间分析
             # 这里需要根据实际情况获取对照组和实验组文件列表
             # 暂时返回None，需要根据具体实现调整

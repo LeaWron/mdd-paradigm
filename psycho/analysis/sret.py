@@ -1,166 +1,255 @@
 import json
 import warnings
 from pathlib import Path
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
-import plotly.express as px
 import plotly.graph_objects as go
-import plotly.subplots as sp
 import polars as pl
 from omegaconf import DictConfig
+from plotly.subplots import make_subplots
 from scipy import stats
 
-from psycho.analysis.utils import DataUtils, extract_trials_by_block
+from psycho.analysis.utils import DataUtils, extract_trials_by_block, find_exp_files
 
-PICTURE_REFERENCE = {
-    # 注意：这些值是估计值，需要根据实际情况调整
-    "endorsement_count": {
-        "HCO": {"positive": 30, "negative": 2},
-        "MDD": {"positive": 12, "negative": 24},
+warnings.filterwarnings("ignore")
+
+# 参考值 - 不要修改
+REFERENCE_VALUES = {
+    "HCO": {
+        "endorsement_count": {"positive": 30, "negative": 2},
+        "reaction_time": {"positive": 500, "negative": 1150},
     },
-    "reaction_time": {
-        "HCO": {"positive": 500, "negative": 1150},
-        "MDD": {"positive": 900, "negative": 600},
+    "MDD": {
+        "endorsement_count": {"positive": 12, "negative": 24},
+        "reaction_time": {"positive": 900, "negative": 600},
     },
 }
 
 
-def preprocess_sret_data(
-    df: pl.DataFrame,
-    target_blocks: list[int] = None,
-    block_col: str = "block_index",
-) -> pl.DataFrame:
-    print("1. 数据预处理...")
+def find_sret_files(data_dir: Path) -> list[Path]:
+    """查找指定目录下的SRET实验结果文件"""
+    EXP_TYPE = "sret"
+    return find_exp_files(data_dir, EXP_TYPE)
 
-    if target_blocks is not None:
-        print(f"  提取区块 {target_blocks} 的数据...")
-        df_processed = extract_trials_by_block(
+
+def load_and_preprocess_data(file_path: Path) -> pl.DataFrame:
+    """加载并预处理数据"""
+    try:
+        df = pl.read_csv(file_path)
+
+        # 提取试次数据
+        trials_df = extract_trials_by_block(
             df,
-            target_block_indices=target_blocks,
-            block_col=block_col,
+            target_block_indices=["Encoding"],
+            block_col="phase",
+            trial_col="trial_index",
             fill_na=True,
         )
-        print(f"  提取后数据形状: {df_processed.shape}")
-    else:
-        df_processed = df.clone()
-        print(f"  使用所有数据，形状: {df_processed.shape}")
 
-    # 检查必要列
-    required_columns = ["stim_word", "response", "rt"]
-    missing_columns = [
-        col for col in required_columns if col not in df_processed.columns
-    ]
-    if missing_columns:
-        print(f"  ❌ 缺少必要列: {missing_columns}")
-        return None
+        if trials_df.height == 0:
+            print("❌ 错误: 未找到有效的试次数据")
+            return None
 
-    # 转换反应时为毫秒
-    df_processed = df_processed.with_columns(
-        (
-            pl.when(pl.col("rt").is_null())
-            .then(pl.col("rt").max() + 1)
-            .otherwise(pl.col("rt"))
-        ),
-    )
-    df_processed = df_processed.with_columns(
-        (pl.col("rt") * 1000).alias("rt_ms"),
-    )
+        # 检查必要列
+        required_columns = ["stim_word", "response", "rt", "stim_type"]
+        missing_columns = [
+            col for col in required_columns if col not in trials_df.columns
+        ]
+        if missing_columns:
+            print(f"❌ 缺少必要列: {missing_columns}")
+            return None
 
-    # 处理强度评分（如果有）
-    if "intensity" in df_processed.columns:
-        # 确保强度评分在0-10范围内
-        df_processed = df_processed.with_columns(
-            pl.col("intensity").clip(0, 10).alias("intensity")
+        # 转换反应时为毫秒
+        trials_df = trials_df.with_columns(
+            (
+                pl.when(pl.col("rt").is_null())
+                .then(pl.col("rt").max() + 1)
+                .otherwise(pl.col("rt"))
+            ),
+        )
+        trials_df = trials_df.with_columns(
+            (pl.col("rt") * 1000).alias("rt_ms"),
         )
 
-    # 添加反应类型编码
-    df_processed = df_processed.with_columns(
-        (pl.col("response") == "yes").cast(pl.Int8).alias("response_code")
-    )
+        # 处理强度评分（如果有）
+        if "intensity" in trials_df.columns:
+            # 确保强度评分在0-10范围内
+            trials_df = trials_df.with_columns(
+                pl.col("intensity").clip(0, 10).alias("intensity")
+            )
 
-    return df_processed
+        # 添加反应类型编码
+        trials_df = trials_df.with_columns(
+            (pl.col("response") == "yes").cast(pl.Int8).alias("response_code")
+        )
+
+        return trials_df
+
+    except Exception as e:
+        print(f"❌ 数据加载错误: {e}")
+        return None
 
 
-def analyze_basic(df: pl.DataFrame) -> dict:
-    print("\n2. 基础分析...")
+def calculate_key_metrics_single(df: pl.DataFrame) -> dict[str, float]:
+    """计算单个被试的关键指标"""
+    metrics = {}
 
-    results = {}
-
-    # 总试次和认同率
-    total_trials = df.height
+    # 基础指标
+    total = df.height
     yes_count = df.filter(pl.col("response") == "yes").height
-    no_count = df.filter(pl.col("response") == "no").height
-    endorsement_rate = yes_count / total_trials if total_trials > 0 else 0
 
-    results["total_trials"] = total_trials
-    results["yes_count"] = yes_count
-    results["no_count"] = no_count
-    results["endorsement_rate"] = endorsement_rate
+    # 1. 认同率: 认同数量 / 总数量
+    endorsement_rate = yes_count / total if total > 0 else 0
+    metrics["endorsement_rate"] = endorsement_rate
 
-    print(f"  总试次数: {total_trials}")
-    print(f"  认同数量: {yes_count}")
-    print(f"  不认同数量: {no_count}")
-    print(f"  认同率: {endorsement_rate:.2%}")
-
-    # 反应时统计
-    rt_stats = df.select(
+    # 按词性分组统计
+    valence_stats = df.group_by("stim_type").agg(
         [
+            pl.col("response")
+            .filter(pl.col("response") == "yes")
+            .count()
+            .alias("yes_count"),
+            pl.col("response").count().alias("total_count"),
             pl.col("rt_ms").mean().alias("mean_rt"),
-            pl.col("rt_ms").std().alias("std_rt"),
-            pl.col("rt_ms").median().alias("median_rt"),
-            pl.col("rt_ms").min().alias("min_rt"),
-            pl.col("rt_ms").max().alias("max_rt"),
         ]
     )
 
-    results["rt_stats"] = rt_stats.to_dicts()[0]
-
-    print(f"  平均反应时: {rt_stats['mean_rt'][0]:.1f} ms")
-    print(f"  反应时标准差: {rt_stats['std_rt'][0]:.1f} ms")
-    print(f"  反应时中位数: {rt_stats['median_rt'][0]:.1f} ms")
-
-    # 反应类型分析
-    response_stats = (
-        df.group_by("response")
-        .agg(
-            [
-                pl.col("rt_ms").mean().alias("mean_rt"),
-                pl.col("rt_ms").std().alias("std_rt"),
-                pl.count().alias("count"),
-            ]
-        )
-        .sort("response")
+    # 计算认同率
+    valence_stats = valence_stats.with_columns(
+        [(pl.col("yes_count") / pl.col("total_count")).alias("endorsement_rate")]
     )
 
-    if "intensity" in df.columns:
-        intensity_stats = (
-            df.group_by("response")
-            .agg(
-                [
-                    pl.col("intensity").mean().alias("mean_intensity"),
-                    pl.col("intensity").std().alias("std_intensity"),
-                ]
-            )
-            .sort("response")
+    # 转换为字典便于访问
+    valence_dict = {}
+    for row in valence_stats.to_dicts():
+        valence_dict[row["stim_type"]] = row
+
+    # 2. 积极偏向: 积极认同率 - 消极认同率
+    if "positive" in valence_dict and "negative" in valence_dict:
+        positive_rate = valence_dict["positive"]["endorsement_rate"]
+        negative_rate = valence_dict["negative"]["endorsement_rate"]
+        metrics["positive_bias"] = positive_rate - negative_rate
+        metrics["positive_endorsement_rate"] = positive_rate
+        metrics["negative_endorsement_rate"] = negative_rate
+        metrics["positive_endorsement_count"] = valence_dict["positive"]["yes_count"]
+        metrics["negative_endorsement_count"] = valence_dict["negative"]["yes_count"]
+
+    # 3. 消极RT - 积极RT
+    if "positive" in valence_dict and "negative" in valence_dict:
+        negative_rt = valence_dict["negative"]["mean_rt"]
+        positive_rt = valence_dict["positive"]["mean_rt"]
+        metrics["rt_negative_minus_positive"] = negative_rt - positive_rt
+        metrics["positive_rt"] = positive_rt
+        metrics["negative_rt"] = negative_rt
+
+    # 4. 认同RT - 不认同RT
+    yes_rt = df.filter(pl.col("response") == "yes")["rt_ms"].mean()
+    no_rt = df.filter(pl.col("response") == "no")["rt_ms"].mean()
+    metrics["rt_endorsed_minus_not"] = yes_rt - no_rt
+    metrics["yes_rt"] = yes_rt
+    metrics["no_rt"] = no_rt
+
+    # 5. 消极intensity - 积极intensity
+    if (
+        "intensity" in df.columns
+        and "positive" in valence_dict
+        and "negative" in valence_dict
+    ):
+        intensity_by_valence = df.group_by("stim_type").agg(
+            [
+                pl.col("intensity").mean().alias("mean_intensity"),
+            ]
         )
-        results["intensity_stats"] = intensity_stats.to_dicts()
 
-    results["response_stats"] = response_stats.to_dicts()
+        intensity_dict = {}
+        for row in intensity_by_valence.to_dicts():
+            intensity_dict[row["stim_type"]] = row
 
-    # 计算反应时差异
-    if len(response_stats) >= 2:
-        yes_rt = response_stats.filter(pl.col("response") == "yes")["mean_rt"][0]
-        no_rt = response_stats.filter(pl.col("response") == "no")["mean_rt"][0]
-        results["rt_difference_yes_no"] = yes_rt - no_rt
-        print(f"  认同-不认同RT差异: {results['rt_difference_yes_no']:.1f} ms")
+        if "positive" in intensity_dict and "negative" in intensity_dict:
+            negative_intensity = intensity_dict["negative"]["mean_intensity"]
+            positive_intensity = intensity_dict["positive"]["mean_intensity"]
+            metrics["intensity_negative_minus_positive"] = (
+                negative_intensity - positive_intensity
+            )
+            metrics["positive_intensity"] = positive_intensity
+            metrics["negative_intensity"] = negative_intensity
 
-    return results
+    return metrics
 
 
-def analyze_valence(df: pl.DataFrame) -> dict:
-    print("\n3. 词性分析...")
+def calculate_sample_size(
+    effect_size: float,
+    alpha: float = 0.05,
+    power: float = 0.8,
+    test_type: str = "two_sample",
+) -> dict[str, Any]:
+    """
+    根据效应量计算所需样本量
 
+    参数:
+    - effect_size: 效应量 (Cohen's d)
+    - alpha: 显著性水平 (默认0.05)
+    - power: 统计功效 (默认0.8)
+    - test_type: 检验类型 ("one_sample", "paired", "two_sample")
+
+    返回:
+    - dict: 包含样本量计算结果
+    """
+    from scipy import stats
+
+    # 计算Z分数
+    z_alpha = stats.norm.ppf(1 - alpha / 2)  # 双侧检验
+    z_beta = stats.norm.ppf(power)
+
+    # 根据检验类型计算样本量
+    if test_type == "one_sample":
+        # 单样本t检验
+        n = ((z_alpha + z_beta) ** 2) / (effect_size**2)
+    elif test_type == "paired":
+        # 配对样本t检验
+        n = ((z_alpha + z_beta) ** 2) / (effect_size**2)
+    elif test_type == "two_sample":
+        # 独立样本t检验（每组样本量）
+        n_per_group = 2 * ((z_alpha + z_beta) ** 2) / (effect_size**2)
+        n_total = 2 * n_per_group
+        n = {
+            "per_group": n_per_group,
+            "total": n_total,
+            "per_group_rounded": int(np.ceil(n_per_group)),
+            "total_rounded": int(np.ceil(n_total)),
+        }
+    else:
+        raise ValueError(f"不支持的检验类型: {test_type}")
+
+    # 解释效应量大小
+    effect_size_magnitude = ""
+    if abs(effect_size) < 0.2:
+        effect_size_magnitude = "很小 (very small)"
+    elif abs(effect_size) < 0.5:
+        effect_size_magnitude = "小 (small)"
+    elif abs(effect_size) < 0.8:
+        effect_size_magnitude = "中等 (medium)"
+    else:
+        effect_size_magnitude = "大 (large)"
+
+    return {
+        "effect_size": effect_size,
+        "effect_size_magnitude": effect_size_magnitude,
+        "alpha": alpha,
+        "power": power,
+        "test_type": test_type,
+        "required_n": n if test_type != "two_sample" else n["per_group_rounded"],
+        "required_n_total": n["total_rounded"] if test_type == "two_sample" else None,
+        "z_alpha": z_alpha,
+        "z_beta": z_beta,
+        "formula_used": f"n = {2 if test_type == 'two_sample' else 1} * ((Z_α + Z_β)² / d²)",
+    }
+
+
+def analyze_valence_performance(df: pl.DataFrame) -> dict[str, Any]:
+    """分析词性表现"""
     results = {}
 
     # 按词性分组统计
@@ -173,18 +262,9 @@ def analyze_valence(df: pl.DataFrame) -> dict:
             pl.col("response").count().alias("total_count"),
             pl.col("rt_ms").mean().alias("mean_rt"),
             pl.col("rt_ms").std().alias("std_rt"),
+            pl.col("rt_ms").median().alias("median_rt"),
         ]
     )
-
-    # 如果有强度评分
-    if "intensity" in df.columns:
-        intensity_by_valence = df.group_by("stim_type").agg(
-            [
-                pl.col("intensity").mean().alias("mean_intensity"),
-                pl.col("intensity").std().alias("std_intensity"),
-            ]
-        )
-        valence_stats = valence_stats.join(intensity_by_valence, on="stim_type")
 
     # 计算认同率
     valence_stats = valence_stats.with_columns(
@@ -193,178 +273,98 @@ def analyze_valence(df: pl.DataFrame) -> dict:
 
     results["valence_stats"] = valence_stats.to_dicts()
 
-    # 转换为字典便于访问
-    valence_dict = {}
-    for row in valence_stats.to_dicts():
-        valence = row["stim_type"]
-        valence_dict[valence] = row
-
-    # 打印结果
-    for valence in ["positive", "negative"]:
-        if valence in valence_dict:
-            data = valence_dict[valence]
-            print(f"  {valence}词:")
-            print(f"    认同数量: {data['yes_count']}/{data['total_count']}")
-            print(f"    认同率: {data['endorsement_rate']:.2%}")
-            print(f"    平均反应时: {data['mean_rt']:.1f} ms")
-            if "mean_intensity" in data:
-                print(f"    平均强度: {data['mean_intensity']:.2f}")
+    # 如果有强度评分
+    if "intensity" in df.columns:
+        intensity_by_valence = df.group_by("stim_type").agg(
+            [
+                pl.col("intensity").mean().alias("mean_intensity"),
+                pl.col("intensity").std().alias("std_intensity"),
+                pl.col("intensity").median().alias("median_intensity"),
+            ]
+        )
+        results["intensity_stats"] = intensity_by_valence.to_dicts()
 
     return results
 
 
-def calculate_key_metrics(df: pl.DataFrame, valence_results: dict) -> dict:
-    print("\n4. 计算关键指标...")
+def analyze_reaction_time_breakdown(df: pl.DataFrame) -> dict[str, Any]:
+    """分析反应时细分"""
+    results = {}
 
-    metrics = {}
-
-    # 基础指标
-    total = df.height
-    yes_count = df.filter(pl.col("response") == "yes").height
-    no_count = df.filter(pl.col("response") == "no").height  # noqa: F841
-
-    # 1. 认同率: 认同数量 / 总数量
-    endorsement_rate = yes_count / total if total > 0 else 0
-    metrics["endorsement_rate"] = endorsement_rate
-
-    # 2. 积极偏向: 积极认同率 - 消极认同率
-    if "valence_stats" in valence_results:
-        valence_data = {}
-        for stat in valence_results["valence_stats"]:
-            valence_data[stat["stim_type"]] = stat
-
-        if "positive" in valence_data and "negative" in valence_data:
-            positive_rate = valence_data["positive"]["endorsement_rate"]
-            negative_rate = valence_data["negative"]["endorsement_rate"]
-            metrics["positive_bias"] = positive_rate - negative_rate
-
-    # 3. 消极RT - 积极RT
-    if "valence_stats" in valence_results:
-        valence_data = {}
-        for stat in valence_results["valence_stats"]:
-            valence_data[stat["stim_type"]] = stat
-
-        if "positive" in valence_data and "negative" in valence_data:
-            negative_rt = valence_data["negative"]["mean_rt"]
-            positive_rt = valence_data["positive"]["mean_rt"]
-            metrics["rt_negative_minus_positive"] = negative_rt - positive_rt
-
-    # 4. 认同RT - 不认同RT
-    yes_rt = df.filter(pl.col("response") == "yes")["rt_ms"].mean()
-    no_rt = df.filter(pl.col("response") == "no")["rt_ms"].mean()
-    metrics["rt_endorsed_minus_not"] = yes_rt - no_rt
-
-    # 5. 消极intensity - 积极intensity
-    if "intensity" in df.columns and "valence_stats" in valence_results:
-        valence_data = {}
-        for stat in valence_results["valence_stats"]:
-            valence_data[stat["stim_type"]] = stat
-
-        if "positive" in valence_data and "negative" in valence_data:
-            if (
-                "mean_intensity" in valence_data["negative"]
-                and "mean_intensity" in valence_data["positive"]
-            ):
-                negative_intensity = valence_data["negative"]["mean_intensity"]
-                positive_intensity = valence_data["positive"]["mean_intensity"]
-                metrics["intensity_negative_minus_positive"] = (
-                    negative_intensity - positive_intensity
-                )
-
-    # 打印所有指标
-    print("\n  关键指标计算结果:")
-    print(f"  1. 认同率: {metrics.get('endorsement_rate', 0):.2%}")
-    if "positive_bias" in metrics:
-        print(f"  2. 积极偏向: {metrics['positive_bias']:.3f} (正值表示积极偏向)")
-    if "rt_negative_minus_positive" in metrics:
-        print(f"  3. 消极RT - 积极RT: {metrics['rt_negative_minus_positive']:.1f} ms")
-    if "rt_endorsed_minus_not" in metrics:
-        print(f"  4. 认同RT - 不认同RT: {metrics['rt_endorsed_minus_not']:.1f} ms")
-    if "intensity_negative_minus_positive" in metrics:
-        print(
-            f"  5. 消极intensity - 积极intensity: {metrics['intensity_negative_minus_positive']:.2f}"
-        )
-
-    return metrics
-
-
-def create_valence_analysis_plot(valence_results: dict, result_dir: Path):
-    if "valence_stats" not in valence_results:
-        return
-
-    # 准备数据
-    valence_data = valence_results["valence_stats"]
-
-    # 按词性组织数据
-    valence_dict = {}
-    for row in valence_data:
-        valence = row["stim_type"]
-        valence_dict[valence] = row
-
-    # 创建子图
-    fig = sp.make_subplots(
-        rows=1,
-        cols=2,
-        subplot_titles=("认同数量", "反应时间"),
-        specs=[[{"type": "bar"}, {"type": "bar"}]],
-        horizontal_spacing=0.2,
+    # 按反应类型和词性分析
+    response_valence_stats = df.group_by(["response", "stim_type"]).agg(
+        [
+            pl.col("rt_ms").mean().alias("mean_rt"),
+            pl.col("rt_ms").std().alias("std_rt"),
+            pl.count().alias("count"),
+        ]
     )
 
-    # 图表1：认同数量
-    if "positive" in valence_dict and "negative" in valence_dict:
-        pos_data = valence_dict["positive"]
-        neg_data = valence_dict["negative"]
+    results["response_valence_stats"] = response_valence_stats.to_dicts()
 
+    return results
+
+
+def create_visualizations_single(
+    metrics: dict[str, float],
+    valence_results: dict[str, Any],
+    result_dir: Path,
+) -> go.Figure:
+    """创建单个被试的可视化图表"""
+
+    fig = make_subplots(
+        rows=2,
+        cols=3,
+        subplot_titles=(
+            "1. 认同数量对比",
+            "2. 反应时对比",
+            "3. 认同率对比",
+            "4. 关键指标",
+            "5. 与参考值对比",
+            "6. 反应时分布",
+        ),
+        specs=[
+            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],
+            [{"type": "table"}, {"type": "scatter"}, {"type": "histogram"}],
+        ],
+        vertical_spacing=0.15,
+        horizontal_spacing=0.15,
+    )
+
+    # 图1: 认同数量对比
+    if (
+        "positive_endorsement_count" in metrics
+        and "negative_endorsement_count" in metrics
+    ):
         fig.add_trace(
             go.Bar(
-                name="积极词",
-                x=["积极词"],
-                y=[pos_data["yes_count"]],
-                marker_color="lightblue",
-                text=[f"{pos_data['yes_count']}"],
+                x=["积极词", "消极词"],
+                y=[
+                    metrics["positive_endorsement_count"],
+                    metrics["negative_endorsement_count"],
+                ],
+                name="当前被试",
+                marker_color=["lightblue", "lightcoral"],
+                text=[
+                    str(int(metrics["positive_endorsement_count"])),
+                    str(int(metrics["negative_endorsement_count"])),
+                ],
                 textposition="auto",
             ),
             row=1,
             col=1,
         )
 
-        fig.add_trace(
-            go.Bar(
-                name="消极词",
-                x=["消极词"],
-                y=[neg_data["yes_count"]],
-                marker_color="lightcoral",
-                text=[f"{neg_data['yes_count']}"],
-                textposition="auto",
-            ),
-            row=1,
-            col=1,
-        )
-
+        # 添加参考值
         fig.add_trace(
             go.Scatter(
                 x=["积极词", "消极词"],
                 y=[
-                    PICTURE_REFERENCE["endorsement_count"]["HCO"]["positive"],
-                    PICTURE_REFERENCE["endorsement_count"]["HCO"]["negative"],
+                    REFERENCE_VALUES["HCO"]["endorsement_count"]["positive"],
+                    REFERENCE_VALUES["HCO"]["endorsement_count"]["negative"],
                 ],
                 mode="markers",
-                name="对照组参考",
-                marker=dict(size=12, color="red", symbol="diamond"),
-                opacity=0.7,
-            ),
-            row=1,
-            col=1,
-        )
-        fig.add_trace(
-            go.Scatter(
-                x=["积极词", "消极词"],
-                y=[
-                    PICTURE_REFERENCE["endorsement_count"]["MDD"]["positive"],
-                    PICTURE_REFERENCE["endorsement_count"]["MDD"]["negative"],
-                ],
-                mode="markers",
-                name="MDD参考",
+                name="HCO参考",
                 marker=dict(size=12, color="green", symbol="diamond"),
                 opacity=0.7,
             ),
@@ -372,344 +372,1889 @@ def create_valence_analysis_plot(valence_results: dict, result_dir: Path):
             col=1,
         )
 
-    # 图表2：反应时间
-    if "positive" in valence_dict and "negative" in valence_dict:
-        pos_data = valence_dict["positive"]
-        neg_data = valence_dict["negative"]
-
-        fig.add_trace(
-            go.Bar(
-                name="积极词",
-                x=["积极词"],
-                y=[pos_data["mean_rt"]],
-                marker_color="lightblue",
-                text=[f"{pos_data['mean_rt']:.0f} ms"],
-                textposition="auto",
-                showlegend=False,
-            ),
-            row=1,
-            col=2,
-        )
-
-        fig.add_trace(
-            go.Bar(
-                name="消极词",
-                x=["消极词"],
-                y=[neg_data["mean_rt"]],
-                marker_color="lightcoral",
-                text=[f"{neg_data['mean_rt']:.0f} ms"],
-                textposition="auto",
-                showlegend=False,
-            ),
-            row=1,
-            col=2,
-        )
         fig.add_trace(
             go.Scatter(
                 x=["积极词", "消极词"],
                 y=[
-                    PICTURE_REFERENCE["reaction_time"]["HCO"]["positive"],
-                    PICTURE_REFERENCE["reaction_time"]["HCO"]["negative"],
+                    REFERENCE_VALUES["MDD"]["endorsement_count"]["positive"],
+                    REFERENCE_VALUES["MDD"]["endorsement_count"]["negative"],
                 ],
                 mode="markers",
-                name="对照组参考",
+                name="MDD参考",
+                marker=dict(size=12, color="red", symbol="diamond"),
+                opacity=0.7,
+            ),
+            row=1,
+            col=1,
+        )
+
+    # 图2: 反应时对比
+    if "positive_rt" in metrics and "negative_rt" in metrics:
+        fig.add_trace(
+            go.Bar(
+                x=["积极词", "消极词"],
+                y=[metrics["positive_rt"], metrics["negative_rt"]],
+                name="当前被试",
+                marker_color=["lightblue", "lightcoral"],
+                text=[
+                    f"{metrics['positive_rt']:.0f} ms",
+                    f"{metrics['negative_rt']:.0f} ms",
+                ],
+                textposition="auto",
+            ),
+            row=1,
+            col=2,
+        )
+
+        # 添加参考值
+        fig.add_trace(
+            go.Scatter(
+                x=["积极词", "消极词"],
+                y=[
+                    REFERENCE_VALUES["HCO"]["reaction_time"]["positive"],
+                    REFERENCE_VALUES["HCO"]["reaction_time"]["negative"],
+                ],
+                mode="markers",
+                name="HCO参考",
+                marker=dict(size=12, color="green", symbol="diamond"),
+                opacity=0.7,
+            ),
+            row=1,
+            col=2,
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=["积极词", "消极词"],
+                y=[
+                    REFERENCE_VALUES["MDD"]["reaction_time"]["positive"],
+                    REFERENCE_VALUES["MDD"]["reaction_time"]["negative"],
+                ],
+                mode="markers",
+                name="MDD参考",
                 marker=dict(size=12, color="red", symbol="diamond"),
                 opacity=0.7,
             ),
             row=1,
             col=2,
         )
+
+    # 图3: 认同率对比
+    if (
+        "positive_endorsement_rate" in metrics
+        and "negative_endorsement_rate" in metrics
+    ):
         fig.add_trace(
-            go.Scatter(
+            go.Bar(
                 x=["积极词", "消极词"],
                 y=[
-                    PICTURE_REFERENCE["reaction_time"]["MDD"]["positive"],
-                    PICTURE_REFERENCE["reaction_time"]["MDD"]["negative"],
+                    metrics["positive_endorsement_rate"],
+                    metrics["negative_endorsement_rate"],
                 ],
-                mode="markers",
-                name="MDD参考",
-                marker=dict(size=12, color="green", symbol="diamond"),
-                opacity=0.7,
+                name="当前被试",
+                marker_color=["lightblue", "lightcoral"],
+                text=[
+                    f"{metrics['positive_endorsement_rate']:.1%}",
+                    f"{metrics['negative_endorsement_rate']:.1%}",
+                ],
+                textposition="auto",
             ),
             row=1,
+            col=3,
+        )
+
+    # 图4: 关键指标表格
+    key_metrics_display = [
+        ["指标", "值"],
+        ["总认同率", f"{metrics.get('endorsement_rate', 0):.1%}"],
+        ["积极偏向", f"{metrics.get('positive_bias', 0):.3f}"],
+        ["消极RT - 积极RT", f"{metrics.get('rt_negative_minus_positive', 0):.1f} ms"],
+        ["认同RT - 不认同RT", f"{metrics.get('rt_endorsed_minus_not', 0):.1f} ms"],
+    ]
+
+    if "intensity_negative_minus_positive" in metrics:
+        key_metrics_display.append(
+            [
+                "消极强度 - 积极强度",
+                f"{metrics['intensity_negative_minus_positive']:.2f}",
+            ]
+        )
+
+    fig.add_trace(
+        go.Table(
+            header=dict(
+                values=["指标", "值"],
+                fill_color="lightblue",
+                align="left",
+                font=dict(size=12),
+            ),
+            cells=dict(
+                values=[
+                    [row[0] for row in key_metrics_display[1:]],
+                    [row[1] for row in key_metrics_display[1:]],
+                ],
+                fill_color="lavender",
+                align="left",
+                font=dict(size=11),
+            ),
+        ),
+        row=2,
+        col=1,
+    )
+
+    # 图5: 与参考值对比（积极偏向）
+    if "positive_bias" in metrics:
+        # 估算参考组的积极偏向（假设每类40个词）
+        hco_positive_rate = (
+            REFERENCE_VALUES["HCO"]["endorsement_count"]["positive"] / 40
+        )
+        hco_negative_rate = (
+            REFERENCE_VALUES["HCO"]["endorsement_count"]["negative"] / 40
+        )
+        hco_bias = hco_positive_rate - hco_negative_rate
+
+        mdd_positive_rate = (
+            REFERENCE_VALUES["MDD"]["endorsement_count"]["positive"] / 40
+        )
+        mdd_negative_rate = (
+            REFERENCE_VALUES["MDD"]["endorsement_count"]["negative"] / 40
+        )
+        mdd_bias = mdd_positive_rate - mdd_negative_rate
+
+        fig.add_trace(
+            go.Bar(
+                x=["当前被试", "HCO参考", "MDD参考"],
+                y=[metrics["positive_bias"], hco_bias, mdd_bias],
+                name="积极偏向",
+                marker_color=["blue", "green", "red"],
+                text=[
+                    f"{metrics['positive_bias']:.3f}",
+                    f"{hco_bias:.3f}",
+                    f"{mdd_bias:.3f}",
+                ],
+                textposition="auto",
+            ),
+            row=2,
             col=2,
+        )
+
+    # 图6: 反应时分布（简化版）
+    if "valence_stats" in valence_results:
+        # 准备数据
+        rt_data = []
+        labels = []
+        for stat in valence_results["valence_stats"]:
+            rt_data.append(stat["mean_rt"])
+            labels.append(f"{stat['stim_type']}\n({stat['mean_rt']:.0f}ms)")
+
+        fig.add_trace(
+            go.Bar(
+                x=labels,
+                y=rt_data,
+                name="平均反应时",
+                marker_color=["lightblue", "lightcoral"],
+            ),
+            row=2,
+            col=3,
         )
 
     # 更新布局
     fig.update_layout(
-        title="词性分析",
-        template="plotly_white",
-        showlegend=True,
-        height=400,
-        width=800,
-    )
-
-    fig.update_yaxes(title_text="认同数量", row=1, col=1)
-    fig.update_yaxes(title_text="反应时间 (ms)", row=1, col=2)
-
-    fig.write_html(result_dir / "key_analysis.html")
-    # fig.show()
-
-
-def create_rt_distribution_plot(df_pd: pd.DataFrame, result_dir: Path):
-    fig = px.histogram(
-        df_pd,
-        x="rt_ms",
-        color="response",
-        nbins=30,
-        title="反应时分布",
-        labels={"rt_ms": "反应时 (ms)", "count": "频数"},
-        opacity=0.7,
-        barmode="overlay",
-    )
-    fig.update_layout(
-        xaxis_range=[0, df_pd["rt_ms"].max() * 1.1],
-        template="plotly_white",
-    )
-    fig.write_html(result_dir / "rt_distribution.html")
-    # fig.show()
-
-
-def create_key_metrics_plot(key_metrics: dict, result_dir: Path):
-    # 要显示的指标
-    display_metrics = {
-        "positive_bias": "积极偏向",
-        "rt_negative_minus_positive": "消极-积极RT差",
-        "rt_endorsed_minus_not": "认同-不认同RT差",
-        "endorsement_rate": "认同率",
-    }
-
-    # 准备数据
-    metric_names = []
-    metric_values = []
-    metric_colors = []
-
-    for metric_key, metric_name in display_metrics.items():
-        if metric_key in key_metrics:
-            metric_names.append(metric_name)
-            value = key_metrics[metric_key]
-            metric_values.append(abs(value) if metric_key != "positive_bias" else value)
-
-            if metric_key == "positive_bias":
-                if value > 0.1:
-                    metric_colors.append("lightblue")  # 强积极偏向
-                elif value > 0:
-                    metric_colors.append("lightgreen")  # 弱积极偏向
-                elif value < -0.1:
-                    metric_colors.append("lightcoral")  # 强消极偏向
-                else:
-                    metric_colors.append("lightgray")  # 中性
-            else:
-                metric_colors.append("lightskyblue")
-
-    if not metric_names:
-        return
-
-    # 创建条形图
-    fig = sp.make_subplots(rows=1, cols=2, subplot_titles="关键指标")
-    fig.add_trace(
-        go.Bar(
-            x=["消极-积极RT差", "认同-不认同RT差"],
-            y=[
-                key_metrics["rt_negative_minus_positive"],
-                key_metrics["rt_endorsed_minus_not"],
-            ],
-            marker_color=["lightcoral", "lightskyblue"],
+        title=dict(
+            text="SRET分析报告", font=dict(size=24, family="Arial Black"), x=0.5
         ),
-        row=1,
-        col=1,
-    )
-
-    fig.add_trace(
-        go.Bar(
-            x=["积极偏向", "认同率"],
-            y=[key_metrics["positive_bias"], key_metrics["endorsement_rate"]],
-            marker_color=["lightblue", "lightgreen"],
-        ),
-        row=1,
-        col=2,
-    )
-
-    fig.update_layout(
-        title="关键指标可视化",
-        xaxis_title="指标",
-        yaxis_title="数值",
-        template="plotly_white",
+        height=900,
+        width=1400,
         showlegend=True,
+        template="plotly_white",
     )
 
-    # 添加参考线（针对积极偏向）
-    if "积极偏向" in metric_names:
-        idx = metric_names.index("积极偏向")  # noqa: F841
-        fig.add_hline(
-            y=0.1,
-            line_dash="dash",
-            line_color="blue",
-            annotation_text="HC阈值",
-            annotation_position="top right",
-            row=1,
-            col=2,
-        )
-        fig.add_hline(
-            y=-0.1,
-            line_dash="dash",
-            line_color="red",
-            annotation_text="MDD阈值",
-            annotation_position="bottom right",
-            row=1,
-            col=2,
-        )
+    # 保存图表
+    fig.write_html(str(result_dir / "sret_analysis_report.html"))
 
-    fig.write_html(result_dir / "key_metrics.html")
-    # fig.show()
+    return fig
 
 
-def create_rt_intensity_plot(df_pd, result_dir: Path):
-    """创建反应时与强度关系图"""
-    # [ ] 未必是线性拟合, 先用着
-    fig = px.scatter(
-        df_pd,
-        x="rt_ms",
-        y="intensity",
-        color="response",
-        title="反应时与强度关系",
-        labels={"rt_ms": "反应时 (ms)", "intensity": "强度评分 (0-10)"},
-        hover_data=["stim_word"],
-        trendline="lowess",
-    )
-    # ['lowess', 'rolling', 'ewm', 'expanding', 'ols']
-    fig.update_layout(template="plotly_white")
-    fig.write_html(result_dir / "rt_intensity.html")
-    # fig.show()
-
-
-def create_visualizations(
-    df: pl.DataFrame,
-    basic_results: dict,
-    valence_results: dict,
-    key_metrics: dict,
+def save_results_single(
+    metrics: dict[str, float],
+    valence_results: dict[str, Any],
     result_dir: Path,
 ):
-    print("\n6. 生成可视化图表...")
+    """保存单个被试的分析结果"""
 
-    # 转换为pandas用于Plotly
-    df_pd = df.to_pandas() if df.height < 10000 else df.head(1000).to_pandas()
+    # 保存关键指标
+    metrics_df = pl.DataFrame([metrics])
+    metrics_df.write_csv(result_dir / "sret_key_metrics.csv")
 
-    # 图表1：词性分析图
+    # 保存词性统计
     if "valence_stats" in valence_results:
-        create_valence_analysis_plot(valence_results, result_dir)
+        valence_df = pl.DataFrame(valence_results["valence_stats"])
+        valence_df.write_csv(result_dir / "sret_valence_stats.csv")
 
-    # 图表2：反应时分布
-    create_rt_distribution_plot(df_pd, result_dir)
-
-    # 图表3：关键指标可视化
-    create_key_metrics_plot(key_metrics, result_dir)
-
-    # 图表4：反应时与强度关系（如果有强度评分）
-    if "intensity" in df.columns:
-        create_rt_intensity_plot(df_pd, result_dir)
-
-
-def save_results(results: dict, result_dir: Path):
-    print("\n7. 保存分析结果...")
+    # 保存JSON格式的完整结果
+    results = {
+        "key_metrics": metrics,
+        "valence_analysis": valence_results,
+    }
 
     with open(result_dir / "sret_analysis_results.json", "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
 
-    # 关键指标
-    if "key_metrics" in results:
-        metrics_data = []
-        for key, value in results["key_metrics"].items():
-            metrics_data.append({"指标": key, "值": value})
-
-        metrics_df = pl.DataFrame(metrics_data)
-        metrics_df.write_csv(result_dir / "key_metrics.csv")
-
-        print("  关键指标:")
-        for row in metrics_data:
-            print(f"    {row['指标']}: {row['值']:.4f}")
-
-    print(f"  结果已保存到: {result_dir}")
+    print(f"\n结果已保存到: {result_dir}")
+    print("  - sret_key_metrics.csv (关键指标)")
+    print("  - sret_valence_stats.csv (词性统计)")
+    print("  - sret_analysis_results.json (完整结果)")
+    print("  - sret_analysis_report.html (分析报告)")
 
 
-def analyze_sret_data(
+def analyze_sret_data_single(
     df: pl.DataFrame,
-    target_blocks: int | list[int] = None,
-    block_col: str = "block_index",
-    result_dir: Path = None,
-) -> dict:
-    # 数据预处理
-    df_processed = preprocess_sret_data(df, target_blocks, block_col)
-    if df_processed is None:
-        return {}
+    target_blocks: list[str] = ["Encoding"],
+    result_dir: Path = Path("results"),
+) -> dict[str, Any]:
+    """分析单个被试的SRET数据"""
 
-    # 基础分析
-    basic_results = analyze_basic(df_processed)
-
-    # 词性分析
-    if "stim_type" in df_processed.columns:
-        valence_results = analyze_valence(df_processed)
-    else:
-        valence_results = {}
-        warnings.warn("未找到stim_type列，跳过词性分析")
-
-    # 计算关键指标
-    key_metrics = calculate_key_metrics(df_processed, valence_results)
-
-    # 生成可视化
-    create_visualizations(
-        df_processed, basic_results, valence_results, key_metrics, result_dir
+    # 1. 提取试次数据
+    trials_df = extract_trials_by_block(
+        df,
+        target_block_indices=target_blocks,
+        block_col="phase",
+        trial_col="trial_index",
+        fill_na=True,
     )
 
-    # 保存结果
-    results = {
-        "basic": basic_results,
-        "valence": valence_results,
-        "key_metrics": key_metrics,
-    }
+    if trials_df.height == 0:
+        print("❌ 错误: 未找到有效的试次数据")
+        return {}
 
-    save_results(results, result_dir)
+    # 检查必要列
+    required_columns = ["stim_word", "response", "rt", "stim_type"]
+    missing_columns = [col for col in required_columns if col not in trials_df.columns]
+    if missing_columns:
+        print(f"❌ 缺少必要列: {missing_columns}")
+        return {}
+
+    # 预处理
+    trials_df = trials_df.with_columns(
+        (pl.col("rt") * 1000).alias("rt_ms"),
+        (pl.col("response") == "yes").cast(pl.Int8).alias("response_code"),
+    )
+
+    if "intensity" in trials_df.columns:
+        trials_df = trials_df.with_columns(
+            pl.col("intensity").clip(0, 10).alias("intensity")
+        )
+
+    # 2. 计算关键指标
+    metrics = calculate_key_metrics_single(trials_df)
+
+    # 3. 词性表现分析
+    valence_results = analyze_valence_performance(trials_df)
+
+    # 4. 反应时细分分析
+    rt_breakdown = analyze_reaction_time_breakdown(trials_df)
+
+    # 5. 创建可视化
+    fig = create_visualizations_single(metrics, valence_results, result_dir)  # noqa: F841
+
+    # 6. 保存结果
+    save_results_single(metrics, valence_results, result_dir)
+
+    # 7. 生成报告
+    results = {
+        "data_summary": {
+            "total_trials": trials_df.height,
+            "positive_words": trials_df.filter(
+                pl.col("stim_type") == "positive"
+            ).height,
+            "negative_words": trials_df.filter(
+                pl.col("stim_type") == "negative"
+            ).height,
+            "endorsed_trials": trials_df.filter(pl.col("response") == "yes").height,
+            "not_endorsed_trials": trials_df.filter(pl.col("response") == "no").height,
+        },
+        "key_metrics": metrics,
+        "valence_results": valence_results,
+        "rt_breakdown": rt_breakdown,
+    }
 
     return results
 
 
-def run_sret_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
-    print("=" * 60)
-    print("自我参照编码任务分析")
-    print("=" * 60)
-    if data_utils is None:
-        file_input = input("请输入数据文件路径: \n").strip("'").strip()
-        file_path = Path(file_input.strip("'").strip('"')).resolve()
-    else:
-        file_path = (
-            Path(cfg.output_dir) / data_utils.date / f"{data_utils.session_id}-sret.csv"
+def check_normality_and_homoscedasticity(
+    group_metrics: list[dict[str, float]],
+) -> dict[str, dict[str, Any]]:
+    """检查正态性和方差齐性"""
+    results = {}
+
+    # 转换为DataFrame
+    df = pd.DataFrame(group_metrics)
+
+    # 需要检验的指标
+    key_metrics = [
+        "positive_bias",
+        "rt_negative_minus_positive",
+        "rt_endorsed_minus_not",
+        "endorsement_rate",
+    ]
+
+    for metric in key_metrics:
+        if metric not in df.columns:
+            continue
+
+        values = df[metric].dropna().values
+
+        if len(values) < 3:
+            results[metric] = {"error": "样本量不足进行正态性检验"}
+            continue
+
+        # 正态性检验（Shapiro-Wilk）
+        try:
+            stat, p_value = stats.shapiro(values)
+            is_normal = p_value > 0.05
+
+            # 方差齐性检验（Levene's test，如果有多个组）
+            if len(group_metrics) >= 2:
+                # 这里假设每个被试是一个组，实际应用中需要根据实验设计调整
+                levene_stat, levene_p = stats.levene(values, values)
+                is_homoscedastic = levene_p > 0.05
+            else:
+                is_homoscedastic = None
+
+            results[metric] = {
+                "shapiro_stat": float(stat),
+                "shapiro_p": float(p_value),
+                "is_normal": is_normal,
+                "levene_stat": float(levene_stat)
+                if "levene_stat" in locals()
+                else None,
+                "levene_p": float(levene_p) if "levene_p" in locals() else None,
+                "is_homoscedastic": is_homoscedastic,
+                "n": len(values),
+                "mean": float(np.mean(values)),
+                "std": float(np.std(values, ddof=1)),
+            }
+        except Exception as e:
+            results[metric] = {"error": f"检验失败: {str(e)}"}
+
+    return results
+
+
+def perform_group_comparisons(
+    control_metrics: list[dict[str, float]],
+    experimental_metrics: list[dict[str, float]],
+    anova: bool = False,
+) -> dict[str, dict[str, Any]]:
+    """
+    执行对照组和实验组的比较分析
+    """
+    results = {}
+
+    # 转换为DataFrame
+    control_df = pd.DataFrame(control_metrics)
+    experimental_df = pd.DataFrame(experimental_metrics)
+
+    # 需要比较的指标
+    key_metrics = [
+        "positive_bias",
+        "rt_negative_minus_positive",
+        "rt_endorsed_minus_not",
+        "endorsement_rate",
+    ]
+
+    for metric in key_metrics:
+        if metric not in control_df.columns or metric not in experimental_df.columns:
+            continue
+
+        control_values = control_df[metric].dropna().values
+        experimental_values = experimental_df[metric].dropna().values
+
+        if len(control_values) < 2 or len(experimental_values) < 2:
+            results[metric] = {"error": "样本量不足进行组间比较"}
+            continue
+
+        try:
+            # 基础正态性和方差齐性检查（用于后续统计决策参考）
+            _, control_p = stats.shapiro(control_values)
+            _, experimental_p = stats.shapiro(experimental_values)
+            both_normal = control_p > 0.05 and experimental_p > 0.05
+            levene_stat, levene_p = stats.levene(control_values, experimental_values)
+            equal_var = levene_p > 0.05
+
+            if anova:
+                # One-way ANOVA
+                f_stat, p_value = stats.f_oneway(control_values, experimental_values)
+
+                # 自由度计算 (One-way ANOVA with 2 groups)
+                k = 2
+                N = len(control_values) + len(experimental_values)
+                df_between = k - 1
+                df_within = N - k
+                degrees_of_freedom = f"{df_between}, {df_within}"
+
+                # 效应量计算: Eta-squared (η²)
+                eta_squared = (f_stat * df_between) / (f_stat * df_between + df_within)
+
+                effect_size = eta_squared
+                effect_size_type = "Eta-squared"
+
+                if eta_squared < 0.01:
+                    effect_size_desc = "可忽略 (Negligible)"
+                elif eta_squared < 0.06:
+                    effect_size_desc = "小 (Small)"
+                elif eta_squared < 0.14:
+                    effect_size_desc = "中等 (Medium)"
+                else:
+                    effect_size_desc = "大 (Large)"
+                effect_size_desc = f"{effect_size_desc} (η²={eta_squared:.3f})"
+
+                test_type = "One-way ANOVA"
+                statistic = f_stat
+                cohens_d = None
+
+            else:
+                degrees_of_freedom = "N/A"
+                eta_squared = None
+
+                if both_normal:
+                    # 参数检验：独立样本t检验
+                    if equal_var:
+                        t_stat, p_value = stats.ttest_ind(
+                            control_values, experimental_values, equal_var=True
+                        )
+                        test_type = "Student's t-test (equal variance)"
+                        df_t = len(control_values) + len(experimental_values) - 2
+                        degrees_of_freedom = str(df_t)
+                    else:
+                        t_stat, p_value = stats.ttest_ind(
+                            control_values, experimental_values, equal_var=False
+                        )
+                        test_type = "Welch's t-test (unequal variance)"
+                        # Welch's df is complex, approximating:
+                        # (We can calculate it, but usually standard output suffices)
+                        degrees_of_freedom = "Welch approx."
+
+                    statistic = t_stat
+                else:
+                    # 非参数检验：Mann-Whitney U检验
+                    u_stat, p_value = stats.mannwhitneyu(
+                        control_values, experimental_values
+                    )
+                    statistic = u_stat
+                    test_type = "Mann-Whitney U test"
+                    degrees_of_freedom = "N/A"
+
+                # 计算效应量 (Cohen's d or Cliff's delta concept)
+                if both_normal:
+                    n1, n2 = len(control_values), len(experimental_values)
+                    pooled_std = np.sqrt(
+                        (
+                            (n1 - 1) * np.var(control_values, ddof=1)
+                            + (n2 - 1) * np.var(experimental_values, ddof=1)
+                        )
+                        / (n1 + n2 - 2)
+                    )
+                    cohens_d = (
+                        np.mean(control_values) - np.mean(experimental_values)
+                    ) / pooled_std
+
+                    effect_size = cohens_d
+                    effect_size_type = "Cohen's d"
+
+                    abs_d = abs(cohens_d)
+                    if abs_d < 0.2:
+                        effect_size_desc = "很小"
+                    elif abs_d < 0.5:
+                        effect_size_desc = "小"
+                    elif abs_d < 0.8:
+                        effect_size_desc = "中等"
+                    else:
+                        effect_size_desc = "大"
+                    effect_size_desc = f"{effect_size_desc} (d={cohens_d:.2f})"
+                else:
+                    cohens_d = None
+                    effect_size = None
+                    effect_size_type = "Non-parametric"
+                    effect_size_desc = "非参数效应量"
+
+            # 计算样本量
+            sample_size_info = {}
+            if cohens_d is not None:
+                sample_size_info = calculate_sample_size(
+                    effect_size=abs(cohens_d),
+                    alpha=0.05,
+                    power=0.8,
+                    test_type="two_sample",
+                )
+
+            results[metric] = {
+                "test_type": test_type,
+                "statistic": float(statistic) if not np.isnan(statistic) else None,
+                "p_value": float(p_value),
+                "cohens_d": float(cohens_d) if cohens_d is not None else None,
+                "effect_size_desc": effect_size_desc,
+                "analysis_type": test_type,
+                "degrees_of_freedom": degrees_of_freedom,
+                "effect_size": float(effect_size) if effect_size is not None else None,
+                "effect_size_type": effect_size_type,
+                "effect_size_magnitude": effect_size_desc.split("(")[0].strip()
+                if "(" in effect_size_desc
+                else effect_size_desc,
+                # 样本量信息
+                "required_sample_size_per_group": sample_size_info.get("required_n")
+                if sample_size_info
+                else None,
+                "required_total_sample_size": sample_size_info.get("required_n_total")
+                if sample_size_info
+                else None,
+                "sample_size_power": sample_size_info.get("power")
+                if sample_size_info
+                else None,
+                "sample_size_alpha": sample_size_info.get("alpha")
+                if sample_size_info
+                else None,
+                # 描述性统计
+                "control_mean": float(np.mean(control_values)),
+                "control_std": float(np.std(control_values, ddof=1)),
+                "control_n": len(control_values),
+                "experimental_mean": float(np.mean(experimental_values)),
+                "experimental_std": float(np.std(experimental_values, ddof=1)),
+                "experimental_n": len(experimental_values),
+                "both_normal": both_normal,
+                "equal_variance": equal_var if "equal_var" in locals() else None,
+            }
+        except Exception as e:
+            results[metric] = {"error": f"比较分析失败: {str(e)}"}
+
+    return results
+
+
+def create_group_comparison_visualizations_single_group(
+    group_metrics: list[dict[str, float]],
+    statistical_results: dict[str, dict[str, Any]],
+    result_dir: Path,
+):
+    """创建单个组的组分析可视化"""
+
+    # 提取所有被试的指标
+    all_metrics = group_metrics
+
+    # 创建指标矩阵
+    key_metrics_list = [
+        "positive_bias",
+        "rt_negative_minus_positive",
+        "rt_endorsed_minus_not",
+        "endorsement_rate",
+    ]
+
+    metric_names = ["积极偏向", "消极-积极RT差", "认同-不认同RT差", "总认同率"]
+
+    fig = make_subplots(
+        rows=3,
+        cols=3,
+        subplot_titles=(
+            "1. 各被试积极偏向分布",
+            "2. 关键指标相关性",
+            "3. 与文献对比",
+            "4. 统计检验结果",
+            "5. 效应量分析",
+            "6. 指标分布箱形图",
+            "7. 样本量计算",
+            "8. 样本量需求曲线",
+            "9. 效应量分布",
+        ),
+        specs=[
+            [{"type": "bar"}, {"type": "heatmap"}, {"type": "scatter"}],
+            [{"type": "table"}, {"type": "bar"}, {"type": "box"}],
+            [{"type": "table"}, {"type": "scatter"}, {"type": "histogram"}],
+        ],
+        vertical_spacing=0.12,
+        horizontal_spacing=0.08,
+    )
+
+    # 图1: 各被试积极偏向分布
+    if "positive_bias" in all_metrics[0]:
+        bias_values = [m["positive_bias"] for m in all_metrics]
+        subjects = [f"被试{i + 1}" for i in range(len(all_metrics))]
+
+        fig.add_trace(
+            go.Bar(
+                x=subjects,
+                y=bias_values,
+                name="积极偏向",
+                marker_color="lightblue",
+                text=[f"{v:.3f}" for v in bias_values],
+                textposition="auto",
+            ),
+            row=1,
+            col=1,
         )
+
+    # 图2: 关键指标相关性热图
+    metrics_df = pd.DataFrame(all_metrics)
+    available_metrics = [m for m in key_metrics_list if m in metrics_df.columns]
+    available_names = [
+        metric_names[key_metrics_list.index(m)] for m in available_metrics
+    ]
+
+    if available_metrics:
+        corr_matrix = metrics_df[available_metrics].corr()
+
+        fig.add_trace(
+            go.Heatmap(
+                z=corr_matrix.values,
+                x=available_names,
+                y=available_names,
+                colorscale="RdBu",
+                zmid=0,
+                text=np.around(corr_matrix.values, 2),
+                texttemplate="%{text}",
+                showscale=True,
+            ),
+            row=1,
+            col=2,
+        )
+        fig.update_traces(
+            colorbar=dict(len=0.4, y=0.85),
+            selector=dict(type="heatmap"),
+        )
+
+    # 图3: 与文献对比（积极偏向）
+    if "positive_bias" in all_metrics[0]:
+        # 估算参考组的积极偏向（假设每类30个词）
+        hco_positive_rate = (
+            REFERENCE_VALUES["HCO"]["endorsement_count"]["positive"] / 30
+        )
+        hco_negative_rate = (
+            REFERENCE_VALUES["HCO"]["endorsement_count"]["negative"] / 30
+        )
+        hco_bias = hco_positive_rate - hco_negative_rate
+
+        mdd_positive_rate = (
+            REFERENCE_VALUES["MDD"]["endorsement_count"]["positive"] / 30
+        )
+        mdd_negative_rate = (
+            REFERENCE_VALUES["MDD"]["endorsement_count"]["negative"] / 30
+        )
+        mdd_bias = mdd_positive_rate - mdd_negative_rate
+
+        group_mean = np.mean([m["positive_bias"] for m in all_metrics])
+
+        fig.add_trace(
+            go.Bar(
+                x=["当前组", "文献HCO组", "文献MDD组"],
+                y=[group_mean, hco_bias, mdd_bias],
+                name="积极偏向比较",
+                marker_color=["blue", "green", "red"],
+                text=[f"{group_mean:.3f}", f"{hco_bias:.3f}", f"{mdd_bias:.3f}"],
+                textposition="auto",
+            ),
+            row=1,
+            col=3,
+        )
+
+    # 图4: 统计检验结果表格
+    if "error" not in statistical_results:
+        test_data = []
+        for metric, name in zip(key_metrics_list, metric_names):
+            if metric in statistical_results:
+                result = statistical_results[metric]
+                if "t_statistic" in result:
+                    test_data.append(
+                        [
+                            name,
+                            f"{result['t_statistic']:.3f}",
+                            f"{result['p_value']:.4f}",
+                            f"{result.get('cohens_d', 'N/A')}",
+                            f"{result.get('effect_size_desc', 'N/A')}",
+                        ]
+                    )
+
+        if test_data:
+            fig.add_trace(
+                go.Table(
+                    header=dict(
+                        values=["指标", "t值", "p值", "效应量", "效应大小"],
+                        fill_color="lightblue",
+                        align="left",
+                        font=dict(size=10),
+                    ),
+                    cells=dict(
+                        values=np.array(test_data).T,
+                        fill_color="lavender",
+                        align="left",
+                        font=dict(size=9),
+                    ),
+                ),
+                row=2,
+                col=1,
+            )
+
+    # 图5: 效应量分析
+    if "error" not in statistical_results:
+        effect_sizes = []
+        metrics_names = []
+
+        for metric, name in zip(key_metrics_list, metric_names):
+            if metric in statistical_results:
+                result = statistical_results[metric]
+                if "cohens_d" in result and result["cohens_d"] is not None:
+                    effect_sizes.append(abs(result["cohens_d"]))
+                    metrics_names.append(name.split("(")[0].strip())
+
+        if effect_sizes:
+            fig.add_trace(
+                go.Bar(
+                    x=metrics_names,
+                    y=effect_sizes,
+                    name="效应量(绝对值)",
+                    marker_color="lightgreen",
+                    text=[f"{v:.2f}" for v in effect_sizes],
+                    textposition="auto",
+                ),
+                row=2,
+                col=2,
+            )
+
+    # 图6: 指标分布箱形图
+    for i, (metric, name) in enumerate(zip(key_metrics_list, metric_names)):
+        if metric in all_metrics[0]:
+            values = [m[metric] for m in all_metrics]
+            fig.add_trace(
+                go.Box(
+                    y=values,
+                    name=name,
+                    boxpoints="all",
+                    jitter=0.3,
+                    pointpos=-1.8,
+                    marker_color="lightblue",
+                    showlegend=False,
+                ),
+                row=2,
+                col=3,
+            )
+
+    # 图7: 样本量计算表格
+    if "error" not in statistical_results:
+        sample_size_data = []
+        for metric, name in zip(key_metrics_list, metric_names):
+            if metric in statistical_results:
+                result = statistical_results[metric]
+                if (
+                    "required_sample_size_per_group" in result
+                    and result["required_sample_size_per_group"]
+                ):
+                    sample_size_data.append(
+                        [
+                            name,
+                            f"{result.get('cohens_d', 'N/A'):.3f}",
+                            f"{result['required_sample_size_per_group']}",
+                            f"{result['required_total_sample_size'] if result.get('required_total_sample_size') else 'N/A'}",
+                        ]
+                    )
+
+        if sample_size_data:
+            fig.add_trace(
+                go.Table(
+                    header=dict(
+                        values=["指标", "效应量(d)", "每组需样本量", "总需样本量"],
+                        fill_color="lightcoral",
+                        align="left",
+                        font=dict(size=10),
+                    ),
+                    cells=dict(
+                        values=np.array(sample_size_data).T,
+                        fill_color="mistyrose",
+                        align="left",
+                        font=dict(size=9),
+                    ),
+                ),
+                row=3,
+                col=1,
+            )
+
+    # 图8: 样本量需求曲线
+    if "error" not in statistical_results and "positive_bias" in statistical_results:
+        # 生成不同效应量下的样本量需求曲线
+        effect_sizes = np.linspace(0.1, 1.0, 20)
+        sample_sizes = []
+
+        for d in effect_sizes:
+            sample_size_info = calculate_sample_size(
+                effect_size=d, alpha=0.05, power=0.8, test_type="two_sample"
+            )
+            sample_sizes.append(sample_size_info["required_n"])
+
+        # 获取当前效应量
+        current_d = statistical_results["positive_bias"].get("cohens_d")
+
+        fig.add_trace(
+            go.Scatter(
+                x=effect_sizes,
+                y=sample_sizes,
+                mode="lines",
+                name="样本量需求曲线",
+                line=dict(width=3, color="blue"),
+                fill="tozeroy",
+                fillcolor="rgba(0, 0, 255, 0.1)",
+            ),
+            row=3,
+            col=2,
+        )
+
+        if current_d is not None:
+            current_sample_size = calculate_sample_size(
+                effect_size=abs(current_d),
+                alpha=0.05,
+                power=0.8,
+                test_type="two_sample",
+            )["required_n"]
+
+            fig.add_trace(
+                go.Scatter(
+                    x=[abs(current_d)],
+                    y=[current_sample_size],
+                    mode="markers+text",
+                    name="当前效应量",
+                    marker=dict(size=15, color="red", symbol="diamond"),
+                    text=[f"d={abs(current_d):.2f}<br>n={current_sample_size}"],
+                    textposition="top center",
+                ),
+                row=3,
+                col=2,
+            )
+
+        fig.update_xaxes(title_text="效应量 (Cohen's d)", row=3, col=2)
+        fig.update_yaxes(title_text="每组所需样本量", row=3, col=2)
+
+    # 图9: 效应量分布直方图
+    if "error" not in statistical_results:
+        cohens_d_values = []
+        for metric in key_metrics_list:
+            if metric in statistical_results:
+                d = statistical_results[metric].get("cohens_d")
+                if d is not None:
+                    cohens_d_values.append(abs(d))
+
+        if cohens_d_values:
+            fig.add_trace(
+                go.Histogram(
+                    x=cohens_d_values,
+                    nbinsx=10,
+                    name="效应量分布",
+                    marker_color="lightblue",
+                    opacity=0.7,
+                ),
+                row=3,
+                col=3,
+            )
+
+            fig.update_xaxes(title_text="效应量 (Cohen's d)", row=3, col=3)
+            fig.update_yaxes(title_text="频数", row=3, col=3)
+
+    # 更新布局
+    fig.update_layout(
+        title=dict(
+            text="SRET组分析报告（含样本量计算）",
+            font=dict(size=22, family="Arial Black"),
+            x=0.5,
+        ),
+        height=1400,
+        width=1600,
+        showlegend=True,
+        template="plotly_white",
+    )
+
+    # 保存图表
+    fig.write_html(str(result_dir / "sret_group_analysis_report.html"))
+
+    return fig
+
+
+def create_group_comparison_visualizations(
+    control_metrics: list[dict[str, float]],
+    experimental_metrics: list[dict[str, float]],
+    comparison_results: dict[str, dict[str, Any]],
+    result_dir: Path,
+):
+    """创建组间比较的可视化"""
+
+    # 提取数据
+    control_values = {k: [] for k in control_metrics[0].keys()}
+    experimental_values = {k: [] for k in experimental_metrics[0].keys()}
+
+    for metric in control_metrics[0].keys():
+        control_values[metric] = [m[metric] for m in control_metrics]
+        experimental_values[metric] = [m[metric] for m in experimental_metrics]
+
+    # 创建图表
+    fig = make_subplots(
+        rows=3,
+        cols=3,
+        subplot_titles=(
+            "1. 积极偏向分布",
+            "2. 消极-积极RT差分布",
+            "3. 认同-不认同RT差分布",
+            "4. 关键指标对比",
+            "5. 统计检验结果",
+            "6. 效应量分析",
+            "7. 样本量计算",
+            "8. 样本量需求曲线",
+            "9. 效应量与样本量关系",
+        ),
+        specs=[
+            [{"type": "box"}, {"type": "box"}, {"type": "box"}],
+            [{"type": "bar"}, {"type": "table"}, {"type": "bar"}],
+            [{"type": "table"}, {"type": "scatter"}, {"type": "scatter"}],
+        ],
+        vertical_spacing=0.12,
+        horizontal_spacing=0.15,
+    )
+
+    # 图1-3: 指标分布箱形图
+    key_metrics = [
+        "positive_bias",
+        "rt_negative_minus_positive",
+        "rt_endorsed_minus_not",
+    ]
+    metric_names = ["积极偏向", "消极-积极RT差", "认同-不认同RT差"]
+
+    for i, (metric, name) in enumerate(zip(key_metrics, metric_names)):
+        if metric in control_values:
+            fig.add_trace(
+                go.Box(
+                    y=control_values[metric],
+                    name="对照组",
+                    boxpoints="all",
+                    jitter=0.3,
+                    pointpos=-1.8,
+                    marker_color="lightgreen",
+                    showlegend=(i == 0),
+                ),
+                row=1,
+                col=i + 1,
+            )
+
+            fig.add_trace(
+                go.Box(
+                    y=experimental_values[metric],
+                    name="实验组",
+                    boxpoints="all",
+                    jitter=0.3,
+                    pointpos=-1.8,
+                    marker_color="lightcoral",
+                    showlegend=(i == 0),
+                ),
+                row=1,
+                col=i + 1,
+            )
+
+    # 图4: 关键指标对比
+    control_means = []
+    control_stds = []
+    experimental_means = []
+    experimental_stds = []
+    valid_metrics = []
+
+    for metric, name in zip(key_metrics, metric_names):
+        if metric in control_values and metric in experimental_values:
+            control_means.append(np.mean(control_values[metric]))
+            control_stds.append(np.std(control_values[metric], ddof=1))
+            experimental_means.append(np.mean(experimental_values[metric]))
+            experimental_stds.append(np.std(experimental_values[metric], ddof=1))
+            valid_metrics.append(name)
+
+    if valid_metrics:
+        x_positions = np.arange(len(valid_metrics))
+
+        fig.add_trace(
+            go.Bar(
+                x=x_positions - 0.2,
+                y=control_means,
+                name="对照组",
+                marker_color="green",
+                error_y=dict(type="data", array=control_stds, visible=True),
+                width=0.4,
+                text=[f"{v:.3f}" for v in control_means],
+                textposition="outside",
+            ),
+            row=2,
+            col=1,
+        )
+
+        fig.add_trace(
+            go.Bar(
+                x=x_positions + 0.2,
+                y=experimental_means,
+                name="实验组",
+                marker_color="red",
+                error_y=dict(type="data", array=experimental_stds, visible=True),
+                width=0.4,
+                text=[f"{v:.3f}" for v in experimental_means],
+                textposition="outside",
+            ),
+            row=2,
+            col=1,
+        )
+
+        fig.update_xaxes(ticktext=valid_metrics, tickvals=x_positions, row=2, col=1)
+
+    # 图5: 统计检验结果表格
+    if comparison_results:
+        table_data = []
+        for metric, name in zip(key_metrics, metric_names):
+            if metric in comparison_results:
+                result = comparison_results[metric]
+
+                # Safe formatting for optional values
+                stat_val = result.get("statistic")
+                p_val = result.get("p_value")
+                # Try new key 'effect_size', fallback to old 'cohens_d' if needed
+                eff_size = (
+                    result.get("effect_size")
+                    if result.get("effect_size") is not None
+                    else result.get("cohens_d")
+                )
+                eff_mag = result.get(
+                    "effect_size_magnitude", result.get("effect_size_desc", "N/A")
+                )
+
+                table_data.append(
+                    [
+                        name,
+                        str(
+                            result.get("analysis_type", result.get("test_type", "N/A"))
+                        ),
+                        f"{stat_val:.3f}" if stat_val is not None else "N/A",
+                        f"{p_val:.4f}" if p_val is not None else "N/A",
+                        f"{eff_size:.3f}" if eff_size is not None else "N/A",
+                        str(eff_mag),
+                    ]
+                )
+
+        if table_data:
+            fig.add_trace(
+                go.Table(
+                    header=dict(
+                        values=[
+                            "指标",
+                            "检验方法",
+                            "统计量",
+                            "p值",
+                            "效应量",
+                            "效应大小",
+                        ],
+                        fill_color="lightblue",
+                        align="left",
+                        font=dict(size=10),
+                    ),
+                    cells=dict(
+                        values=np.array(table_data).T,
+                        fill_color="lavender",
+                        align="left",
+                        font=dict(size=9),
+                    ),
+                ),
+                row=2,
+                col=2,
+            )
+
+    # 图6: 效应量分析
+    if comparison_results:
+        effect_sizes = []
+        metric_labels = []
+
+        for metric, name in zip(key_metrics, metric_names):
+            if metric in comparison_results:
+                # Try new key 'effect_size', fallback to old 'cohens_d'
+                val = comparison_results[metric].get("effect_size")
+                if val is None:
+                    val = comparison_results[metric].get("cohens_d")
+
+                if val is not None:
+                    effect_sizes.append(abs(val))
+                    metric_labels.append(name)
+
+        if effect_sizes:
+            fig.add_trace(
+                go.Bar(
+                    x=metric_labels,
+                    y=effect_sizes,
+                    name="效应量(绝对值)",
+                    marker_color="lightblue",
+                    text=[f"{v:.2f}" for v in effect_sizes],
+                    textposition="auto",
+                ),
+                row=2,
+                col=3,
+            )
+
+    # 图7: 样本量计算表格
+    if comparison_results:
+        sample_size_data = []
+        for metric, name in zip(key_metrics, metric_names):
+            if metric in comparison_results:
+                result = comparison_results[metric]
+                if (
+                    "required_sample_size_per_group" in result
+                    and result["required_sample_size_per_group"]
+                ):
+                    sample_size_data.append(
+                        [
+                            name,
+                            f"{result.get('cohens_d', 'N/A'):.3f}",
+                            f"{result['required_sample_size_per_group']}",
+                            f"{result.get('required_total_sample_size', 'N/A')}",
+                            f"{result.get('sample_size_power', 0.8):.2f}",
+                            f"{result.get('sample_size_alpha', 0.05):.3f}",
+                        ]
+                    )
+
+        if sample_size_data:
+            fig.add_trace(
+                go.Table(
+                    header=dict(
+                        values=[
+                            "指标",
+                            "效应量",
+                            "每组需样本",
+                            "总需样本",
+                            "功效",
+                            "α水平",
+                        ],
+                        fill_color="lightcoral",
+                        align="left",
+                        font=dict(size=9),
+                    ),
+                    cells=dict(
+                        values=np.array(sample_size_data).T,
+                        fill_color="mistyrose",
+                        align="left",
+                        font=dict(size=8),
+                    ),
+                ),
+                row=3,
+                col=1,
+            )
+
+    # 图8: 样本量需求曲线
+    if comparison_results:
+        # 生成不同效应量下的样本量需求曲线
+        effect_sizes = np.linspace(0.1, 1.0, 20)
+        sample_sizes_per_group = []
+        sample_sizes_total = []
+
+        for d in effect_sizes:
+            sample_size_info = calculate_sample_size(
+                effect_size=d, alpha=0.05, power=0.8, test_type="two_sample"
+            )
+            sample_sizes_per_group.append(sample_size_info["required_n"])
+            sample_sizes_total.append(sample_size_info["required_n_total"])
+
+        # 获取当前效应量（使用第一个指标）
+        first_metric = key_metrics[0]
+        if first_metric in comparison_results:
+            current_d = comparison_results[first_metric].get("cohens_d")
+
+            fig.add_trace(
+                go.Scatter(
+                    x=effect_sizes,
+                    y=sample_sizes_per_group,
+                    mode="lines",
+                    name="每组样本量",
+                    line=dict(width=3, color="blue"),
+                ),
+                row=3,
+                col=2,
+            )
+
+            fig.add_trace(
+                go.Scatter(
+                    x=effect_sizes,
+                    y=sample_sizes_total,
+                    mode="lines",
+                    name="总样本量",
+                    line=dict(width=3, color="red", dash="dash"),
+                ),
+                row=3,
+                col=2,
+            )
+
+            if current_d is not None:
+                current_sample_size = calculate_sample_size(
+                    effect_size=abs(current_d),
+                    alpha=0.05,
+                    power=0.8,
+                    test_type="two_sample",
+                )
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=[abs(current_d)],
+                        y=[current_sample_size["required_n"]],
+                        mode="markers+text",
+                        name="当前效应量",
+                        marker=dict(size=15, color="green", symbol="diamond"),
+                        text=[
+                            f"d={abs(current_d):.2f}<br>n={current_sample_size['required_n']}"
+                        ],
+                        textposition="top center",
+                    ),
+                    row=3,
+                    col=2,
+                )
+
+            fig.update_xaxes(title_text="效应量 (Cohen's d)", row=3, col=2)
+            fig.update_yaxes(title_text="所需样本量", row=3, col=2)
+
+    # 图9: 效应量与样本量关系（散点图）
+    if comparison_results:
+        d_values = []
+        n_values = []
+        metric_labels = []
+
+        for metric, name in zip(key_metrics, metric_names):
+            if metric in comparison_results:
+                d = comparison_results[metric].get("cohens_d")
+                if d is not None:
+                    d_values.append(abs(d))
+                    n_values.append(
+                        comparison_results[metric].get(
+                            "required_sample_size_per_group", 0
+                        )
+                    )
+                    metric_labels.append(name)
+
+        if d_values:
+            fig.add_trace(
+                go.Scatter(
+                    x=d_values,
+                    y=n_values,
+                    mode="markers+text",
+                    name="效应量vs样本量",
+                    marker=dict(size=15, color="purple"),
+                    text=metric_labels,
+                    textposition="top center",
+                ),
+                row=3,
+                col=3,
+            )
+
+            # 添加趋势线
+            if len(d_values) > 1:
+                z = np.polyfit(d_values, n_values, 2)
+                p = np.poly1d(z)
+                d_range = np.linspace(min(d_values), max(d_values), 50)
+                n_fitted = p(d_range)
+
+                fig.add_trace(
+                    go.Scatter(
+                        x=d_range,
+                        y=n_fitted,
+                        mode="lines",
+                        name="趋势线",
+                        line=dict(width=2, color="orange", dash="dash"),
+                    ),
+                    row=3,
+                    col=3,
+                )
+
+            fig.update_xaxes(title_text="效应量 (Cohen's d)", row=3, col=3)
+            fig.update_yaxes(title_text="每组所需样本量", row=3, col=3)
+
+    # 更新布局
+    fig.update_layout(
+        title=dict(
+            text="SRET组间比较分析报告（含样本量计算）",
+            font=dict(size=22, family="Arial Black"),
+            x=0.5,
+        ),
+        height=1400,
+        width=1600,
+        showlegend=True,
+        template="plotly_white",
+    )
+
+    # 保存图表
+    fig.write_html(str(result_dir / "sret_group_comparison_report.html"))
+
+    return fig
+
+
+def run_single_sret_analysis(file_path: Path, result_dir: Path = None):
+    """运行单个被试的SRET分析"""
 
     if not file_path.exists():
         print(f"❌ 文件不存在: {file_path}")
         return
 
-    df = pl.read_csv(file_path)
-
-    if cfg is None:
-        result_dir = file_path.parent.parent / "results"
-    else:
-        result_dir = Path(cfg.result_dir)
-    if data_utils is not None:
-        result_dir = result_dir / str(data_utils.session_id)
-    result_dir = result_dir / "sret_analysis"
+    if result_dir is None:
+        result_dir = file_path.parent / "sret_results"
 
     result_dir.mkdir(parents=True, exist_ok=True)
-    analyze_sret_data(
-        df=df,
-        target_blocks=["Encoding"],  # 目标区块
-        block_col="phase",  # 区块列名
-        result_dir=result_dir,
+
+    # 读取数据
+    df = pl.read_csv(file_path)
+
+    # 分析数据
+    result = analyze_sret_data_single(
+        df=df, target_blocks=["Encoding"], result_dir=result_dir
     )
 
-    print("\n" + "=" * 60)
-    print("分析完成！")
-    print("=" * 60)
+    print(f"\n✅ 分析完成！结果保存在: {result_dir}")
+    return result
+
+
+def run_group_sret_analysis(
+    data_files: list[Path],
+    result_dir: Path = None,
+    reference_group: Literal["HCO", "MDD"] = None,
+):
+    """运行一组被试的SRET分析"""
+
+    result_dir.mkdir(parents=True, exist_ok=True)
+
+    # 分析每个被试
+    all_results = []
+    group_metrics = []
+
+    for i, file_path in enumerate(data_files):
+        print(f"分析被试 {i + 1}/{len(data_files)}: {file_path.name}")
+
+        try:
+            # 读取数据
+            df = pl.read_csv(file_path)
+
+            # 提取被试ID（从文件名）
+            subject_id = file_path.stem.split("-")[0]
+
+            # 创建被试特定的结果目录
+            subject_result_dir = result_dir / subject_id
+            subject_result_dir.mkdir(parents=True, exist_ok=True)
+
+            # 分析单个被试
+            result = analyze_sret_data_single(
+                df=df,
+                target_blocks=["Encoding"],
+                result_dir=subject_result_dir,
+            )
+            result["subject_id"] = subject_id
+
+            if result:
+                all_results.append(result)
+                group_metrics.append(result["key_metrics"])
+        except Exception as e:
+            print(f"❌ 被试 {file_path.name} 分析出错: {e}")
+
+    print(f"\n共完成 {len(all_results)}/{len(data_files)} 个被试的分析")
+
+    if len(all_results) < 2:
+        print("⚠️ 被试数量不足，无法进行组间统计检验")
+        return {"all_results": all_results}
+
+    # 执行组间统计检验（与参考组比较）
+    print("\n执行组间统计检验...")
+
+    # 询问参考组
+    if reference_group not in ["HCO", "MDD"]:
+        print("\n请选择参考组:")
+        print("1. HCO组")
+        print("2. MDD组")
+        choice = input("选择 (1/2): ").strip()
+
+        reference_group = "HCO" if choice == "1" else "MDD"
+
+    # 对每个关键指标进行单样本t检验
+    statistical_results = {}
+
+    key_metrics = [
+        "positive_bias",
+        "rt_negative_minus_positive",
+        "rt_endorsed_minus_not",
+        "endorsement_rate",
+    ]
+
+    for metric in key_metrics:
+        # 获取当前组的指标值
+        group_values = [m[metric] for m in group_metrics if metric in m]
+
+        if len(group_values) < 2:
+            statistical_results[metric] = {"error": "样本量不足"}
+            continue
+
+        # 参考值（根据文献估算）
+        if metric == "positive_bias":
+            # 估算参考组的积极偏向
+            if reference_group == "HCO":
+                positive_rate = (
+                    REFERENCE_VALUES["HCO"]["endorsement_count"]["positive"] / 30
+                )
+                negative_rate = (
+                    REFERENCE_VALUES["HCO"]["endorsement_count"]["negative"] / 30
+                )
+                ref_value = positive_rate - negative_rate
+            else:  # MDD
+                positive_rate = (
+                    REFERENCE_VALUES["MDD"]["endorsement_count"]["positive"] / 30
+                )
+                negative_rate = (
+                    REFERENCE_VALUES["MDD"]["endorsement_count"]["negative"] / 30
+                )
+                ref_value = positive_rate - negative_rate
+        elif metric == "rt_negative_minus_positive":
+            # 反应时差异参考值
+            if reference_group == "HCO":
+                ref_value = (
+                    REFERENCE_VALUES["HCO"]["reaction_time"]["negative"]
+                    - REFERENCE_VALUES["HCO"]["reaction_time"]["positive"]
+                )
+            else:  # MDD
+                ref_value = (
+                    REFERENCE_VALUES["MDD"]["reaction_time"]["negative"]
+                    - REFERENCE_VALUES["MDD"]["reaction_time"]["positive"]
+                )
+        elif metric == "rt_endorsed_minus_not":
+            ref_value = 0  # 假设没有差异
+        elif metric == "endorsement_rate":
+            # 估算总认同率
+            if reference_group == "HCO":
+                positive_endorsed = REFERENCE_VALUES["HCO"]["endorsement_count"][
+                    "positive"
+                ]
+                negative_endorsed = REFERENCE_VALUES["HCO"]["endorsement_count"][
+                    "negative"
+                ]
+                ref_value = (positive_endorsed + negative_endorsed) / 60  # 假设共60个词
+            else:  # MDD
+                positive_endorsed = REFERENCE_VALUES["MDD"]["endorsement_count"][
+                    "positive"
+                ]
+                negative_endorsed = REFERENCE_VALUES["MDD"]["endorsement_count"][
+                    "negative"
+                ]
+                ref_value = (positive_endorsed + negative_endorsed) / 60
+        else:
+            continue
+
+        # 单样本t检验
+        t_stat, p_value = stats.ttest_1samp(group_values, ref_value)
+
+        # 计算效应量（Cohen's d）
+        mean_diff = np.mean(group_values) - ref_value
+        std_group = np.std(group_values, ddof=1)
+        cohens_d = mean_diff / std_group if std_group > 0 else 0
+
+        # 效应量解释（小、中、大）
+        abs_d = abs(cohens_d)
+        if abs_d < 0.2:
+            size = "很小"
+        elif abs_d < 0.5:
+            size = "小"
+        elif abs_d < 0.8:
+            size = "中等"
+        else:
+            size = "大"
+
+        effect_size_desc = f"{size} (d={cohens_d:.2f})"
+
+        # 计算样本量
+        sample_size_info = {}
+        if cohens_d is not None:
+            sample_size_info = calculate_sample_size(
+                effect_size=abs(cohens_d),
+                alpha=0.05,
+                power=0.8,
+                test_type="one_sample",  # 与参考值比较是单样本检验
+            )
+
+        statistical_results[metric] = {
+            "group_mean": float(np.mean(group_values)),
+            "group_std": float(np.std(group_values, ddof=1)),
+            "group_n": len(group_values),
+            "reference_mean": float(ref_value),
+            "reference_group": reference_group,
+            "t_statistic": float(t_stat),
+            "p_value": float(p_value),
+            "cohens_d": float(cohens_d),
+            "effect_size_desc": effect_size_desc,
+            # 样本量信息
+            "required_sample_size": sample_size_info.get("required_n")
+            if sample_size_info
+            else None,
+            "sample_size_power": sample_size_info.get("power")
+            if sample_size_info
+            else None,
+            "sample_size_alpha": sample_size_info.get("alpha")
+            if sample_size_info
+            else None,
+        }
+
+    # 保存组分析结果
+    print("\n保存组分析结果...")
+
+    # 保存所有被试的汇总指标
+    all_metrics_df = pd.DataFrame([r["key_metrics"] for r in all_results])
+    all_metrics_df.insert(0, "subject_id", [r["subject_id"] for r in all_results])
+    all_metrics_df.to_csv(result_dir / "group_all_metrics.csv", index=False)
+
+    # 计算组平均值
+    group_mean_metrics = all_metrics_df.mean(numeric_only=True).to_dict()
+    group_std_metrics = all_metrics_df.std(numeric_only=True).to_dict()
+
+    # 保存组统计结果
+    stats_df = pd.DataFrame(
+        [group_mean_metrics, group_std_metrics], index=["mean", "std"]
+    ).T
+    stats_df.to_csv(result_dir / "group_statistics.csv")
+
+    # 保存样本量计算结果
+    sample_size_data = []
+    for metric, result in statistical_results.items():
+        if "required_sample_size" in result:
+            sample_size_data.append(
+                {
+                    "metric": metric,
+                    "effect_size": result.get("cohens_d"),
+                    "required_sample_size": result.get("required_sample_size"),
+                    "current_sample_size": result.get("group_n"),
+                    "power": result.get("sample_size_power"),
+                    "alpha": result.get("sample_size_alpha"),
+                    "effect_size_magnitude": result.get("effect_size_desc", "")
+                    .split("(")[0]
+                    .strip(),
+                }
+            )
+
+    if sample_size_data:
+        sample_size_df = pd.DataFrame(sample_size_data)
+        sample_size_df.to_csv(result_dir / "sample_size_calculations.csv", index=False)
+
+    # 保存统计检验结果
+    if "error" not in statistical_results:
+        stats_test_df = pd.DataFrame(statistical_results).T
+        stats_test_df.to_csv(result_dir / "group_statistical_tests.csv")
+
+    # 创建组可视化
+    create_group_comparison_visualizations_single_group(
+        group_metrics, statistical_results, result_dir
+    )
+
+    print(f"\n✅ 组分析完成！结果保存在: {result_dir}")
+
+    return {
+        "all_results": all_results,
+        "group_metrics": group_metrics,
+        "statistical_results": statistical_results,
+        "group_mean": group_mean_metrics,
+        "group_std": group_std_metrics,
+    }
+
+
+def run_groups_sret_analysis(
+    control_files: list[Path],
+    experimental_files: list[Path],
+    result_dir: Path = Path("group_comparison_results"),
+    groups: list[str] = None,
+) -> dict[str, Any]:
+    """分析对照组和实验组的SRET数据并进行比较"""
+
+    # 分析对照组
+    control_results = []
+    control_metrics = []
+    control_name = groups[0] if groups else "control"
+
+    for i, file_path in enumerate(control_files):
+        try:
+            df = pl.read_csv(file_path)
+            subject_id = file_path.stem.split("-")[0]
+
+            # 创建被试特定的结果目录
+            subject_result_dir = result_dir / control_name / subject_id
+            subject_result_dir.mkdir(parents=True, exist_ok=True)
+
+            # 分析单个被试
+            result = analyze_sret_data_single(
+                df=df,
+                target_blocks=["Encoding"],
+                result_dir=subject_result_dir,
+            )
+            result["subject_id"] = subject_id
+
+            if result:
+                control_results.append(result)
+                control_metrics.append(result["key_metrics"])
+
+        except Exception as e:
+            print(f"❌ 对照组被试 {file_path.name} 分析出错: {e}")
+
+    # 分析实验组
+    experimental_results = []
+    experimental_metrics = []
+    experimental_name = groups[1] if groups and len(groups) > 1 else "experimental"
+
+    for i, file_path in enumerate(experimental_files):
+        try:
+            df = pl.read_csv(file_path)
+            subject_id = file_path.stem.split("-")[0]
+
+            # 创建被试特定的结果目录
+            subject_result_dir = result_dir / experimental_name / subject_id
+            subject_result_dir.mkdir(parents=True, exist_ok=True)
+
+            # 分析单个被试
+            result = analyze_sret_data_single(
+                df=df,
+                target_blocks=["Encoding"],
+                result_dir=subject_result_dir,
+            )
+            result["subject_id"] = subject_id
+
+            if result:
+                experimental_results.append(result)
+                experimental_metrics.append(result["key_metrics"])
+
+        except Exception as e:
+            print(f"❌ 实验组被试 {file_path.name} 分析出错: {e}")
+
+    if len(control_results) < 2 or len(experimental_results) < 2:
+        print("⚠️ 任一组被试数量不足，无法进行组间统计检验")
+        return {
+            "control_results": control_results,
+            "experimental_results": experimental_results,
+            "control_metrics": control_metrics,
+            "experimental_metrics": experimental_metrics,
+        }
+
+    # 检查正态性和方差齐性
+    print("\n检查正态性和方差齐性...")
+    normality_results = check_normality_and_homoscedasticity(
+        control_metrics + experimental_metrics
+    )
+
+    # 执行组间比较
+    print("\n执行组间比较分析...")
+    comparison_results = perform_group_comparisons(
+        control_metrics, experimental_metrics
+    )
+
+    # 保存组分析结果
+    print("\n保存组分析结果...")
+
+    # 保存所有被试的汇总指标
+    all_control_metrics_df = pd.DataFrame([r["key_metrics"] for r in control_results])
+    all_control_metrics_df.insert(0, "group", control_name)
+    all_control_metrics_df.insert(
+        1, "subject_id", [r["subject_id"] for r in control_results]
+    )
+
+    all_experimental_metrics_df = pd.DataFrame(
+        [r["key_metrics"] for r in experimental_results]
+    )
+    all_experimental_metrics_df.insert(0, "group", experimental_name)
+    all_experimental_metrics_df.insert(
+        1, "subject_id", [r["subject_id"] for r in experimental_results]
+    )
+
+    all_metrics_df = pd.concat(
+        [all_control_metrics_df, all_experimental_metrics_df], ignore_index=True
+    )
+    all_metrics_df.to_csv(result_dir / "all_subjects_metrics.csv", index=False)
+
+    # 计算组统计
+    control_stats = all_control_metrics_df.drop(
+        columns=["group", "subject_id"]
+    ).describe()
+    experimental_stats = all_experimental_metrics_df.drop(
+        columns=["group", "subject_id"]
+    ).describe()
+
+    control_stats.to_csv(result_dir / f"{control_name}_group_statistics.csv")
+    experimental_stats.to_csv(result_dir / f"{experimental_name}_group_statistics.csv")
+
+    # 保存样本量计算结果
+    sample_size_data = []
+    for metric, result in comparison_results.items():
+        if "required_sample_size_per_group" in result:
+            sample_size_data.append(
+                {
+                    "metric": metric,
+                    "effect_size": result.get("cohens_d"),
+                    "required_per_group": result.get("required_sample_size_per_group"),
+                    "required_total": result.get("required_total_sample_size"),
+                    "control_n": result.get("control_n"),
+                    "experimental_n": result.get("experimental_n"),
+                    "power": result.get("sample_size_power"),
+                    "alpha": result.get("sample_size_alpha"),
+                    "effect_size_magnitude": result.get("effect_size_magnitude", ""),
+                }
+            )
+
+    if sample_size_data:
+        sample_size_df = pd.DataFrame(sample_size_data)
+        sample_size_df.to_csv(result_dir / "sample_size_calculations.csv", index=False)
+
+    # 保存统计检验结果
+    if normality_results:
+        normality_df = pd.DataFrame(normality_results).T
+        normality_df.to_csv(result_dir / "normality_tests.csv")
+
+    if comparison_results:
+        comparison_df = pd.DataFrame(comparison_results).T
+        comparison_df.to_csv(result_dir / "group_comparisons.csv")
+
+    # 创建组比较可视化
+    create_group_comparison_visualizations(
+        control_metrics, experimental_metrics, comparison_results, result_dir
+    )
+
+    print(f"\n✅ 组间比较分析完成！结果保存在: {result_dir}")
+
+    return {
+        "control_results": control_results,
+        "experimental_results": experimental_results,
+        "control_metrics": control_metrics,
+        "experimental_metrics": experimental_metrics,
+        "normality_results": normality_results,
+        "comparison_results": comparison_results,
+    }
+
+
+def run_sret_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
+    """SRET（自我参照编码任务）分析入口函数"""
+
+    if cfg is None:
+        result_root = Path(
+            input("请输入保存结果目录路径: ").strip("'").strip()
+        ).resolve()
+    else:
+        result_root = Path(cfg.result_dir)
+
+    if data_utils is None:
+        print("\n请选择分析模式:")
+        print("1. 单个被试分析")
+        print("2. 组分析（多个被试）")
+        print("3. 对照组 vs 实验组比较分析")
+
+        choice = input("选择 (1/2/3): ").strip()
+
+        if choice == "1":
+            file_input = input("请输入数据文件路径: ").strip("'").strip()
+            file_path = Path(file_input.strip("'").strip('"')).resolve()
+
+            if not file_path.exists():
+                print(f"❌ 文件不存在: {file_path}")
+                return
+
+            result_dir = result_root / "sret_results"
+            result_dir.mkdir(parents=True, exist_ok=True)
+
+            result = run_single_sret_analysis(file_path, result_dir)
+            return result
+
+        elif choice == "2":
+            dir_input = input("请输入包含多个数据文件的目录路径: ").strip("'").strip()
+            data_dir = Path(dir_input.strip("'").strip('"')).resolve()
+
+            if not data_dir.exists():
+                print(f"❌ 目录不存在: {data_dir}")
+                return
+
+            data_files = find_sret_files(data_dir)
+            print(f"找到 {len(data_files)} 个数据文件")
+
+            result_dir = result_root / "sret_group_results"
+            result_dir.mkdir(parents=True, exist_ok=True)
+
+            result = run_group_sret_analysis(data_files, result_dir)
+            return result
+
+        elif choice == "3":
+            control_dir_input = (
+                input("请输入对照组数据文件目录路径: ").strip("'").strip()
+            )
+            experimental_dir_input = (
+                input("请输入实验组数据文件目录路径: ").strip("'").strip()
+            )
+
+            control_dir = Path(control_dir_input.strip("'").strip('"')).resolve()
+            experimental_dir = Path(
+                experimental_dir_input.strip("'").strip('"')
+            ).resolve()
+
+            if not control_dir.exists():
+                print(f"❌ 对照组目录不存在: {control_dir}")
+                return
+
+            if not experimental_dir.exists():
+                print(f"❌ 实验组目录不存在: {experimental_dir}")
+                return
+
+            control_files = find_sret_files(control_dir)
+            experimental_files = find_sret_files(experimental_dir)
+
+            print(
+                f"找到 {len(control_files)} 个对照组文件和 {len(experimental_files)} 个实验组文件"
+            )
+
+            result_dir = result_root / "sret_group_comparison_results"
+            result_dir.mkdir(parents=True, exist_ok=True)
+
+            result = run_groups_sret_analysis(
+                control_files, experimental_files, result_dir
+            )
+
+            return result
+
+        else:
+            print("❌ 无效的选择")
+            return None
+    else:
+        # 使用DataUtils参数
+        if data_utils.session_id is None or (
+            data_utils.groups is not None and len(data_utils.groups) > 0
+        ):
+            # 组间分析
+            groups = data_utils.groups
+            data_root = Path(cfg.output_dir)
+
+            if len(groups) == 1:
+                # 单个组分析
+                files = find_sret_files(data_root / groups[0])
+                result_dir = result_root / f"sret_{groups[0]}_results"
+                result_dir.mkdir(parents=True, exist_ok=True)
+
+                reference_group = "MDD" if "mdd" in groups[0].lower() else "HCO"
+                run_group_sret_analysis(
+                    files, result_dir, reference_group=reference_group
+                )
+            else:
+                # 多个组分析
+                control_files = find_sret_files(data_root / groups[0])
+                experimental_files = find_sret_files(data_root / groups[1])
+                result_dir = (
+                    result_root / f"sret_{groups[0]}_{groups[1]}_comparison_results"
+                )
+                result_dir.mkdir(parents=True, exist_ok=True)
+                run_groups_sret_analysis(
+                    control_files, experimental_files, result_dir, groups
+                )
+        else:
+            # 单个被试分析
+            file_path = (
+                Path(cfg.output_dir)
+                / data_utils.date
+                / f"{data_utils.session_id}-sret.csv"
+            )
+
+            if not file_path.exists():
+                print(f"❌ 文件不存在: {file_path}")
+                return
+
+            result_dir = result_root / str(data_utils.session_id) / "sret_analysis"
+            result_dir.mkdir(parents=True, exist_ok=True)
+
+            result = run_single_sret_analysis(file_path, result_dir)
+            return result
 
 
 if __name__ == "__main__":

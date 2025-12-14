@@ -1,5 +1,4 @@
 import warnings
-from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -17,7 +16,7 @@ warnings.filterwarnings("ignore")
 
 REFERENCE_VALUES = {
     "control": {
-        "log_b": [0.19, 0.24, 0.23],  # 对照组log b (三个block)
+        "log_b": [0.19, 0.24, 0.23],
         "rich_hit_rate": 0.88,
         "lean_hit_rate": 0.75,
         "lean_miss_after_rewarded_rich": 0.26,
@@ -26,7 +25,7 @@ REFERENCE_VALUES = {
         "rich_miss_after_rewarded_lean": 0.11,
     },
     "mdd": {
-        "log_b": [0.08, 0.12, 0.10],  # MDD组log b (三个block)
+        "log_b": [0.08, 0.12, 0.10],
         "rich_hit_rate": 0.86,
         "lean_hit_rate": 0.77,
         "lean_miss_after_rewarded_rich": 0.25,
@@ -46,13 +45,13 @@ def calculate_sample_size(
     """
     根据效应量计算所需样本量
 
-    参数:
-    - effect_size: 效应量 (Cohen's d)
-    - alpha: 显著性水平 (默认0.05)
-    - power: 统计功效 (默认0.8)
-    - test_type: 检验类型 ("one_sample", "paired", "two_sample")
+    Parameters:
+        - effect_size: 效应量 (Cohen's d)
+        - alpha: 显著性水平 (默认0.05)
+        - power: 统计功效 (默认0.8)
+        - test_type: 检验类型 ("one_sample", "paired", "two_sample")
 
-    返回:
+    Returns:
     - dict: 包含样本量计算结果
     """
     from scipy import stats
@@ -81,7 +80,6 @@ def calculate_sample_size(
     else:
         raise ValueError(f"不支持的检验类型: {test_type}")
 
-    # 解释效应量大小
     effect_size_magnitude = ""
     if abs(effect_size) < 0.2:
         effect_size_magnitude = "很小 (very small)"
@@ -112,12 +110,9 @@ def find_prt_files(data_dir: Path) -> list[Path]:
     return find_exp_files(data_dir, EXP_TYPE)
 
 
-def load_and_preprocess_data(file_path: Path) -> pl.DataFrame:
+def load_and_preprocess_data(df: pl.DataFrame) -> pl.DataFrame:
     """加载并预处理数据"""
     try:
-        df = pl.read_csv(file_path)
-
-        # 提取试次数据
         trials_df = extract_trials_by_block(
             df,
             target_block_indices=[0, 1, 2],
@@ -129,7 +124,6 @@ def load_and_preprocess_data(file_path: Path) -> pl.DataFrame:
             print("❌ 错误: 未找到有效的试次数据")
             return None
 
-        # 添加分析需要的列
         trials_df = trials_df.with_columns(
             [
                 (pl.col("stim") == pl.col("choice")).alias("correct"),
@@ -226,14 +220,12 @@ def calculate_sdt_metrics(
         else:
             log_d = 0.0
 
-        # 计算击中率
         rich_total = rich_hit + rich_miss
         lean_total = lean_hit + lean_miss
 
         rich_hit_rate = rich_hit / rich_total if rich_total > 0 else 0
         lean_hit_rate = lean_hit / lean_total if lean_total > 0 else 0
 
-        # 计算额外指标
         total_correct = rich_hit + lean_hit
         total_trials = rich_total + lean_total
         overall_accuracy = total_correct / total_trials if total_trials > 0 else 0
@@ -294,7 +286,6 @@ def calculate_probability_analysis(
             (pl.col("prev_stim") == rich_stim) & (~pl.col("prev_rewarded"))
         )
 
-        # 计算lean miss概率
         lean_miss_rate1 = (
             (cond1.filter(~pl.col("correct")).height / cond1.height)
             if cond1.height > 0
@@ -319,7 +310,6 @@ def calculate_probability_analysis(
             (pl.col("prev_stim") == lean_stim) & (pl.col("prev_rewarded"))
         )
 
-        # 计算rich miss概率
         rich_miss_rate1 = (
             (cond3.filter(~pl.col("correct")).height / cond3.height)
             if cond3.height > 0
@@ -353,12 +343,10 @@ def analyze_reaction_time(
     """分析反应时"""
     rt_by_block = {}
 
-    # 按Block分析
     for block in sorted(trials_df["block_index"].unique()):
         block_data = trials_df.filter(pl.col("block_index") == block)
         rich_stim = rich_stim_results[block]["rich_stim"]
 
-        # 抛弃反应过快的数据(<0.1)
         block_data = block_data.with_columns(
             pl.when(pl.col("rt") >= 0.1)
             .then(pl.col("rt"))
@@ -366,17 +354,14 @@ def analyze_reaction_time(
             .alias("rt_clean")
         )
 
-        # Rich刺激的反应时
         rt_rich = block_data.filter(
             (pl.col("stim") == rich_stim) & (pl.col("rt_clean").is_not_null())
         )["rt_clean"].mean()
 
-        # Lean刺激的反应时
         rt_lean = block_data.filter(
             (pl.col("stim") != rich_stim) & (pl.col("rt_clean").is_not_null())
         )["rt_clean"].mean()
 
-        # 正确和错误试次的反应时
         rt_correct = block_data.filter(
             (pl.col("correct")) & (pl.col("rt_clean").is_not_null())
         )["rt_clean"].mean()
@@ -416,7 +401,7 @@ def analyze_performance_trends(trials_df: pl.DataFrame) -> dict[int, dict[str, A
             early_accuracy = early_trials.filter(pl.col("correct")).height / third
             late_accuracy = late_trials.filter(pl.col("correct")).height / third
 
-            # 反应时变化（抛弃<0.1秒的反应时）
+            # 抛弃<0.1秒的反应时
             early_rt_clean = early_trials.filter(pl.col("rt") >= 0.1)["rt"]
             late_rt_clean = late_trials.filter(pl.col("rt") >= 0.1)["rt"]
 
@@ -445,22 +430,17 @@ def calculate_key_metrics(
     """计算关键指标"""
     blocks = sorted(sdt_results.keys())
 
-    # 平均log b
     mean_log_b = np.mean([sdt_results[b]["log_b"] for b in blocks])
 
-    # 平均log d
     mean_log_d = np.mean([sdt_results[b]["log_d"] for b in blocks])
 
-    # 平均Rich击中率
     mean_rich_hit_rate = np.mean([sdt_results[b]["rich_hit_rate"] for b in blocks])
 
-    # 平均Lean击中率
     mean_lean_hit_rate = np.mean([sdt_results[b]["lean_hit_rate"] for b in blocks])
 
-    # 击中率差异
+    # rich 击中率与 lean 击中率的差异, 越高, 被试越偏向Rich刺激
     mean_hit_rate_diff = mean_rich_hit_rate - mean_lean_hit_rate
 
-    # 反应时差异
     mean_rt_diff = np.mean([rt_by_block[b]["rt_diff"] for b in blocks])
 
     return {
@@ -495,7 +475,7 @@ def create_visualizations(
             "5. Rich miss概率分析",
             "6. 反应时对比",
             "7. 关键指标总结",
-            "8. 与文献对比",
+            "8. 与参考对比",
             "9. 学习曲线",
         ),
         specs=[
@@ -807,7 +787,7 @@ def create_visualizations(
 
     fig.add_trace(metrics_table, row=3, col=1)
 
-    # 图8: 与文献对比
+    # 图8: 与参考对比
     fig.add_trace(
         go.Bar(
             x=["Log b", "击中率差异", "反应时差异"],
@@ -881,7 +861,6 @@ def create_visualizations(
             col=3,
         )
 
-    # 更新坐标轴标签
     fig.update_xaxes(title_text="Block", row=1, col=1)
     fig.update_yaxes(title_text="Log b (反应偏向)", row=1, col=1)
 
@@ -903,7 +882,6 @@ def create_visualizations(
     fig.update_xaxes(title_text="学习阶段", row=3, col=3)
     fig.update_yaxes(title_text="准确率", range=[0.5, 1.0], row=3, col=3)
 
-    # 更新布局
     title_text = "PRT分析报告"
 
     fig.update_layout(
@@ -915,7 +893,6 @@ def create_visualizations(
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
 
-    # 保存图表
     html_path = result_dir / "prt_visualization.html"
 
     fig.write_html(str(html_path))
@@ -930,9 +907,8 @@ def save_results(
     key_metrics: dict[str, float],
     result_dir: Path,
 ):
-    """保存分析结果"""
+    """保存结果"""
 
-    # 保存SDT结果
     blocks = sorted(sdt_results.keys())
     sdt_data = []
     for block in blocks:
@@ -952,7 +928,6 @@ def save_results(
 
     sdt_df.write_csv(result_dir / "prt_sdt_results.csv")
 
-    # 保存概率分析结果
     prob_data = []
     for block in blocks:
         prob_data.append(
@@ -977,7 +952,6 @@ def save_results(
 
     prob_df.write_csv(result_dir / "prt_probability_results.csv")
 
-    # 保存反应时结果
     rt_data = []
     for block in blocks:
         rt_data.append(
@@ -995,7 +969,6 @@ def save_results(
 
     rt_df.write_csv(result_dir / "prt_reaction_time_results.csv")
 
-    # 保存关键指标
     metrics_df = pl.DataFrame([key_metrics])
     metrics_df.write_csv(result_dir / "prt_key_metrics.csv")
 
@@ -1011,16 +984,13 @@ def generate_report(
 ) -> dict[str, Any]:
     """生成PRT数据分析报告"""
 
-    # 计算关键指标
     blocks = sorted(sdt_results.keys())
-    # 计算总体准确率和反应时
     overall_accuracy = trials_df.filter(pl.col("correct")).height / trials_df.height
 
     # 抛弃反应过快的数据(<0.1)
     valid_rt = trials_df.filter(pl.col("rt") >= 0.1)["rt"]
     mean_rt = valid_rt.mean() if valid_rt.shape[0] > 0 else None
 
-    # 保存结果到文件
     save_results(sdt_results, prob_results, rt_by_block, key_metrics, result_dir)
 
     print(f"\n结果已保存到: {result_dir}")
@@ -1030,7 +1000,6 @@ def generate_report(
     print("  - prt_key_metrics.csv (关键指标)")
     print("  - prt_visualization.html (主分析图表)")
 
-    # 返回汇总结果
     return {
         "data_summary": {
             "total_trials": trials_df.height,
@@ -1053,25 +1022,7 @@ def analyze_prt_data(
     """分析单个被试的PRT数据"""
 
     # 1. 提取试次数据
-    trials_df = extract_trials_by_block(
-        df,
-        target_block_indices=target_blocks,
-        block_col="block_index",
-        trial_col="trial_index",
-    )
-
-    if trials_df.height == 0:
-        print("❌ 错误: 未找到有效的试次数据")
-        return {}
-
-    # 添加分析需要的列
-    trials_df = trials_df.with_columns(
-        [
-            (pl.col("stim") == pl.col("choice")).alias("correct"),
-            pl.col("reward").gt(0).alias("rewarded"),
-            (pl.col("reward") == -1).alias("error"),
-        ]
-    )
+    trials_df = load_and_preprocess_data(df)
 
     # 2. 识别Rich刺激
     rich_stim_results = identify_rich_stimulus(trials_df)
@@ -1124,10 +1075,8 @@ def check_normality_and_homoscedasticity(
     """检查正态性和方差齐性"""
     results = {}
 
-    # 转换为DataFrame
     df = pd.DataFrame(group_metrics)
 
-    # 需要检验的指标
     key_metrics = [
         "mean_log_b",
         "mean_hit_rate_diff",
@@ -1149,9 +1098,7 @@ def check_normality_and_homoscedasticity(
             stat, p_value = stats.shapiro(values)
             is_normal = p_value > 0.05
 
-            # 方差齐性检验（Levene's test，如果有多个组）
             if len(group_metrics) >= 2:
-                # 这里假设每个被试是一个组，实际应用中需要根据实验设计调整
                 levene_stat, levene_p = stats.levene(values, values)
                 is_homoscedastic = levene_p > 0.05
             else:
@@ -1179,18 +1126,14 @@ def check_normality_and_homoscedasticity(
 def perform_group_comparisons(
     control_metrics: list[dict[str, float]],
     experimental_metrics: list[dict[str, float]],
-    F: bool = False,
+    anova: bool = True,
 ) -> dict[str, dict[str, Any]]:
-    """
-    执行对照组和实验组的比较分析
-    """
+    """执行对照组和实验组的比较分析"""
     results = {}
 
-    # 转换为DataFrame
     control_df = pd.DataFrame(control_metrics)
     experimental_df = pd.DataFrame(experimental_metrics)
 
-    # 需要比较的指标
     key_metrics = [
         "mean_log_b",
         "mean_hit_rate_diff",
@@ -1209,18 +1152,17 @@ def perform_group_comparisons(
             continue
 
         try:
-            # 基础正态性和方差齐性检查（用于后续统计决策参考）
+            # 基础正态性和方差齐性检查
             _, control_p = stats.shapiro(control_values)
             _, experimental_p = stats.shapiro(experimental_values)
             both_normal = control_p > 0.05 and experimental_p > 0.05
             levene_stat, levene_p = stats.levene(control_values, experimental_values)
             equal_var = levene_p > 0.05
 
-            if F:
-                # One-way ANOVA
+            if anova:
+                # One-way ANOVA(k=2)
                 f_stat, p_value = stats.f_oneway(control_values, experimental_values)
 
-                # 自由度计算 (One-way ANOVA with 2 groups)
                 k = 2
                 N = len(control_values) + len(experimental_values)
                 df_between = k - 1
@@ -1335,7 +1277,6 @@ def perform_group_comparisons(
                 "effect_size_magnitude": effect_size_desc.split("(")[0].strip()
                 if "(" in effect_size_desc
                 else effect_size_desc,
-                # 样本量信息
                 "required_sample_size_per_group": sample_size_info.get("required_n")
                 if sample_size_info
                 else None,
@@ -1369,12 +1310,10 @@ def create_group_comparison_visualizations_single_group(
     statistical_results: dict[str, dict[str, Any]],
     result_dir: Path,
 ):
-    """创建单个组的组分析可视化"""
+    """单个组的组分析可视化"""
 
-    # 提取所有被试的指标
     all_metrics = group_metrics
 
-    # 创建指标矩阵
     key_metrics_list = [
         "mean_log_b",
         "mean_hit_rate_diff",
@@ -1389,7 +1328,7 @@ def create_group_comparison_visualizations_single_group(
         subplot_titles=(
             "1. 各被试反应偏向分布",
             "2. 关键指标相关性",
-            "3. 与文献对比",
+            "3. 对比参考值",
             "4. 统计检验结果",
             "5. 效应量分析",
             "6. 指标分布箱形图",
@@ -1446,7 +1385,7 @@ def create_group_comparison_visualizations_single_group(
         selector=dict(type="heatmap"),
     )
 
-    # 图3: 与文献对比
+    # 图3: 对比参考
     control_ref = np.mean(REFERENCE_VALUES["control"]["log_b"])
     mdd_ref = np.mean(REFERENCE_VALUES["mdd"]["log_b"])
     group_mean = np.mean(log_b_values)
@@ -1584,7 +1523,6 @@ def create_group_comparison_visualizations_single_group(
 
     # 图8: 样本量需求曲线
     if "error" not in statistical_results and "mean_log_b" in statistical_results:
-        # 生成不同效应量下的样本量需求曲线
         effect_sizes = np.linspace(0.1, 1.0, 20)
         sample_sizes = []
 
@@ -1661,10 +1599,9 @@ def create_group_comparison_visualizations_single_group(
             fig.update_xaxes(title_text="效应量 (Cohen's d)", row=3, col=3)
             fig.update_yaxes(title_text="频数", row=3, col=3)
 
-    # 更新布局
     fig.update_layout(
         title=dict(
-            text="PRT组分析报告（含样本量计算）",
+            text="PRT组分析报告",
             font=dict(size=22, family="Arial Black"),
             x=0.5,
         ),
@@ -1684,9 +1621,6 @@ def create_group_comparison_visualizations(
     comparison_results: dict[str, dict[str, Any]],
     result_dir: Path,
 ):
-    """创建组间比较的可视化"""
-
-    # 提取数据
     control_values = {k: [] for k in control_metrics[0].keys()}
     experimental_values = {k: [] for k in experimental_metrics[0].keys()}
 
@@ -1791,7 +1725,7 @@ def create_group_comparison_visualizations(
 
     fig.update_xaxes(ticktext=metric_names, tickvals=x_positions, row=2, col=1)
 
-    # 图5: 统计检验结果表格
+    # 图5: 统计检验结果
     if comparison_results:
         table_data = []
         for metric in key_metrics:
@@ -1923,7 +1857,6 @@ def create_group_comparison_visualizations(
 
     # 图8: 样本量需求曲线
     if comparison_results:
-        # 生成不同效应量下的样本量需求曲线
         effect_sizes = np.linspace(0.1, 1.0, 20)
         sample_sizes_per_group = []
         sample_sizes_total = []
@@ -1935,7 +1868,6 @@ def create_group_comparison_visualizations(
             sample_sizes_per_group.append(sample_size_info["required_n"])
             sample_sizes_total.append(sample_size_info["required_n_total"])
 
-        # 获取当前效应量（使用第一个指标）
         first_metric = key_metrics[0]
         if first_metric in comparison_results:
             current_d = comparison_results[first_metric].get("cohens_d")
@@ -2046,7 +1978,6 @@ def create_group_comparison_visualizations(
             fig.update_xaxes(title_text="效应量 (Cohen's d)", row=3, col=3)
             fig.update_yaxes(title_text="每组所需样本量", row=3, col=3)
 
-    # 更新布局
     fig.update_layout(
         title=dict(
             text="PRT组间比较分析报告",
@@ -2059,12 +1990,11 @@ def create_group_comparison_visualizations(
         template="plotly_white",
     )
 
-    # 保存图表
     fig.write_html(str(result_dir / "prt_group_comparison_report.html"))
 
 
 def run_single_prt_analysis(file_path: Path, result_dir: Path = None):
-    """运行单个被试的PRT分析"""
+    """单个被试的PRT分析"""
 
     if not file_path.exists():
         print(f"❌ 文件不存在: {file_path}")
@@ -2075,10 +2005,8 @@ def run_single_prt_analysis(file_path: Path, result_dir: Path = None):
 
     result_dir.mkdir(parents=True, exist_ok=True)
 
-    # 读取数据
     df = pl.read_csv(file_path)
 
-    # 分析数据
     result = analyze_prt_data(df=df, target_blocks=[0, 1, 2], result_dir=result_dir)
 
     print(f"\n✅ 分析完成！结果保存在: {result_dir}")
@@ -2090,11 +2018,10 @@ def run_group_prt_analysis(
     result_dir: Path = None,
     reference_group: Literal["control", "mdd"] = None,
 ):
-    """运行一组被试的PRT分析"""
+    """组PRT分析"""
 
     result_dir.mkdir(parents=True, exist_ok=True)
 
-    # 分析每个被试
     all_results = []
     group_metrics = []
 
@@ -2102,17 +2029,13 @@ def run_group_prt_analysis(
         print(f"分析被试 {i + 1}/{len(data_files)}: {file_path.name}")
 
         try:
-            # 读取数据
             df = pl.read_csv(file_path)
 
-            # 提取被试ID（从文件名）
             subject_id = file_path.stem.split("-")[0]
 
-            # 创建被试特定的结果目录
             subject_result_dir = result_dir / subject_id
             subject_result_dir.mkdir(parents=True, exist_ok=True)
 
-            # 分析单个被试
             result = analyze_prt_data(
                 df=df,
                 target_blocks=[0, 1, 2],
@@ -2132,10 +2055,6 @@ def run_group_prt_analysis(
         print("⚠️ 被试数量不足，无法进行组间统计检验")
         return {"all_results": all_results}
 
-    # 执行组间统计检验（与参考组比较）
-    print("\n执行组间统计检验...")
-
-    # 询问参考组
     if reference_group not in ["control", "mdd"]:
         print("\n请选择参考组:")
         print("1. 对照组 (control)")
@@ -2144,10 +2063,9 @@ def run_group_prt_analysis(
 
         reference_group = "control" if choice == "1" else "mdd"
 
-    # 获取参考值
     ref_values = REFERENCE_VALUES[reference_group]
 
-    # 对每个关键指标进行单样本t检验
+    # 单样本t检验
     statistical_results = {}
 
     key_metrics = [
@@ -2164,7 +2082,6 @@ def run_group_prt_analysis(
             statistical_results[metric] = {"error": "样本量不足"}
             continue
 
-        # 参考值（使用平均值）
         if metric == "mean_log_b":
             ref_value = np.mean(ref_values["log_b"])
         elif metric == "mean_hit_rate_diff":
@@ -2174,7 +2091,6 @@ def run_group_prt_analysis(
         else:
             continue
 
-        # 单样本t检验
         t_stat, p_value = stats.ttest_1samp(group_values, ref_value)
 
         # 计算效应量（Cohen's d）
@@ -2182,7 +2098,6 @@ def run_group_prt_analysis(
         std_group = np.std(group_values, ddof=1)
         cohens_d = mean_diff / std_group if std_group > 0 else 0
 
-        # 效应量解释（小、中、大）
         abs_d = abs(cohens_d)
         if abs_d < 0.2:
             size = "很小"
@@ -2215,7 +2130,6 @@ def run_group_prt_analysis(
             "p_value": float(p_value),
             "cohens_d": float(cohens_d),
             "effect_size_desc": effect_size_desc,
-            # 样本量信息
             "required_sample_size": sample_size_info.get("required_n")
             if sample_size_info
             else None,
@@ -2227,25 +2141,18 @@ def run_group_prt_analysis(
             else None,
         }
 
-    # 保存组分析结果
-    print("\n保存组分析结果...")
-
-    # 保存所有被试的汇总指标
     all_metrics_df = pd.DataFrame([r["key_metrics"] for r in all_results])
     all_metrics_df.insert(0, "subject_id", [r["subject_id"] for r in all_results])
     all_metrics_df.to_csv(result_dir / "group_all_metrics.csv", index=False)
 
-    # 计算组平均值
     group_mean_metrics = all_metrics_df.mean(numeric_only=True).to_dict()
     group_std_metrics = all_metrics_df.std(numeric_only=True).to_dict()
 
-    # 保存组统计结果
     stats_df = pd.DataFrame(
         [group_mean_metrics, group_std_metrics], index=["mean", "std"]
     ).T
     stats_df.to_csv(result_dir / "group_statistics.csv")
 
-    # 保存样本量计算结果
     sample_size_data = []
     for metric, result in statistical_results.items():
         if "required_sample_size" in result:
@@ -2267,12 +2174,10 @@ def run_group_prt_analysis(
         sample_size_df = pd.DataFrame(sample_size_data)
         sample_size_df.to_csv(result_dir / "sample_size_calculations.csv", index=False)
 
-    # 保存统计检验结果
     if "error" not in statistical_results:
         stats_test_df = pd.DataFrame(statistical_results).T
         stats_test_df.to_csv(result_dir / "group_statistical_tests.csv")
 
-    # 创建组可视化
     create_group_comparison_visualizations_single_group(
         group_metrics, statistical_results, result_dir
     )
@@ -2294,9 +2199,8 @@ def run_groups_prt_analysis(
     result_dir: Path = Path("group_comparison_results"),
     groups: list[str] = None,
 ) -> dict[str, Any]:
-    """分析对照组和实验组的PRT数据并进行比较"""
+    """比较对照组和实验组"""
 
-    # 分析对照组
     control_results = []
     control_metrics = []
     control_name = groups[0]
@@ -2306,7 +2210,6 @@ def run_groups_prt_analysis(
             df = pl.read_csv(file_path)
             subject_id = file_path.stem.split("-")[0]
 
-            # 创建被试特定的结果目录
             subject_result_dir = result_dir / control_name / subject_id
             subject_result_dir.mkdir(parents=True, exist_ok=True)
 
@@ -2325,7 +2228,6 @@ def run_groups_prt_analysis(
         except Exception as e:
             print(f"❌ 对照组被试 {file_path.name} 分析出错: {e}")
 
-    # 分析实验组
     experimental_results = []
     experimental_metrics = []
     experimental_name = groups[1]
@@ -2335,7 +2237,6 @@ def run_groups_prt_analysis(
             df = pl.read_csv(file_path)
             subject_id = file_path.stem.split("-")[0]
 
-            # 创建被试特定的结果目录
             subject_result_dir = result_dir / experimental_name / subject_id
             subject_result_dir.mkdir(parents=True, exist_ok=True)
 
@@ -2363,19 +2264,16 @@ def run_groups_prt_analysis(
             "experimental_metrics": experimental_metrics,
         }
 
-    # 检查正态性和方差齐性
     print("\n检查正态性和方差齐性...")
     normality_results = check_normality_and_homoscedasticity(
         control_metrics + experimental_metrics
     )
 
-    # 执行组间比较
     print("\n执行组间比较分析...")
     comparison_results = perform_group_comparisons(
         control_metrics, experimental_metrics
     )
 
-    # 保存组分析结果
     print("\n保存组分析结果...")
 
     # 保存所有被试的汇总指标
@@ -2398,7 +2296,6 @@ def run_groups_prt_analysis(
     )
     all_metrics_df.to_csv(result_dir / "all_subjects_metrics.csv", index=False)
 
-    # 计算组统计
     control_stats = all_control_metrics_df.drop(
         columns=["group", "subject_id"]
     ).describe()
@@ -2409,7 +2306,6 @@ def run_groups_prt_analysis(
     control_stats.to_csv(result_dir / "control_group_statistics.csv")
     experimental_stats.to_csv(result_dir / "experimental_group_statistics.csv")
 
-    # 保存样本量计算结果
     sample_size_data = []
     for metric, result in comparison_results.items():
         if "required_sample_size_per_group" in result:
@@ -2546,18 +2442,9 @@ def run_prt_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
             print("❌ 无效的选择")
             return None
     else:
-        # 使用DataUtils参数
         if data_utils.session_id is None or (
             data_utils.groups is not None and len(data_utils.groups) > 0
         ):
-            # 组间分析
-            # 这里需要根据实际情况获取对照组和实验组文件列表
-            # 暂时返回None，需要根据具体实现调整
-
-            # 使用 DataUtils 自动寻找文件
-            # 注意：这里假设 prt 的数据文件后缀是 "-prt.csv" 或者 "prt.csv"
-            # 你可能需要根据实际文件名调整 suffix
-
             groups = data_utils.groups
             data_root = Path(cfg.output_dir)
             if len(groups) == 1:

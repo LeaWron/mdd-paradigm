@@ -15,13 +15,12 @@ from psycho.analysis.utils import DataUtils, extract_trials_by_block, find_exp_f
 
 warnings.filterwarnings("ignore")
 
-# 参考值 - 不要修改
 REFERENCE_VALUES = {
-    "HCO": {
+    "control": {
         "endorsement_count": {"positive": 30, "negative": 2},
         "reaction_time": {"positive": 500, "negative": 1150},
     },
-    "MDD": {
+    "mdd": {
         "endorsement_count": {"positive": 12, "negative": 24},
         "reaction_time": {"positive": 900, "negative": 600},
     },
@@ -34,12 +33,9 @@ def find_sret_files(data_dir: Path) -> list[Path]:
     return find_exp_files(data_dir, EXP_TYPE)
 
 
-def load_and_preprocess_data(file_path: Path) -> pl.DataFrame:
+def load_and_preprocess_data(df: pl.DataFrame) -> pl.DataFrame:
     """加载并预处理数据"""
     try:
-        df = pl.read_csv(file_path)
-
-        # 提取试次数据
         trials_df = extract_trials_by_block(
             df,
             target_block_indices=["Encoding"],
@@ -52,7 +48,6 @@ def load_and_preprocess_data(file_path: Path) -> pl.DataFrame:
             print("❌ 错误: 未找到有效的试次数据")
             return None
 
-        # 检查必要列
         required_columns = ["stim_word", "response", "rt", "stim_type"]
         missing_columns = [
             col for col in required_columns if col not in trials_df.columns
@@ -61,7 +56,6 @@ def load_and_preprocess_data(file_path: Path) -> pl.DataFrame:
             print(f"❌ 缺少必要列: {missing_columns}")
             return None
 
-        # 转换反应时为毫秒
         trials_df = trials_df.with_columns(
             (
                 pl.when(pl.col("rt").is_null())
@@ -73,14 +67,11 @@ def load_and_preprocess_data(file_path: Path) -> pl.DataFrame:
             (pl.col("rt") * 1000).alias("rt_ms"),
         )
 
-        # 处理强度评分（如果有）
         if "intensity" in trials_df.columns:
-            # 确保强度评分在0-10范围内
             trials_df = trials_df.with_columns(
                 pl.col("intensity").clip(0, 10).alias("intensity")
             )
 
-        # 添加反应类型编码
         trials_df = trials_df.with_columns(
             (pl.col("response") == "yes").cast(pl.Int8).alias("response_code")
         )
@@ -96,11 +87,9 @@ def calculate_key_metrics_single(df: pl.DataFrame) -> dict[str, float]:
     """计算单个被试的关键指标"""
     metrics = {}
 
-    # 基础指标
     total = df.height
     yes_count = df.filter(pl.col("response") == "yes").height
 
-    # 1. 认同率: 认同数量 / 总数量
     endorsement_rate = yes_count / total if total > 0 else 0
     metrics["endorsement_rate"] = endorsement_rate
 
@@ -116,12 +105,10 @@ def calculate_key_metrics_single(df: pl.DataFrame) -> dict[str, float]:
         ]
     )
 
-    # 计算认同率
     valence_stats = valence_stats.with_columns(
         [(pl.col("yes_count") / pl.col("total_count")).alias("endorsement_rate")]
     )
 
-    # 转换为字典便于访问
     valence_dict = {}
     for row in valence_stats.to_dicts():
         valence_dict[row["stim_type"]] = row
@@ -185,18 +172,6 @@ def calculate_sample_size(
     power: float = 0.8,
     test_type: str = "two_sample",
 ) -> dict[str, Any]:
-    """
-    根据效应量计算所需样本量
-
-    参数:
-    - effect_size: 效应量 (Cohen's d)
-    - alpha: 显著性水平 (默认0.05)
-    - power: 统计功效 (默认0.8)
-    - test_type: 检验类型 ("one_sample", "paired", "two_sample")
-
-    返回:
-    - dict: 包含样本量计算结果
-    """
     from scipy import stats
 
     # 计算Z分数
@@ -223,7 +198,6 @@ def calculate_sample_size(
     else:
         raise ValueError(f"不支持的检验类型: {test_type}")
 
-    # 解释效应量大小
     effect_size_magnitude = ""
     if abs(effect_size) < 0.2:
         effect_size_magnitude = "很小 (very small)"
@@ -252,7 +226,6 @@ def analyze_valence_performance(df: pl.DataFrame) -> dict[str, Any]:
     """分析词性表现"""
     results = {}
 
-    # 按词性分组统计
     valence_stats = df.group_by("stim_type").agg(
         [
             pl.col("response")
@@ -266,14 +239,12 @@ def analyze_valence_performance(df: pl.DataFrame) -> dict[str, Any]:
         ]
     )
 
-    # 计算认同率
     valence_stats = valence_stats.with_columns(
         [(pl.col("yes_count") / pl.col("total_count")).alias("endorsement_rate")]
     )
 
     results["valence_stats"] = valence_stats.to_dicts()
 
-    # 如果有强度评分
     if "intensity" in df.columns:
         intensity_by_valence = df.group_by("stim_type").agg(
             [
@@ -288,7 +259,7 @@ def analyze_valence_performance(df: pl.DataFrame) -> dict[str, Any]:
 
 
 def analyze_reaction_time_breakdown(df: pl.DataFrame) -> dict[str, Any]:
-    """分析反应时细分"""
+    """更精细分析反应时"""
     results = {}
 
     # 按反应类型和词性分析
@@ -310,8 +281,6 @@ def create_visualizations_single(
     valence_results: dict[str, Any],
     result_dir: Path,
 ) -> go.Figure:
-    """创建单个被试的可视化图表"""
-
     fig = make_subplots(
         rows=2,
         cols=3,
@@ -355,16 +324,15 @@ def create_visualizations_single(
             col=1,
         )
 
-        # 添加参考值
         fig.add_trace(
             go.Scatter(
                 x=["积极词", "消极词"],
                 y=[
-                    REFERENCE_VALUES["HCO"]["endorsement_count"]["positive"],
-                    REFERENCE_VALUES["HCO"]["endorsement_count"]["negative"],
+                    REFERENCE_VALUES["control"]["endorsement_count"]["positive"],
+                    REFERENCE_VALUES["control"]["endorsement_count"]["negative"],
                 ],
                 mode="markers",
-                name="HCO参考",
+                name="对照组参考",
                 marker=dict(size=12, color="green", symbol="diamond"),
                 opacity=0.7,
             ),
@@ -376,11 +344,11 @@ def create_visualizations_single(
             go.Scatter(
                 x=["积极词", "消极词"],
                 y=[
-                    REFERENCE_VALUES["MDD"]["endorsement_count"]["positive"],
-                    REFERENCE_VALUES["MDD"]["endorsement_count"]["negative"],
+                    REFERENCE_VALUES["mdd"]["endorsement_count"]["positive"],
+                    REFERENCE_VALUES["mdd"]["endorsement_count"]["negative"],
                 ],
                 mode="markers",
-                name="MDD参考",
+                name="mdd参考",
                 marker=dict(size=12, color="red", symbol="diamond"),
                 opacity=0.7,
             ),
@@ -406,16 +374,15 @@ def create_visualizations_single(
             col=2,
         )
 
-        # 添加参考值
         fig.add_trace(
             go.Scatter(
                 x=["积极词", "消极词"],
                 y=[
-                    REFERENCE_VALUES["HCO"]["reaction_time"]["positive"],
-                    REFERENCE_VALUES["HCO"]["reaction_time"]["negative"],
+                    REFERENCE_VALUES["control"]["reaction_time"]["positive"],
+                    REFERENCE_VALUES["control"]["reaction_time"]["negative"],
                 ],
                 mode="markers",
-                name="HCO参考",
+                name="对照组参考",
                 marker=dict(size=12, color="green", symbol="diamond"),
                 opacity=0.7,
             ),
@@ -427,11 +394,11 @@ def create_visualizations_single(
             go.Scatter(
                 x=["积极词", "消极词"],
                 y=[
-                    REFERENCE_VALUES["MDD"]["reaction_time"]["positive"],
-                    REFERENCE_VALUES["MDD"]["reaction_time"]["negative"],
+                    REFERENCE_VALUES["mdd"]["reaction_time"]["positive"],
+                    REFERENCE_VALUES["mdd"]["reaction_time"]["negative"],
                 ],
                 mode="markers",
-                name="MDD参考",
+                name="mdd参考",
                 marker=dict(size=12, color="red", symbol="diamond"),
                 opacity=0.7,
             ),
@@ -502,28 +469,27 @@ def create_visualizations_single(
         col=1,
     )
 
-    # 图5: 与参考值对比（积极偏向）
+    # 图5: 积极偏向对比（参考）
     if "positive_bias" in metrics:
-        # 估算参考组的积极偏向（假设每类40个词）
         hco_positive_rate = (
-            REFERENCE_VALUES["HCO"]["endorsement_count"]["positive"] / 40
+            REFERENCE_VALUES["control"]["endorsement_count"]["positive"] / 40
         )
         hco_negative_rate = (
-            REFERENCE_VALUES["HCO"]["endorsement_count"]["negative"] / 40
+            REFERENCE_VALUES["control"]["endorsement_count"]["negative"] / 40
         )
         hco_bias = hco_positive_rate - hco_negative_rate
 
         mdd_positive_rate = (
-            REFERENCE_VALUES["MDD"]["endorsement_count"]["positive"] / 40
+            REFERENCE_VALUES["mdd"]["endorsement_count"]["positive"] / 40
         )
         mdd_negative_rate = (
-            REFERENCE_VALUES["MDD"]["endorsement_count"]["negative"] / 40
+            REFERENCE_VALUES["mdd"]["endorsement_count"]["negative"] / 40
         )
         mdd_bias = mdd_positive_rate - mdd_negative_rate
 
         fig.add_trace(
             go.Bar(
-                x=["当前被试", "HCO参考", "MDD参考"],
+                x=["当前被试", "对照组参考", "mdd参考"],
                 y=[metrics["positive_bias"], hco_bias, mdd_bias],
                 name="积极偏向",
                 marker_color=["blue", "green", "red"],
@@ -569,7 +535,6 @@ def create_visualizations_single(
         template="plotly_white",
     )
 
-    # 保存图表
     fig.write_html(str(result_dir / "sret_analysis_report.html"))
 
     return fig
@@ -580,18 +545,15 @@ def save_results_single(
     valence_results: dict[str, Any],
     result_dir: Path,
 ):
-    """保存单个被试的分析结果"""
+    """保存结果"""
 
-    # 保存关键指标
     metrics_df = pl.DataFrame([metrics])
     metrics_df.write_csv(result_dir / "sret_key_metrics.csv")
 
-    # 保存词性统计
     if "valence_stats" in valence_results:
         valence_df = pl.DataFrame(valence_results["valence_stats"])
         valence_df.write_csv(result_dir / "sret_valence_stats.csv")
 
-    # 保存JSON格式的完整结果
     results = {
         "key_metrics": metrics,
         "valence_analysis": valence_results,
@@ -615,35 +577,7 @@ def analyze_sret_data_single(
     """分析单个被试的SRET数据"""
 
     # 1. 提取试次数据
-    trials_df = extract_trials_by_block(
-        df,
-        target_block_indices=target_blocks,
-        block_col="phase",
-        trial_col="trial_index",
-        fill_na=True,
-    )
-
-    if trials_df.height == 0:
-        print("❌ 错误: 未找到有效的试次数据")
-        return {}
-
-    # 检查必要列
-    required_columns = ["stim_word", "response", "rt", "stim_type"]
-    missing_columns = [col for col in required_columns if col not in trials_df.columns]
-    if missing_columns:
-        print(f"❌ 缺少必要列: {missing_columns}")
-        return {}
-
-    # 预处理
-    trials_df = trials_df.with_columns(
-        (pl.col("rt") * 1000).alias("rt_ms"),
-        (pl.col("response") == "yes").cast(pl.Int8).alias("response_code"),
-    )
-
-    if "intensity" in trials_df.columns:
-        trials_df = trials_df.with_columns(
-            pl.col("intensity").clip(0, 10).alias("intensity")
-        )
+    trials_df = load_and_preprocess_data(df)
 
     # 2. 计算关键指标
     metrics = calculate_key_metrics_single(trials_df)
@@ -713,9 +647,8 @@ def check_normality_and_homoscedasticity(
             stat, p_value = stats.shapiro(values)
             is_normal = p_value > 0.05
 
-            # 方差齐性检验（Levene's test，如果有多个组）
+            # 方差齐性检验
             if len(group_metrics) >= 2:
-                # 这里假设每个被试是一个组，实际应用中需要根据实验设计调整
                 levene_stat, levene_p = stats.levene(values, values)
                 is_homoscedastic = levene_p > 0.05
             else:
@@ -743,18 +676,14 @@ def check_normality_and_homoscedasticity(
 def perform_group_comparisons(
     control_metrics: list[dict[str, float]],
     experimental_metrics: list[dict[str, float]],
-    anova: bool = False,
+    anova: bool = True,
 ) -> dict[str, dict[str, Any]]:
-    """
-    执行对照组和实验组的比较分析
-    """
+    """对照组和实验组的比较"""
     results = {}
 
-    # 转换为DataFrame
     control_df = pd.DataFrame(control_metrics)
     experimental_df = pd.DataFrame(experimental_metrics)
 
-    # 需要比较的指标
     key_metrics = [
         "positive_bias",
         "rt_negative_minus_positive",
@@ -774,7 +703,7 @@ def perform_group_comparisons(
             continue
 
         try:
-            # 基础正态性和方差齐性检查（用于后续统计决策参考）
+            # 基础正态性和方差齐性检查
             _, control_p = stats.shapiro(control_values)
             _, experimental_p = stats.shapiro(experimental_values)
             both_normal = control_p > 0.05 and experimental_p > 0.05
@@ -782,17 +711,14 @@ def perform_group_comparisons(
             equal_var = levene_p > 0.05
 
             if anova:
-                # One-way ANOVA
                 f_stat, p_value = stats.f_oneway(control_values, experimental_values)
 
-                # 自由度计算 (One-way ANOVA with 2 groups)
                 k = 2
                 N = len(control_values) + len(experimental_values)
                 df_between = k - 1
                 df_within = N - k
                 degrees_of_freedom = f"{df_between}, {df_within}"
 
-                # 效应量计算: Eta-squared (η²)
                 eta_squared = (f_stat * df_between) / (f_stat * df_between + df_within)
 
                 effect_size = eta_squared
@@ -830,8 +756,6 @@ def perform_group_comparisons(
                             control_values, experimental_values, equal_var=False
                         )
                         test_type = "Welch's t-test (unequal variance)"
-                        # Welch's df is complex, approximating:
-                        # (We can calculate it, but usually standard output suffices)
                         degrees_of_freedom = "Welch approx."
 
                     statistic = t_stat
@@ -877,7 +801,6 @@ def perform_group_comparisons(
                     effect_size_type = "Non-parametric"
                     effect_size_desc = "非参数效应量"
 
-            # 计算样本量
             sample_size_info = {}
             if cohens_d is not None:
                 sample_size_info = calculate_sample_size(
@@ -934,12 +857,10 @@ def create_group_comparison_visualizations_single_group(
     statistical_results: dict[str, dict[str, Any]],
     result_dir: Path,
 ):
-    """创建单个组的组分析可视化"""
+    """单个组的组分析可视化"""
 
-    # 提取所有被试的指标
     all_metrics = group_metrics
 
-    # 创建指标矩阵
     key_metrics_list = [
         "positive_bias",
         "rt_negative_minus_positive",
@@ -1019,22 +940,21 @@ def create_group_comparison_visualizations_single_group(
             selector=dict(type="heatmap"),
         )
 
-    # 图3: 与文献对比（积极偏向）
+    # 图3: 积极偏向对比参考
     if "positive_bias" in all_metrics[0]:
-        # 估算参考组的积极偏向（假设每类30个词）
         hco_positive_rate = (
-            REFERENCE_VALUES["HCO"]["endorsement_count"]["positive"] / 30
+            REFERENCE_VALUES["control"]["endorsement_count"]["positive"] / 40
         )
         hco_negative_rate = (
-            REFERENCE_VALUES["HCO"]["endorsement_count"]["negative"] / 30
+            REFERENCE_VALUES["control"]["endorsement_count"]["negative"] / 40
         )
         hco_bias = hco_positive_rate - hco_negative_rate
 
         mdd_positive_rate = (
-            REFERENCE_VALUES["MDD"]["endorsement_count"]["positive"] / 30
+            REFERENCE_VALUES["mdd"]["endorsement_count"]["positive"] / 40
         )
         mdd_negative_rate = (
-            REFERENCE_VALUES["MDD"]["endorsement_count"]["negative"] / 30
+            REFERENCE_VALUES["mdd"]["endorsement_count"]["negative"] / 40
         )
         mdd_bias = mdd_positive_rate - mdd_negative_rate
 
@@ -1042,7 +962,7 @@ def create_group_comparison_visualizations_single_group(
 
         fig.add_trace(
             go.Bar(
-                x=["当前组", "文献HCO组", "文献MDD组"],
+                x=["当前组", "对照组", "mdd组"],
                 y=[group_mean, hco_bias, mdd_bias],
                 name="积极偏向比较",
                 marker_color=["blue", "green", "red"],
@@ -1255,7 +1175,7 @@ def create_group_comparison_visualizations_single_group(
     # 更新布局
     fig.update_layout(
         title=dict(
-            text="SRET组分析报告（含样本量计算）",
+            text="SRET组分析报告",
             font=dict(size=22, family="Arial Black"),
             x=0.5,
         ),
@@ -1265,7 +1185,6 @@ def create_group_comparison_visualizations_single_group(
         template="plotly_white",
     )
 
-    # 保存图表
     fig.write_html(str(result_dir / "sret_group_analysis_report.html"))
 
     return fig
@@ -1277,9 +1196,6 @@ def create_group_comparison_visualizations(
     comparison_results: dict[str, dict[str, Any]],
     result_dir: Path,
 ):
-    """创建组间比较的可视化"""
-
-    # 提取数据
     control_values = {k: [] for k in control_metrics[0].keys()}
     experimental_values = {k: [] for k in experimental_metrics[0].keys()}
 
@@ -1539,7 +1455,6 @@ def create_group_comparison_visualizations(
 
     # 图8: 样本量需求曲线
     if comparison_results:
-        # 生成不同效应量下的样本量需求曲线
         effect_sizes = np.linspace(0.1, 1.0, 20)
         sample_sizes_per_group = []
         sample_sizes_total = []
@@ -1662,7 +1577,6 @@ def create_group_comparison_visualizations(
             fig.update_xaxes(title_text="效应量 (Cohen's d)", row=3, col=3)
             fig.update_yaxes(title_text="每组所需样本量", row=3, col=3)
 
-    # 更新布局
     fig.update_layout(
         title=dict(
             text="SRET组间比较分析报告（含样本量计算）",
@@ -1675,14 +1589,13 @@ def create_group_comparison_visualizations(
         template="plotly_white",
     )
 
-    # 保存图表
     fig.write_html(str(result_dir / "sret_group_comparison_report.html"))
 
     return fig
 
 
 def run_single_sret_analysis(file_path: Path, result_dir: Path = None):
-    """运行单个被试的SRET分析"""
+    """单个被试的SRET分析"""
 
     if not file_path.exists():
         print(f"❌ 文件不存在: {file_path}")
@@ -1693,10 +1606,8 @@ def run_single_sret_analysis(file_path: Path, result_dir: Path = None):
 
     result_dir.mkdir(parents=True, exist_ok=True)
 
-    # 读取数据
     df = pl.read_csv(file_path)
 
-    # 分析数据
     result = analyze_sret_data_single(
         df=df, target_blocks=["Encoding"], result_dir=result_dir
     )
@@ -1708,13 +1619,12 @@ def run_single_sret_analysis(file_path: Path, result_dir: Path = None):
 def run_group_sret_analysis(
     data_files: list[Path],
     result_dir: Path = None,
-    reference_group: Literal["HCO", "MDD"] = None,
+    reference_group: Literal["control", "mdd"] = None,
 ):
-    """运行一组被试的SRET分析"""
+    """组SRET分析"""
 
     result_dir.mkdir(parents=True, exist_ok=True)
 
-    # 分析每个被试
     all_results = []
     group_metrics = []
 
@@ -1722,17 +1632,13 @@ def run_group_sret_analysis(
         print(f"分析被试 {i + 1}/{len(data_files)}: {file_path.name}")
 
         try:
-            # 读取数据
             df = pl.read_csv(file_path)
 
-            # 提取被试ID（从文件名）
             subject_id = file_path.stem.split("-")[0]
 
-            # 创建被试特定的结果目录
             subject_result_dir = result_dir / subject_id
             subject_result_dir.mkdir(parents=True, exist_ok=True)
 
-            # 分析单个被试
             result = analyze_sret_data_single(
                 df=df,
                 target_blocks=["Encoding"],
@@ -1752,19 +1658,15 @@ def run_group_sret_analysis(
         print("⚠️ 被试数量不足，无法进行组间统计检验")
         return {"all_results": all_results}
 
-    # 执行组间统计检验（与参考组比较）
-    print("\n执行组间统计检验...")
-
-    # 询问参考组
-    if reference_group not in ["HCO", "MDD"]:
+    if reference_group not in ["control", "mdd"]:
         print("\n请选择参考组:")
-        print("1. HCO组")
-        print("2. MDD组")
+        print("1. 对照组")
+        print("2. mdd组")
         choice = input("选择 (1/2): ").strip()
 
-        reference_group = "HCO" if choice == "1" else "MDD"
+        reference_group = "control" if choice == "1" else "mdd"
 
-    # 对每个关键指标进行单样本t检验
+    # 单样本t检验
     statistical_results = {}
 
     key_metrics = [
@@ -1782,57 +1684,54 @@ def run_group_sret_analysis(
             statistical_results[metric] = {"error": "样本量不足"}
             continue
 
-        # 参考值（根据文献估算）
         if metric == "positive_bias":
-            # 估算参考组的积极偏向
-            if reference_group == "HCO":
+            if reference_group == "control":
                 positive_rate = (
-                    REFERENCE_VALUES["HCO"]["endorsement_count"]["positive"] / 30
+                    REFERENCE_VALUES["control"]["endorsement_count"]["positive"] / 40
                 )
                 negative_rate = (
-                    REFERENCE_VALUES["HCO"]["endorsement_count"]["negative"] / 30
+                    REFERENCE_VALUES["control"]["endorsement_count"]["negative"] / 40
                 )
                 ref_value = positive_rate - negative_rate
-            else:  # MDD
+            else:
                 positive_rate = (
-                    REFERENCE_VALUES["MDD"]["endorsement_count"]["positive"] / 30
+                    REFERENCE_VALUES["mdd"]["endorsement_count"]["positive"] / 40
                 )
                 negative_rate = (
-                    REFERENCE_VALUES["MDD"]["endorsement_count"]["negative"] / 30
+                    REFERENCE_VALUES["mdd"]["endorsement_count"]["negative"] / 40
                 )
                 ref_value = positive_rate - negative_rate
         elif metric == "rt_negative_minus_positive":
-            # 反应时差异参考值
-            if reference_group == "HCO":
+            if reference_group == "control":
                 ref_value = (
-                    REFERENCE_VALUES["HCO"]["reaction_time"]["negative"]
-                    - REFERENCE_VALUES["HCO"]["reaction_time"]["positive"]
+                    REFERENCE_VALUES["control"]["reaction_time"]["negative"]
+                    - REFERENCE_VALUES["control"]["reaction_time"]["positive"]
                 )
-            else:  # MDD
+            else:
                 ref_value = (
-                    REFERENCE_VALUES["MDD"]["reaction_time"]["negative"]
-                    - REFERENCE_VALUES["MDD"]["reaction_time"]["positive"]
+                    REFERENCE_VALUES["mdd"]["reaction_time"]["negative"]
+                    - REFERENCE_VALUES["mdd"]["reaction_time"]["positive"]
                 )
         elif metric == "rt_endorsed_minus_not":
             ref_value = 0  # 假设没有差异
         elif metric == "endorsement_rate":
             # 估算总认同率
-            if reference_group == "HCO":
-                positive_endorsed = REFERENCE_VALUES["HCO"]["endorsement_count"][
+            if reference_group == "control":
+                positive_endorsed = REFERENCE_VALUES["control"]["endorsement_count"][
                     "positive"
                 ]
-                negative_endorsed = REFERENCE_VALUES["HCO"]["endorsement_count"][
+                negative_endorsed = REFERENCE_VALUES["control"]["endorsement_count"][
                     "negative"
                 ]
-                ref_value = (positive_endorsed + negative_endorsed) / 60  # 假设共60个词
-            else:  # MDD
-                positive_endorsed = REFERENCE_VALUES["MDD"]["endorsement_count"][
+                ref_value = (positive_endorsed + negative_endorsed) / 80
+            else:
+                positive_endorsed = REFERENCE_VALUES["mdd"]["endorsement_count"][
                     "positive"
                 ]
-                negative_endorsed = REFERENCE_VALUES["MDD"]["endorsement_count"][
+                negative_endorsed = REFERENCE_VALUES["mdd"]["endorsement_count"][
                     "negative"
                 ]
-                ref_value = (positive_endorsed + negative_endorsed) / 60
+                ref_value = (positive_endorsed + negative_endorsed) / 80
         else:
             continue
 
@@ -1844,7 +1743,6 @@ def run_group_sret_analysis(
         std_group = np.std(group_values, ddof=1)
         cohens_d = mean_diff / std_group if std_group > 0 else 0
 
-        # 效应量解释（小、中、大）
         abs_d = abs(cohens_d)
         if abs_d < 0.2:
             size = "很小"
@@ -1889,25 +1787,18 @@ def run_group_sret_analysis(
             else None,
         }
 
-    # 保存组分析结果
-    print("\n保存组分析结果...")
-
-    # 保存所有被试的汇总指标
     all_metrics_df = pd.DataFrame([r["key_metrics"] for r in all_results])
     all_metrics_df.insert(0, "subject_id", [r["subject_id"] for r in all_results])
     all_metrics_df.to_csv(result_dir / "group_all_metrics.csv", index=False)
 
-    # 计算组平均值
     group_mean_metrics = all_metrics_df.mean(numeric_only=True).to_dict()
     group_std_metrics = all_metrics_df.std(numeric_only=True).to_dict()
 
-    # 保存组统计结果
     stats_df = pd.DataFrame(
         [group_mean_metrics, group_std_metrics], index=["mean", "std"]
     ).T
     stats_df.to_csv(result_dir / "group_statistics.csv")
 
-    # 保存样本量计算结果
     sample_size_data = []
     for metric, result in statistical_results.items():
         if "required_sample_size" in result:
@@ -1929,12 +1820,10 @@ def run_group_sret_analysis(
         sample_size_df = pd.DataFrame(sample_size_data)
         sample_size_df.to_csv(result_dir / "sample_size_calculations.csv", index=False)
 
-    # 保存统计检验结果
     if "error" not in statistical_results:
         stats_test_df = pd.DataFrame(statistical_results).T
         stats_test_df.to_csv(result_dir / "group_statistical_tests.csv")
 
-    # 创建组可视化
     create_group_comparison_visualizations_single_group(
         group_metrics, statistical_results, result_dir
     )
@@ -1956,9 +1845,8 @@ def run_groups_sret_analysis(
     result_dir: Path = Path("group_comparison_results"),
     groups: list[str] = None,
 ) -> dict[str, Any]:
-    """分析对照组和实验组的SRET数据并进行比较"""
+    """比较对照组和实验组"""
 
-    # 分析对照组
     control_results = []
     control_metrics = []
     control_name = groups[0] if groups else "control"
@@ -1968,11 +1856,9 @@ def run_groups_sret_analysis(
             df = pl.read_csv(file_path)
             subject_id = file_path.stem.split("-")[0]
 
-            # 创建被试特定的结果目录
             subject_result_dir = result_dir / control_name / subject_id
             subject_result_dir.mkdir(parents=True, exist_ok=True)
 
-            # 分析单个被试
             result = analyze_sret_data_single(
                 df=df,
                 target_blocks=["Encoding"],
@@ -1987,7 +1873,6 @@ def run_groups_sret_analysis(
         except Exception as e:
             print(f"❌ 对照组被试 {file_path.name} 分析出错: {e}")
 
-    # 分析实验组
     experimental_results = []
     experimental_metrics = []
     experimental_name = groups[1] if groups and len(groups) > 1 else "experimental"
@@ -1997,11 +1882,9 @@ def run_groups_sret_analysis(
             df = pl.read_csv(file_path)
             subject_id = file_path.stem.split("-")[0]
 
-            # 创建被试特定的结果目录
             subject_result_dir = result_dir / experimental_name / subject_id
             subject_result_dir.mkdir(parents=True, exist_ok=True)
 
-            # 分析单个被试
             result = analyze_sret_data_single(
                 df=df,
                 target_blocks=["Encoding"],
@@ -2025,22 +1908,18 @@ def run_groups_sret_analysis(
             "experimental_metrics": experimental_metrics,
         }
 
-    # 检查正态性和方差齐性
     print("\n检查正态性和方差齐性...")
     normality_results = check_normality_and_homoscedasticity(
         control_metrics + experimental_metrics
     )
 
-    # 执行组间比较
     print("\n执行组间比较分析...")
     comparison_results = perform_group_comparisons(
         control_metrics, experimental_metrics
     )
 
-    # 保存组分析结果
     print("\n保存组分析结果...")
 
-    # 保存所有被试的汇总指标
     all_control_metrics_df = pd.DataFrame([r["key_metrics"] for r in control_results])
     all_control_metrics_df.insert(0, "group", control_name)
     all_control_metrics_df.insert(
@@ -2060,7 +1939,6 @@ def run_groups_sret_analysis(
     )
     all_metrics_df.to_csv(result_dir / "all_subjects_metrics.csv", index=False)
 
-    # 计算组统计
     control_stats = all_control_metrics_df.drop(
         columns=["group", "subject_id"]
     ).describe()
@@ -2071,7 +1949,6 @@ def run_groups_sret_analysis(
     control_stats.to_csv(result_dir / f"{control_name}_group_statistics.csv")
     experimental_stats.to_csv(result_dir / f"{experimental_name}_group_statistics.csv")
 
-    # 保存样本量计算结果
     sample_size_data = []
     for metric, result in comparison_results.items():
         if "required_sample_size_per_group" in result:
@@ -2093,7 +1970,6 @@ def run_groups_sret_analysis(
         sample_size_df = pd.DataFrame(sample_size_data)
         sample_size_df.to_csv(result_dir / "sample_size_calculations.csv", index=False)
 
-    # 保存统计检验结果
     if normality_results:
         normality_df = pd.DataFrame(normality_results).T
         normality_df.to_csv(result_dir / "normality_tests.csv")
@@ -2102,7 +1978,6 @@ def run_groups_sret_analysis(
         comparison_df = pd.DataFrame(comparison_results).T
         comparison_df.to_csv(result_dir / "group_comparisons.csv")
 
-    # 创建组比较可视化
     create_group_comparison_visualizations(
         control_metrics, experimental_metrics, comparison_results, result_dir
     )
@@ -2209,11 +2084,9 @@ def run_sret_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
             print("❌ 无效的选择")
             return None
     else:
-        # 使用DataUtils参数
         if data_utils.session_id is None or (
             data_utils.groups is not None and len(data_utils.groups) > 0
         ):
-            # 组间分析
             groups = data_utils.groups
             data_root = Path(cfg.output_dir)
 
@@ -2223,7 +2096,7 @@ def run_sret_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
                 result_dir = result_root / f"sret_{groups[0]}_results"
                 result_dir.mkdir(parents=True, exist_ok=True)
 
-                reference_group = "MDD" if "mdd" in groups[0].lower() else "HCO"
+                reference_group = "mdd" if "mdd" in groups[0].lower() else "control"
                 run_group_sret_analysis(
                     files, result_dir, reference_group=reference_group
                 )

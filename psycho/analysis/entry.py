@@ -3,7 +3,7 @@ from pathlib import Path
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from psycho.analysis.emotion_face import run_emotion_analysis
+from psycho.analysis.emotion_face import run_emotion_face_analysis
 from psycho.analysis.prt import run_prt_analysis
 from psycho.analysis.sret import run_sret_analysis
 from psycho.analysis.utils import DataUtils, parse_date_input
@@ -17,7 +17,7 @@ def run_analysis(
 ):
     data_utils = DataUtils(session_id=session_id, date=date, groups=groups)
     # 运行情感分析
-    run_emotion_analysis(cfg, data_utils)
+    run_emotion_face_analysis(cfg, data_utils)
     # 运行PRT分析
     run_prt_analysis(cfg, data_utils)
     # 运行SRET分析

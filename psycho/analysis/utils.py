@@ -1,6 +1,7 @@
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import polars as pl
 
@@ -8,7 +9,8 @@ import polars as pl
 @dataclass
 class DataUtils:
     date: str = datetime.now().strftime("%Y-%m-%d")
-    session_id: int = 0
+    session_id: int = None
+    groups: list[str] = None
 
 
 def extract_trials_by_block(
@@ -232,3 +234,13 @@ def parse_date_input(date_str: str = None) -> str:
 
     # 如果所有方法都失败，抛出异常
     raise ValueError(f"无法解析日期: {date_str}")
+
+
+def find_exp_files(data_dir: Path, experiment_type: str):
+    """查找指定目录下的指定实验的行为学结果"""
+    files = list(data_dir.glob(f"*{experiment_type}.csv"))
+    if not files:
+        raise FileNotFoundError(
+            f"在目录 {data_dir} 下未找到 {experiment_type} 实验的结果文件"
+        )
+    return files

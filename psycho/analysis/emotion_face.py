@@ -12,63 +12,24 @@ from scipy import stats
 from statsmodels.formula.api import ols
 from statsmodels.stats.anova import anova_lm
 
-from psycho.analysis.utils import DataUtils, extract_trials_by_block, find_exp_files
+from psycho.analysis.utils import (
+    DataUtils,
+    calculate_sample_size,
+    check_normality_and_homoscedasticity,
+    extract_trials_by_block,
+    find_exp_files,
+    perform_group_comparisons,
+)
 
 warnings.filterwarnings("ignore")
 
-
-def calculate_sample_size(
-    effect_size: float,
-    alpha: float = 0.05,
-    power: float = 0.8,
-    test_type: str = "two_sample",
-) -> dict[str, Any]:
-    # 计算Z分数
-    z_alpha = stats.norm.ppf(1 - alpha / 2)  # 双侧检验
-    z_beta = stats.norm.ppf(power)
-
-    # 根据检验类型计算样本量
-    if test_type == "one_sample":
-        # 单样本t检验
-        n = ((z_alpha + z_beta) ** 2) / (effect_size**2)
-    elif test_type == "paired":
-        # 配对样本t检验
-        n = ((z_alpha + z_beta) ** 2) / (effect_size**2)
-    elif test_type == "two_sample":
-        # 独立样本t检验（每组样本量）
-        n_per_group = 2 * ((z_alpha + z_beta) ** 2) / (effect_size**2)
-        n_total = 2 * n_per_group
-        n = {
-            "per_group": n_per_group,
-            "total": n_total,
-            "per_group_rounded": int(np.ceil(n_per_group)),
-            "total_rounded": int(np.ceil(n_total)),
-        }
-    else:
-        raise ValueError(f"不支持的检验类型: {test_type}")
-
-    effect_size_magnitude = ""
-    if abs(effect_size) < 0.2:
-        effect_size_magnitude = "很小 (very small)"
-    elif abs(effect_size) < 0.5:
-        effect_size_magnitude = "小 (small)"
-    elif abs(effect_size) < 0.8:
-        effect_size_magnitude = "中等 (medium)"
-    else:
-        effect_size_magnitude = "大 (large)"
-
-    return {
-        "effect_size": effect_size,
-        "effect_size_magnitude": effect_size_magnitude,
-        "alpha": alpha,
-        "power": power,
-        "test_type": test_type,
-        "required_n": n if test_type != "two_sample" else n["per_group_rounded"],
-        "required_n_total": n["total_rounded"] if test_type == "two_sample" else None,
-        "z_alpha": z_alpha,
-        "z_beta": z_beta,
-        "formula_used": f"n = {2 if test_type == 'two_sample' else 1} * ((Z_α + Z_β)² / d²)",
-    }
+key_metrics = [
+    "overall_accuracy",
+    "median_rt",
+    "positive_accuracy",
+    "negative_accuracy",
+    "neutral_accuracy",
+]
 
 
 def find_emotion_face_files(data_dir: Path) -> list[Path]:
@@ -786,242 +747,6 @@ def analyze_emotion_face_data(
     return report
 
 
-def check_normality_and_homoscedasticity(
-    group_metrics: list[dict[str, float]],
-) -> dict[str, dict[str, Any]]:
-    """检查正态性和方差齐性"""
-    results = {}
-
-    df = pd.DataFrame(group_metrics)
-
-    key_metrics = [
-        "overall_accuracy",
-        "median_rt",
-        "positive_accuracy",
-        "negative_accuracy",
-        "neutral_accuracy",
-    ]
-
-    for metric in key_metrics:
-        if metric not in df.columns:
-            continue
-
-        values = df[metric].dropna().values
-
-        if len(values) < 3:
-            results[metric] = {"error": "样本量不足进行正态性检验"}
-            continue
-
-        # 正态性检验（Shapiro-Wilk）
-        try:
-            stat, p_value = stats.shapiro(values)
-            is_normal = p_value > 0.05
-
-            if len(group_metrics) >= 2:
-                levene_stat, levene_p = stats.levene(values, values)
-                is_homoscedastic = levene_p > 0.05
-            else:
-                is_homoscedastic = None
-
-            results[metric] = {
-                "shapiro_stat": float(stat),
-                "shapiro_p": float(p_value),
-                "is_normal": is_normal,
-                "levene_stat": float(levene_stat)
-                if "levene_stat" in locals()
-                else None,
-                "levene_p": float(levene_p) if "levene_p" in locals() else None,
-                "is_homoscedastic": is_homoscedastic,
-                "n": len(values),
-                "mean": float(np.mean(values)),
-                "std": float(np.std(values, ddof=1)),
-            }
-        except Exception as e:
-            results[metric] = {"error": f"检验失败: {str(e)}"}
-
-    return results
-
-
-def perform_group_comparisons(
-    control_metrics: list[dict[str, float]],
-    experimental_metrics: list[dict[str, float]],
-    anova: bool = True,
-) -> dict[str, dict[str, Any]]:
-    """对比对照组和实验组"""
-    results = {}
-
-    control_df = pd.DataFrame(control_metrics)
-    experimental_df = pd.DataFrame(experimental_metrics)
-
-    key_metrics = [
-        "overall_accuracy",
-        "median_rt",
-        "positive_accuracy",
-        "negative_accuracy",
-        "neutral_accuracy",
-    ]
-
-    for metric in key_metrics:
-        if metric not in control_df.columns or metric not in experimental_df.columns:
-            continue
-
-        control_values = control_df[metric].dropna().values
-        experimental_values = experimental_df[metric].dropna().values
-
-        if len(control_values) < 2 or len(experimental_values) < 2:
-            results[metric] = {"error": "样本量不足进行组间比较"}
-            continue
-
-        try:
-            # 基础正态性和方差齐性检查
-            _, control_p = stats.shapiro(control_values)
-            _, experimental_p = stats.shapiro(experimental_values)
-            both_normal = control_p > 0.05 and experimental_p > 0.05
-            levene_stat, levene_p = stats.levene(control_values, experimental_values)
-            equal_var = levene_p > 0.05
-
-            if anova:
-                f_stat, p_value = stats.f_oneway(control_values, experimental_values)
-
-                k = 2
-                N = len(control_values) + len(experimental_values)
-                df_between = k - 1
-                df_within = N - k
-                degrees_of_freedom = f"{df_between}, {df_within}"
-
-                eta_squared = (f_stat * df_between) / (f_stat * df_between + df_within)
-
-                effect_size = eta_squared
-                effect_size_type = "Eta-squared"
-
-                if eta_squared < 0.01:
-                    effect_size_desc = "可忽略 (Negligible)"
-                elif eta_squared < 0.06:
-                    effect_size_desc = "小 (Small)"
-                elif eta_squared < 0.14:
-                    effect_size_desc = "中等 (Medium)"
-                else:
-                    effect_size_desc = "大 (Large)"
-                effect_size_desc = f"{effect_size_desc} (η²={eta_squared:.3f})"
-
-                test_type = "One-way ANOVA"
-                statistic = f_stat
-                cohens_d = None
-
-            else:
-                degrees_of_freedom = "N/A"
-                eta_squared = None
-
-                if both_normal:
-                    # 参数检验：独立样本t检验
-                    if equal_var:
-                        t_stat, p_value = stats.ttest_ind(
-                            control_values, experimental_values, equal_var=True
-                        )
-                        test_type = "Student's t-test (equal variance)"
-                        df_t = len(control_values) + len(experimental_values) - 2
-                        degrees_of_freedom = str(df_t)
-                    else:
-                        t_stat, p_value = stats.ttest_ind(
-                            control_values, experimental_values, equal_var=False
-                        )
-                        test_type = "Welch's t-test (unequal variance)"
-                        degrees_of_freedom = "Welch approx."
-
-                    statistic = t_stat
-                else:
-                    # 非参数检验：Mann-Whitney U检验
-                    u_stat, p_value = stats.mannwhitneyu(
-                        control_values, experimental_values
-                    )
-                    statistic = u_stat
-                    test_type = "Mann-Whitney U test"
-                    degrees_of_freedom = "N/A"
-
-                # 计算效应量 (Cohen's d)
-                if both_normal:
-                    n1, n2 = len(control_values), len(experimental_values)
-                    pooled_std = np.sqrt(
-                        (
-                            (n1 - 1) * np.var(control_values, ddof=1)
-                            + (n2 - 1) * np.var(experimental_values, ddof=1)
-                        )
-                        / (n1 + n2 - 2)
-                    )
-                    cohens_d = (
-                        np.mean(control_values) - np.mean(experimental_values)
-                    ) / pooled_std
-
-                    effect_size = cohens_d
-                    effect_size_type = "Cohen's d"
-
-                    abs_d = abs(cohens_d)
-                    if abs_d < 0.2:
-                        effect_size_desc = "很小"
-                    elif abs_d < 0.5:
-                        effect_size_desc = "小"
-                    elif abs_d < 0.8:
-                        effect_size_desc = "中等"
-                    else:
-                        effect_size_desc = "大"
-                    effect_size_desc = f"{effect_size_desc} (d={cohens_d:.2f})"
-                else:
-                    cohens_d = None
-                    effect_size = None
-                    effect_size_type = "Non-parametric"
-                    effect_size_desc = "非参数效应量"
-
-            # 计算样本量
-            sample_size_info = {}
-            if cohens_d is not None:
-                sample_size_info = calculate_sample_size(
-                    effect_size=abs(cohens_d),
-                    alpha=0.05,
-                    power=0.8,
-                    test_type="two_sample",
-                )
-
-            results[metric] = {
-                "test_type": test_type,
-                "statistic": float(statistic) if not np.isnan(statistic) else None,
-                "p_value": float(p_value),
-                "cohens_d": float(cohens_d) if cohens_d is not None else None,
-                "effect_size_desc": effect_size_desc,
-                "analysis_type": test_type,
-                "degrees_of_freedom": degrees_of_freedom,
-                "effect_size": float(effect_size) if effect_size is not None else None,
-                "effect_size_type": effect_size_type,
-                "effect_size_magnitude": effect_size_desc.split("(")[0].strip()
-                if "(" in effect_size_desc
-                else effect_size_desc,
-                "required_sample_size_per_group": sample_size_info.get("required_n")
-                if sample_size_info
-                else None,
-                "required_total_sample_size": sample_size_info.get("required_n_total")
-                if sample_size_info
-                else None,
-                "sample_size_power": sample_size_info.get("power")
-                if sample_size_info
-                else None,
-                "sample_size_alpha": sample_size_info.get("alpha")
-                if sample_size_info
-                else None,
-                # 描述性统计
-                "control_mean": float(np.mean(control_values)),
-                "control_std": float(np.std(control_values, ddof=1)),
-                "control_n": len(control_values),
-                "experimental_mean": float(np.mean(experimental_values)),
-                "experimental_std": float(np.std(experimental_values, ddof=1)),
-                "experimental_n": len(experimental_values),
-                "both_normal": both_normal,
-                "equal_variance": equal_var if "equal_var" in locals() else None,
-            }
-        except Exception as e:
-            results[metric] = {"error": f"比较分析失败: {str(e)}"}
-
-    return results
-
-
 def create_group_comparison_visualizations_single_group(
     group_metrics: list[dict[str, float]],
     statistical_results: dict[str, dict[str, Any]],
@@ -1158,12 +883,24 @@ def create_group_comparison_visualizations_single_group(
         for metric, name in zip(key_metrics_list, metric_names):
             if metric in statistical_results:
                 result = statistical_results[metric]
+                effect_size_value = ""
+                effect_size_type = ""
+                if result.get("cohens_d") is not None:
+                    effect_size_value = f"d={result.get('cohens_d'):.3f}"
+                    effect_size_type = "Cohen's d"
+                elif result.get("eta_squared") is not None:
+                    effect_size_value = f"η²={result.get('eta_squared'):.3f}"
+                    effect_size_type = "Eta-squared"  # noqa
+                else:
+                    effect_size_value = "N/A"
+
                 test_data.append(
                     [
                         name,
-                        f"{result.get('statistic', 'N/A')}",
+                        f"{result.get('test_type', 'N/A')}",
+                        f"{result.get('statistic', 'N/A'):.3f}",
                         f"{result.get('p_value', 'N/A'):.4f}",
-                        f"{result.get('cohens_d', 'N/A')}",
+                        effect_size_value,
                         f"{result.get('effect_size_desc', 'N/A')}",
                     ]
                 )
@@ -1172,7 +909,14 @@ def create_group_comparison_visualizations_single_group(
             fig.add_trace(
                 go.Table(
                     header=dict(
-                        values=["指标", "统计量", "p值", "效应量", "效应大小"],
+                        values=[
+                            "指标",
+                            "检验方法",
+                            "统计量",
+                            "p值",
+                            "效应量",
+                            "效应大小",
+                        ],
                         fill_color="lightblue",
                         align="left",
                         font=dict(size=10),
@@ -1183,7 +927,7 @@ def create_group_comparison_visualizations_single_group(
                         align="left",
                         font=dict(size=9),
                     ),
-                    columnwidth=[0.2, 0.15, 0.15, 0.15, 0.3],
+                    columnwidth=[0.18, 0.18, 0.15, 0.12, 0.15, 0.22],
                 ),
                 row=2,
                 col=1,
@@ -1193,23 +937,36 @@ def create_group_comparison_visualizations_single_group(
     if statistical_results:
         effect_sizes = []
         metrics_names = []
+        effect_size_types = []
+        hover_texts = []
 
         for metric, name in zip(key_metrics_list, metric_names):
             if metric in statistical_results:
                 result = statistical_results[metric]
-                if "cohens_d" in result and result["cohens_d"] is not None:
+                if result.get("cohens_d") is not None:
                     effect_sizes.append(abs(result["cohens_d"]))
                     metrics_names.append(name.split("(")[0].strip())
+                    effect_size_types.append("d")
+                    hover_texts.append(
+                        f"{name}<br>Cohen's d = {abs(result['cohens_d']):.3f}"
+                    )
+                elif result.get("eta_squared") is not None:
+                    effect_sizes.append(result["eta_squared"])
+                    metrics_names.append(name.split("(")[0].strip())
+                    effect_size_types.append("η²")
+                    hover_texts.append(f"{name}<br>η² = {result['eta_squared']:.3f}")
 
         if effect_sizes:
             fig.add_trace(
                 go.Bar(
                     x=metrics_names,
                     y=effect_sizes,
-                    name="效应量(绝对值)",
+                    name="效应量",
                     marker_color="lightgreen",
-                    text=[f"{v:.2f}" for v in effect_sizes],
+                    text=[f"{v:.3f}" for v in effect_sizes],
                     textposition="auto",
+                    hovertext=hover_texts,
+                    hoverinfo="text",
                 ),
                 row=2,
                 col=2,
@@ -1244,10 +1001,16 @@ def create_group_comparison_visualizations_single_group(
                     "required_sample_size_per_group" in result
                     and result["required_sample_size_per_group"]
                 ):
+                    effect_size_value = ""
+                    if result.get("cohens_d") is not None:
+                        effect_size_value = f"d={result.get('cohens_d'):.3f}"
+                    elif result.get("eta_squared") is not None:
+                        effect_size_value = f"η²={result.get('eta_squared'):.3f}"
+
                     sample_size_data.append(
                         [
                             name,
-                            f"{result.get('cohens_d', 'N/A'):.3f}",
+                            effect_size_value,
                             f"{result['required_sample_size_per_group']}",
                             f"{result['required_total_sample_size'] if result.get('required_total_sample_size') else 'N/A'}",
                         ]
@@ -1257,7 +1020,7 @@ def create_group_comparison_visualizations_single_group(
             fig.add_trace(
                 go.Table(
                     header=dict(
-                        values=["指标", "效应量(d)", "每组需样本量", "总需样本量"],
+                        values=["指标", "效应量", "每组需样本量", "总需样本量"],
                         fill_color="lightcoral",
                         align="left",
                         font=dict(size=10),
@@ -1275,17 +1038,50 @@ def create_group_comparison_visualizations_single_group(
 
     # 图8: 样本量需求曲线
     if statistical_results and "overall_accuracy" in statistical_results:
-        effect_sizes = np.linspace(0.1, 1.0, 20)
-        sample_sizes = []
+        first_result = statistical_results["overall_accuracy"]
 
-        for d in effect_sizes:
-            sample_size_info = calculate_sample_size(
-                effect_size=d, alpha=0.05, power=0.8, test_type="two_sample"
-            )
-            sample_sizes.append(sample_size_info["required_n"])
+        # 检查使用哪种效应量
+        if first_result.get("eta_squared") is not None:
+            # 使用 η² 作为效应量
+            effect_sizes = np.linspace(0.01, 0.3, 20)  # η² 范围
+            x_label = "效应量 (η²)"
 
-        # 获取当前效应量
-        current_d = statistical_results["overall_accuracy"].get("cohens_d")
+            sample_sizes = []
+            for eta2 in effect_sizes:
+                # 将 η² 转换为 Cohen's f 用于样本量计算
+                if eta2 >= 1 or eta2 <= 0:
+                    effect_size_for_sample = 0
+                else:
+                    effect_size_for_sample = np.sqrt(eta2 / (1 - eta2))
+
+                sample_size_info = calculate_sample_size(
+                    effect_size=effect_size_for_sample,
+                    alpha=0.05,
+                    power=0.8,
+                    test_type="two_sample",
+                )
+                sample_sizes.append(sample_size_info["required_n"])
+
+            current_effect = first_result.get("eta_squared")
+            effect_label = "η²"
+
+        else:
+            # 使用 Cohen's d 作为效应量
+            effect_sizes = np.linspace(0.1, 1.0, 20)
+            x_label = "效应量 (Cohen's d)"
+
+            sample_sizes = []
+            for d in effect_sizes:
+                sample_size_info = calculate_sample_size(
+                    effect_size=d,
+                    alpha=0.05,
+                    power=0.8,
+                    test_type="two_sample",
+                )
+                sample_sizes.append(sample_size_info["required_n"])
+
+            current_effect = first_result.get("cohens_d")
+            effect_label = "d"
 
         fig.add_trace(
             go.Scatter(
@@ -1301,54 +1097,103 @@ def create_group_comparison_visualizations_single_group(
             col=2,
         )
 
-        if current_d is not None:
-            current_sample_size = calculate_sample_size(
-                effect_size=abs(current_d),
-                alpha=0.05,
-                power=0.8,
-                test_type="two_sample",
-            )["required_n"]
+        if current_effect is not None:
+            if effect_label == "η²":
+                # 将 η² 转换为 Cohen's f 用于样本量计算
+                if current_effect >= 1 or current_effect <= 0:
+                    effect_size_for_sample = 0
+                else:
+                    effect_size_for_sample = np.sqrt(
+                        current_effect / (1 - current_effect)
+                    )
+
+                current_sample_size = calculate_sample_size(
+                    effect_size=effect_size_for_sample,
+                    alpha=0.05,
+                    power=0.8,
+                    test_type="two_sample",
+                )["required_n"]
+                marker_text = f"η²={current_effect:.3f}<br>n={current_sample_size}"
+            else:
+                current_sample_size = calculate_sample_size(
+                    effect_size=abs(current_effect),
+                    alpha=0.05,
+                    power=0.8,
+                    test_type="two_sample",
+                )["required_n"]
+                marker_text = f"d={abs(current_effect):.2f}<br>n={current_sample_size}"
 
             fig.add_trace(
                 go.Scatter(
-                    x=[abs(current_d)],
+                    x=[abs(current_effect) if effect_label == "d" else current_effect],
                     y=[current_sample_size],
                     mode="markers+text",
                     name="当前效应量",
                     marker=dict(size=15, color="red", symbol="diamond"),
-                    text=[f"d={abs(current_d):.2f}<br>n={current_sample_size}"],
+                    text=[marker_text],
                     textposition="top center",
                 ),
                 row=3,
                 col=2,
             )
 
-        fig.update_xaxes(title_text="效应量 (Cohen's d)", row=3, col=2)
+        fig.update_xaxes(title_text=x_label, row=3, col=2)
         fig.update_yaxes(title_text="每组所需样本量", row=3, col=2)
 
     # 图9: 效应量分布直方图
     if statistical_results:
-        cohens_d_values = []
+        effect_size_values = []
+        effect_size_labels = []
+
         for metric in key_metrics_list:
             if metric in statistical_results:
-                d = statistical_results[metric].get("cohens_d")
-                if d is not None:
-                    cohens_d_values.append(abs(d))
+                result = statistical_results[metric]
+                if result.get("cohens_d") is not None:
+                    effect_size_values.append(abs(result["cohens_d"]))
+                    effect_size_labels.append("Cohen's d")
+                elif result.get("eta_squared") is not None:
+                    effect_size_values.append(result["eta_squared"])
+                    effect_size_labels.append("η²")
 
-        if cohens_d_values:
-            fig.add_trace(
-                go.Histogram(
-                    x=cohens_d_values,
-                    nbinsx=10,
-                    name="效应量分布",
-                    marker_color="lightblue",
-                    opacity=0.7,
-                ),
-                row=3,
-                col=3,
-            )
+        if effect_size_values:
+            # 检查是否有多种效应量类型
+            unique_types = set(effect_size_labels)
 
-            fig.update_xaxes(title_text="效应量 (Cohen's d)", row=3, col=3)
+            if len(unique_types) == 1:
+                # 只有一种效应量类型
+                effect_type = list(unique_types)[0]
+                fig.add_trace(
+                    go.Histogram(
+                        x=effect_size_values,
+                        nbinsx=10,
+                        name=f"{effect_type}分布",
+                        marker_color="lightblue",
+                        opacity=0.7,
+                    ),
+                    row=3,
+                    col=3,
+                )
+                fig.update_xaxes(title_text=f"效应量 ({effect_type})", row=3, col=3)
+            else:
+                # 多种效应量类型，使用分组直方图
+                for eff_type in unique_types:
+                    type_values = [
+                        v
+                        for v, t in zip(effect_size_values, effect_size_labels)
+                        if t == eff_type
+                    ]
+                    fig.add_trace(
+                        go.Histogram(
+                            x=type_values,
+                            nbinsx=10,
+                            name=f"{eff_type}分布",
+                            opacity=0.7,
+                        ),
+                        row=3,
+                        col=3,
+                    )
+                fig.update_xaxes(title_text="效应量", row=3, col=3)
+
             fig.update_yaxes(title_text="频数", row=3, col=3)
 
     fig.update_layout(
@@ -1363,6 +1208,7 @@ def create_group_comparison_visualizations_single_group(
         template="plotly_white",
     )
 
+    # 保存图表
     fig.write_html(str(result_dir / "emotion_face_group_analysis_report.html"))
 
     return fig
@@ -1374,6 +1220,9 @@ def create_group_comparison_visualizations(
     comparison_results: dict[str, dict[str, Any]],
     result_dir: Path,
 ) -> go.Figure:
+    """创建组间比较可视化"""
+
+    # 准备数据
     control_values = {}
     experimental_values = {}
 
@@ -1383,6 +1232,7 @@ def create_group_comparison_visualizations(
             m[metric] for m in experimental_metrics if metric in m
         ]
 
+    # 创建图表
     fig = make_subplots(
         rows=3,
         cols=3,
@@ -1498,24 +1348,23 @@ def create_group_comparison_visualizations(
                 # 安全格式化可选值
                 stat_val = result.get("statistic")
                 p_val = result.get("p_value")
-                eff_size = (
-                    result.get("effect_size")
-                    if result.get("effect_size") is not None
-                    else result.get("cohens_d")
-                )
-                eff_mag = result.get(
-                    "effect_size_magnitude", result.get("effect_size_desc", "N/A")
-                )
+                eff_size = ""
+                if result.get("cohens_d") is not None:
+                    eff_size = f"d={result.get('cohens_d'):.3f}"
+                elif result.get("eta_squared") is not None:
+                    eff_size = f"η²={result.get('eta_squared'):.3f}"
+                else:
+                    eff_size = "N/A"
+
+                eff_mag = result.get("effect_size_desc", "N/A")
 
                 table_data.append(
                     [
                         name,
-                        str(
-                            result.get("analysis_type", result.get("test_type", "N/A"))
-                        ),
+                        str(result.get("test_type", "N/A")),
                         f"{stat_val:.3f}" if stat_val is not None else "N/A",
                         f"{p_val:.4f}" if p_val is not None else "N/A",
-                        f"{eff_size:.3f}" if eff_size is not None else "N/A",
+                        eff_size,
                         str(eff_mag),
                     ]
                 )
@@ -1551,17 +1400,19 @@ def create_group_comparison_visualizations(
     if comparison_results:
         effect_sizes = []
         metric_labels = []
+        hover_texts = []
 
         for metric, name in zip(key_metrics, metric_names):
             if metric in comparison_results:
-                # 尝试新键名'effect_size'，回退到旧键名'cohens_d'
-                val = comparison_results[metric].get("effect_size")
-                if val is None:
-                    val = comparison_results[metric].get("cohens_d")
-
-                if val is not None:
-                    effect_sizes.append(abs(val))
+                result = comparison_results[metric]
+                if result.get("cohens_d") is not None:
+                    effect_sizes.append(abs(result["cohens_d"]))
                     metric_labels.append(name)
+                    hover_texts.append(f"{name}<br>d={abs(result['cohens_d']):.3f}")
+                elif result.get("eta_squared") is not None:
+                    effect_sizes.append(result["eta_squared"])
+                    metric_labels.append(name)
+                    hover_texts.append(f"{name}<br>η²={result['eta_squared']:.3f}")
 
         if effect_sizes:
             fig.add_trace(
@@ -1570,8 +1421,10 @@ def create_group_comparison_visualizations(
                     y=effect_sizes,
                     name="效应量(绝对值)",
                     marker_color="lightblue",
-                    text=[f"{v:.2f}" for v in effect_sizes],
+                    text=[f"{v:.3f}" for v in effect_sizes],
                     textposition="auto",
+                    hovertext=hover_texts,
+                    hoverinfo="text",
                 ),
                 row=2,
                 col=3,
@@ -1587,10 +1440,16 @@ def create_group_comparison_visualizations(
                     "required_sample_size_per_group" in result
                     and result["required_sample_size_per_group"]
                 ):
+                    eff_size = ""
+                    if result.get("cohens_d") is not None:
+                        eff_size = f"d={result.get('cohens_d'):.3f}"
+                    elif result.get("eta_squared") is not None:
+                        eff_size = f"η²={result.get('eta_squared'):.3f}"
+
                     sample_size_data.append(
                         [
                             name,
-                            f"{result.get('cohens_d', 'N/A'):.3f}",
+                            eff_size,
                             f"{result['required_sample_size_per_group']}",
                             f"{result.get('required_total_sample_size', 'N/A')}",
                             f"{result.get('sample_size_power', 0.8):.2f}",
@@ -1627,20 +1486,58 @@ def create_group_comparison_visualizations(
 
     # 图8: 样本量需求曲线
     if comparison_results:
-        effect_sizes = np.linspace(0.1, 1.0, 20)
-        sample_sizes_per_group = []
-        sample_sizes_total = []
-
-        for d in effect_sizes:
-            sample_size_info = calculate_sample_size(
-                effect_size=d, alpha=0.05, power=0.8, test_type="two_sample"
-            )
-            sample_sizes_per_group.append(sample_size_info["required_n"])
-            sample_sizes_total.append(sample_size_info["required_n_total"])
-
+        # 检查使用哪种效应量（以第一个指标为准）
         first_metric = key_metrics[0]
         if first_metric in comparison_results:
-            current_d = comparison_results[first_metric].get("cohens_d")
+            first_result = comparison_results[first_metric]
+
+            if first_result.get("eta_squared") is not None:
+                # 使用 η² 作为效应量
+                effect_sizes = np.linspace(0.01, 0.3, 20)  # η² 范围
+                x_label = "效应量 (η²)"
+
+                sample_sizes_per_group = []
+                sample_sizes_total = []
+
+                for eta2 in effect_sizes:
+                    # 将 η² 转换为 Cohen's f 用于样本量计算
+                    if eta2 >= 1 or eta2 <= 0:
+                        effect_size_for_sample = 0
+                    else:
+                        effect_size_for_sample = np.sqrt(eta2 / (1 - eta2))
+
+                    sample_size_info = calculate_sample_size(
+                        effect_size=effect_size_for_sample,
+                        alpha=0.05,
+                        power=0.8,
+                        test_type="two_sample",
+                    )
+                    sample_sizes_per_group.append(sample_size_info["required_n"])
+                    sample_sizes_total.append(sample_size_info["required_n_total"])
+
+                current_effect = first_result.get("eta_squared")
+                effect_label = "η²"
+
+            else:
+                # 使用 Cohen's d 作为效应量
+                effect_sizes = np.linspace(0.1, 1.0, 20)
+                x_label = "效应量 (Cohen's d)"
+
+                sample_sizes_per_group = []
+                sample_sizes_total = []
+
+                for d in effect_sizes:
+                    sample_size_info = calculate_sample_size(
+                        effect_size=d,
+                        alpha=0.05,
+                        power=0.8,
+                        test_type="two_sample",
+                    )
+                    sample_sizes_per_group.append(sample_size_info["required_n"])
+                    sample_sizes_total.append(sample_size_info["required_n_total"])
+
+                current_effect = first_result.get("cohens_d")
+                effect_label = "d"
 
             fig.add_trace(
                 go.Scatter(
@@ -1666,31 +1563,53 @@ def create_group_comparison_visualizations(
                 col=2,
             )
 
-            if current_d is not None:
-                current_sample_size = calculate_sample_size(
-                    effect_size=abs(current_d),
-                    alpha=0.05,
-                    power=0.8,
-                    test_type="two_sample",
-                )
+            if current_effect is not None:
+                if effect_label == "η²":
+                    # 将 η² 转换为 Cohen's f 用于样本量计算
+                    if current_effect >= 1 or current_effect <= 0:
+                        effect_size_for_sample = 0
+                    else:
+                        effect_size_for_sample = np.sqrt(
+                            current_effect / (1 - current_effect)
+                        )
+
+                    current_sample_size = calculate_sample_size(
+                        effect_size=effect_size_for_sample,
+                        alpha=0.05,
+                        power=0.8,
+                        test_type="two_sample",
+                    )
+
+                    marker_text = f"η²={current_effect:.3f}<br>n={current_sample_size['required_n']}"
+                else:
+                    current_sample_size = calculate_sample_size(
+                        effect_size=abs(current_effect),
+                        alpha=0.05,
+                        power=0.8,
+                        test_type="two_sample",
+                    )
+
+                    marker_text = f"d={abs(current_effect):.2f}<br>n={current_sample_size['required_n']}"
 
                 fig.add_trace(
                     go.Scatter(
-                        x=[abs(current_d)],
+                        x=[
+                            abs(current_effect)
+                            if effect_label == "d"
+                            else current_effect
+                        ],
                         y=[current_sample_size["required_n"]],
                         mode="markers+text",
                         name="当前效应量",
                         marker=dict(size=15, color="green", symbol="diamond"),
-                        text=[
-                            f"d={abs(current_d):.2f}<br>n={current_sample_size['required_n']}"
-                        ],
+                        text=[marker_text],
                         textposition="top center",
                     ),
                     row=3,
                     col=2,
                 )
 
-            fig.update_xaxes(title_text="效应量 (Cohen's d)", row=3, col=2)
+            fig.update_xaxes(title_text=x_label, row=3, col=2)
             fig.update_yaxes(title_text="所需样本量", row=3, col=2)
 
     # 图9: 效应量与样本量关系（散点图）
@@ -1698,29 +1617,45 @@ def create_group_comparison_visualizations(
         d_values = []
         n_values = []
         metric_labels = []
+        effect_types = []
 
         for metric, name in zip(key_metrics, metric_names):
             if metric in comparison_results:
-                d = comparison_results[metric].get("cohens_d")
-                if d is not None:
-                    d_values.append(abs(d))
-                    n_values.append(
-                        comparison_results[metric].get(
-                            "required_sample_size_per_group", 0
-                        )
-                    )
+                result = comparison_results[metric]
+                if result.get("cohens_d") is not None:
+                    d_values.append(abs(result["cohens_d"]))
+                    n_values.append(result.get("required_sample_size_per_group", 0))
                     metric_labels.append(name)
+                    effect_types.append("d")
+                elif result.get("eta_squared") is not None:
+                    d_values.append(result["eta_squared"])
+                    n_values.append(result.get("required_sample_size_per_group", 0))
+                    metric_labels.append(name)
+                    effect_types.append("η²")
 
         if d_values:
+            # 为不同效应量类型使用不同颜色
+            colors = []
+            for eff_type in effect_types:
+                if eff_type == "d":
+                    colors.append("purple")
+                else:
+                    colors.append("orange")
+
             fig.add_trace(
                 go.Scatter(
                     x=d_values,
                     y=n_values,
-                    mode="markers+text",
+                    mode="markers",
                     name="效应量vs样本量",
-                    marker=dict(size=15, color="purple"),
-                    text=metric_labels,
-                    textposition="top center",
+                    marker=dict(size=15, color=colors, symbol="circle"),
+                    text=[
+                        f"{name}<br>{'d' if eff_type == 'd' else 'η²'}={val:.3f}"
+                        for name, eff_type, val in zip(
+                            metric_labels, effect_types, d_values
+                        )
+                    ],
+                    hoverinfo="text",
                 ),
                 row=3,
                 col=3,
@@ -1745,7 +1680,14 @@ def create_group_comparison_visualizations(
                     col=3,
                 )
 
-            fig.update_xaxes(title_text="效应量 (Cohen's d)", row=3, col=3)
+            # 设置坐标轴标签
+            if len(set(effect_types)) == 1:
+                # 只有一种效应量类型
+                effect_type = list(set(effect_types))[0]
+                fig.update_xaxes(title_text=f"效应量 ({effect_type})", row=3, col=3)
+            else:
+                fig.update_xaxes(title_text="效应量", row=3, col=3)
+
             fig.update_yaxes(title_text="每组所需样本量", row=3, col=3)
 
     fig.update_layout(
@@ -1789,10 +1731,14 @@ def run_single_emotion_analysis(file_path: Path, result_dir: Path = None):
 def run_group_emotion_analysis(
     data_files: list[Path],
     result_dir: Path = None,
+    group_name: str = None,
 ):
     """组面部情绪识别分析"""
     if result_dir is None:
         result_dir = Path("emotion_face_group_results")
+
+    if group_name is not None:
+        result_dir = result_dir / group_name
 
     result_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1969,57 +1915,21 @@ def run_groups_emotion_analysis(
 ) -> dict[str, Any]:
     """比较对照组和实验组"""
 
-    control_results = []
-    control_metrics = []
     control_name = groups[0] if groups else "control"
 
-    for i, file_path in enumerate(control_files):
-        try:
-            df = pl.read_csv(file_path)
-            subject_id = file_path.stem.split("-")[0]
+    control_group_results = run_group_emotion_analysis(
+        control_files, result_dir, control_name
+    )
+    control_results = control_group_results["all_results"]
+    control_metrics = control_group_results["group_metrics"]
 
-            subject_result_dir = result_dir / control_name / subject_id
-            subject_result_dir.mkdir(parents=True, exist_ok=True)
-
-            result = analyze_emotion_face_data(
-                df=df,
-                target_blocks=[0, 1],
-                result_dir=subject_result_dir,
-            )
-            result["subject_id"] = subject_id
-
-            if result:
-                control_results.append(result)
-                control_metrics.append(result["key_metrics"])
-
-        except Exception as e:
-            print(f"❌ 对照组被试 {file_path.name} 分析出错: {e}")
-
-    experimental_results = []
-    experimental_metrics = []
     experimental_name = groups[1] if groups and len(groups) > 1 else "experimental"
 
-    for i, file_path in enumerate(experimental_files):
-        try:
-            df = pl.read_csv(file_path)
-            subject_id = file_path.stem.split("-")[0]
-
-            subject_result_dir = result_dir / experimental_name / subject_id
-            subject_result_dir.mkdir(parents=True, exist_ok=True)
-
-            result = analyze_emotion_face_data(
-                df=df,
-                target_blocks=[0, 1],
-                result_dir=subject_result_dir,
-            )
-            result["subject_id"] = subject_id
-
-            if result:
-                experimental_results.append(result)
-                experimental_metrics.append(result["key_metrics"])
-
-        except Exception as e:
-            print(f"❌ 实验组被试 {file_path.name} 分析出错: {e}")
+    experimental_group_results = run_group_emotion_analysis(
+        experimental_files, result_dir, experimental_name
+    )
+    experimental_results = experimental_group_results["all_results"]
+    experimental_metrics = experimental_group_results["group_metrics"]
 
     if len(control_results) < 2 or len(experimental_results) < 2:
         print("⚠️ 任一组被试数量不足，无法进行组间统计检验")
@@ -2032,12 +1942,12 @@ def run_groups_emotion_analysis(
 
     print("\n检查正态性和方差齐性...")
     normality_results = check_normality_and_homoscedasticity(
-        control_metrics + experimental_metrics
+        control_metrics + experimental_metrics, key_metrics
     )
 
     print("\n执行组间比较分析...")
     comparison_results = perform_group_comparisons(
-        control_metrics, experimental_metrics
+        control_metrics, experimental_metrics, key_metrics
     )
 
     print("\n保存组分析结果...")

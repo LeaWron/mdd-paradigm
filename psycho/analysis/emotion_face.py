@@ -1978,8 +1978,8 @@ def run_groups_emotion_analysis(
         columns=["group", "subject_id"]
     ).describe()
 
-    control_stats.to_csv(result_dir / "control_group_statistics.csv")
-    experimental_stats.to_csv(result_dir / "experimental_group_statistics.csv")
+    control_stats.to_csv(result_dir / f"{control_name}_group_statistics.csv")
+    experimental_stats.to_csv(result_dir / f"{experimental_name}_group_statistics.csv")
 
     sample_size_data = []
     for metric, result in comparison_results.items():

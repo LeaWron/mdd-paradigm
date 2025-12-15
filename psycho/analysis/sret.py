@@ -1340,9 +1340,15 @@ def run_single_sret_analysis(file_path: Path, result_dir: Path = None):
 def run_group_sret_analysis(
     data_files: list[Path],
     result_dir: Path = None,
+    group_name: str = None,
     reference_group: Literal["control", "mdd"] = None,
 ):
     """组SRET分析"""
+    if result_dir is None:
+        result_dir = Path("sret_group_results")
+
+    if group_name is not None:
+        result_dir = result_dir / group_name
 
     result_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1389,13 +1395,6 @@ def run_group_sret_analysis(
 
     # 单样本t检验
     statistical_results = {}
-
-    key_metrics = [
-        "positive_bias",
-        "rt_negative_minus_positive",
-        "rt_endorsed_minus_not",
-        "endorsement_rate",
-    ]
 
     for metric in key_metrics:
         # 获取当前组的指标值
@@ -1568,57 +1567,21 @@ def run_groups_sret_analysis(
 ) -> dict[str, Any]:
     """比较对照组和实验组"""
 
-    control_results = []
-    control_metrics = []
     control_name = groups[0] if groups else "control"
 
-    for i, file_path in enumerate(control_files):
-        try:
-            df = pl.read_csv(file_path)
-            subject_id = file_path.stem.split("-")[0]
+    control_group_results = run_group_sret_analysis(
+        control_files, result_dir, control_name, reference_group="control"
+    )
+    control_results = control_group_results["all_results"]
+    control_metrics = control_group_results["group_metrics"]
 
-            subject_result_dir = result_dir / control_name / subject_id
-            subject_result_dir.mkdir(parents=True, exist_ok=True)
-
-            result = analyze_sret_data_single(
-                df=df,
-                target_blocks=["Encoding"],
-                result_dir=subject_result_dir,
-            )
-            result["subject_id"] = subject_id
-
-            if result:
-                control_results.append(result)
-                control_metrics.append(result["key_metrics"])
-
-        except Exception as e:
-            print(f"❌ 对照组被试 {file_path.name} 分析出错: {e}")
-
-    experimental_results = []
-    experimental_metrics = []
     experimental_name = groups[1] if groups and len(groups) > 1 else "experimental"
 
-    for i, file_path in enumerate(experimental_files):
-        try:
-            df = pl.read_csv(file_path)
-            subject_id = file_path.stem.split("-")[0]
-
-            subject_result_dir = result_dir / experimental_name / subject_id
-            subject_result_dir.mkdir(parents=True, exist_ok=True)
-
-            result = analyze_sret_data_single(
-                df=df,
-                target_blocks=["Encoding"],
-                result_dir=subject_result_dir,
-            )
-            result["subject_id"] = subject_id
-
-            if result:
-                experimental_results.append(result)
-                experimental_metrics.append(result["key_metrics"])
-
-        except Exception as e:
-            print(f"❌ 实验组被试 {file_path.name} 分析出错: {e}")
+    experimental_group_results = run_group_sret_analysis(
+        experimental_files, result_dir, experimental_name, reference_group="mdd"
+    )
+    experimental_results = experimental_group_results["all_results"]
+    experimental_metrics = experimental_group_results["group_metrics"]
 
     if len(control_results) < 2 or len(experimental_results) < 2:
         print("⚠️ 任一组被试数量不足，无法进行组间统计检验")

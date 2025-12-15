@@ -288,11 +288,9 @@ def create_visualizations(
     result_dir: Path,
 ) -> go.Figure:
     """可视化图表"""
-    # 转换数据为pandas
     emotion_correct_pd = metrics["emotion_accuracy"].to_pandas()
     df_pd = trials_df.to_pandas()
 
-    # 强度数据
     df_intensity = trials_df.filter(pl.col("stim_type") != "neutral")
     df_intensity_pd = df_intensity.to_pandas() if df_intensity.height > 0 else None
 
@@ -1851,7 +1849,7 @@ def run_group_emotion_analysis(
         # 单样本t检验：与0比较（对于正确率）或与0.5比较（对于反应时）
         if "accuracy" in metric or metric == "overall_accuracy":
             # 正确率：与1/3（随机水平）比较
-            ref_value = 1.0 / 3
+            ref_value = 0.8
         elif "rt" in metric:
             # 反应时：与0.5比较
             ref_value = 0.5
@@ -1892,6 +1890,7 @@ def run_group_emotion_analysis(
             "group_n": len(group_values),
             "reference_value": float(ref_value),
             "t_statistic": float(t_stat),
+            "statistic": float(t_stat),
             "p_value": float(p_value),
             "cohens_d": float(cohens_d),
             "effect_size_desc": effect_size_desc,

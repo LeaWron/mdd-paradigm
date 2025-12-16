@@ -250,6 +250,8 @@ def init_camera(save_dir: Path = None, file_name: str = None):
     record_param.nHeight = n_height
     record_param.fFrameRate = f_frame_rate
     record_param.nBitRate = 4096 * 4 # 码率(kbps) 4 Mbps * K
+    # record_param.nBitRate = 1024 * 16 # 码率(kbps) 1 Mbps * K
+
     record_param.enRecordFmtType = MV_FormatType_AVI  # 录像格式为AVI
 
     if save_dir is None:

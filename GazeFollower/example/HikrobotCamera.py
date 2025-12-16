@@ -37,8 +37,7 @@ from gazefollower.misc import CameraRunningState
 
 class HikvisionCamera(Camera):
     """
-    海康威视工业相机完整实现（与 WebCamCamera 接口 100% 一致）
-    修复所有潜在接口漏洞：
+
     1. 回调签名完全一致：callback(state, timestamp_ns, frame_rgb, *args, **kwargs)
     2. 强制输出 RGB uint8 + resize 到目标尺寸（默认 640x480）
     3. 自动处理 Bayer/Mono/RGB 格式（完美兼容彩色/黑白相机）
@@ -184,16 +183,16 @@ class HikvisionCamera(Camera):
         self._camera_thread.start()
 
     def capture(self):
-        """终极兼容版取帧（兼容所有海康SDK版本，永不崩）"""
+        
         while self._camera_thread_running:
             stOutFrame = MV_FRAME_OUT()
             memset(byref(stOutFrame), 0, sizeof(stOutFrame))
 
             ret = self.cam.MV_CC_GetImageBuffer(stOutFrame, 2000)
-            print(f"captured photo : {ret}")
+            # print(f"captured photo : {ret}")
             if ret == 0:
                 try:
-                    # === 终极核弹级兼容写法（所有版本都稳）===
+                    
                     # 直接 cast 成指针数组，不走 int() 地址转换
                     pData = cast(
                         stOutFrame.pBufAddr,
@@ -225,12 +224,21 @@ class HikvisionCamera(Camera):
                                 **self.callback_kwargs,
                             )
 
+
                 except Exception as e:
                     print(f"这帧丢弃了: {e}")
-
+                    # 出错了还是要立即释放
+                    # if self.formal is True:
+                    #     self.cam.MV_CC_FreeImageBuffer(stOutFrame)
                 finally:
                     # [ ] 这里不释放试试 ?
-                    self.cam.MV_CC_FreeImageBuffer(stOutFrame)
+                    # if self.formal is False:
+                    #     self.cam.MV_CC_FreeImageBuffer(stOutFrame)
+                    try:
+                        self.cam.MV_CC_FreeImageBuffer(stOutFrame)
+                    except:
+                        # print("Is already free")
+                        pass
             else:
                 if ret != 0:
                     print(f"取帧失败 0x{ret:x}")

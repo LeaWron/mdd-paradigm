@@ -2,11 +2,13 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
 import polars as pl
+from plotly import graph_objects as go
+from plotly.subplots import make_subplots
 from scipy import stats
 
 
@@ -303,11 +305,18 @@ def calculate_sample_size(
     effect_size: float,
     alpha: float = 0.05,
     power: float = 0.8,
-    test_type: str = "two_sample",
-    effect_size_type: str = "cohens_d",
+    test_type: Literal["one_sample", "paired", "two_sample", "anova"] = "two_sample",
+    effect_size_type: Literal["cohens_d", "eta_squared"] = "cohens_d",
 ) -> dict[str, Any]:
     """
     根据效应量计算所需样本量
+
+    Args:
+        effect_size: 效应量（Cohen's d 或 η²）
+        alpha: 显著性水平（默认0.05）
+        power: 检测能力（默认0.8）
+        test_type: 检验类型（"one_sample", "paired", "two_sample", "anova"）
+        effect_size_type: 效应量类型（"cohens_d" 或 "eta_squared"）
     """
     # 计算Z分数
     z_alpha = stats.norm.ppf(1 - alpha / 2)  # 双侧检验
@@ -460,18 +469,12 @@ def perform_group_comparisons(
                 statistic = f_stat
                 cohens_d = None
 
-                # 计算基于 η² 的样本量
-                # 对于 ANOVA，需要将 η² 转换为 Cohen's f
-                if eta_squared >= 1 or eta_squared <= 0:
-                    effect_size_for_sample = 0
-                else:
-                    effect_size_for_sample = np.sqrt(eta_squared / (1 - eta_squared))
-
                 sample_size_info = calculate_sample_size(
-                    effect_size=effect_size_for_sample,
+                    effect_size=eta_squared,
                     alpha=0.05,
                     power=0.8,
-                    test_type="two_sample",  # 使用相同的样本量公式
+                    test_type="anova",  # 使用相同的样本量公式
+                    effect_size_type="eta_squared",
                 )
 
             else:
@@ -587,3 +590,594 @@ def perform_group_comparisons(
             results[metric] = {"error": f"比较分析失败: {str(e)}"}
 
     return results
+
+
+def save_html_report(
+    save_path: Path,
+    figures: list[go.Figure],
+    title: str = "Analysis Report",
+    descriptions: list[str] = None,
+):
+    """
+    将多个 Figure 拼接为一个 HTML 文件。
+    这种方式彻底解耦了图表生成和报告生成。
+    """
+    if descriptions is None:
+        descriptions = [""] * len(figures)
+
+    # HTML Header
+    html_content = [
+        f"""
+        <html>
+        <head>
+            <title>{title}</title>
+            <meta charset="utf-8" />
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 40px; background-color: #f4f4f9; }}
+                .container {{ max-width: 1600px; margin: 0 auto; background: white; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }}
+                h1 {{ text-align: center; color: #333; }}
+                .section {{ margin-bottom: 40px; border-bottom: 1px solid #eee; padding-bottom: 20px; }}
+                .desc {{ font-size: 1.1em; color: #666; margin-bottom: 15px; padding-left: 10px; border-left: 4px solid #007bff; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <h1>{title}</h1>
+                <p style="text-align:center; color:#777;">Generated on {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
+        """
+    ]
+
+    # Stitch Figures
+    for i, fig in enumerate(figures):
+        # 仅第一个图包含 plotly.js，后续图复用，减小文件体积
+        include_plotlyjs = "cdn" if i == 0 else False
+
+        # 获取 div string
+        plot_html = fig.to_html(full_html=False, include_plotlyjs=include_plotlyjs)
+
+        desc_html = (
+            f'<div class="desc">{descriptions[i]}</div>' if descriptions[i] else ""
+        )
+
+        section_html = f"""
+        <div class="section">
+            {desc_html}
+            {plot_html}
+        </div>
+        """
+        html_content.append(section_html)
+
+    # HTML Footer
+    html_content.append("""
+            </div>
+        </body>
+        </html>
+    """)
+
+    # Write to file
+    with open(save_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(html_content))
+
+    print(f"📄 报告已生成: {save_path}")
+
+
+def create_common_single_group_figures(
+    statistical_results: dict[str, dict[str, Any]],
+    key_metrics: list[str],
+    metric_names: list[str],
+) -> list[go.Figure]:
+    """
+    生成单组分析的通用图表。
+    """
+    figures = []
+
+    # Figure 1: 统计表格 (统计检验结果 & 样本量计算)
+    if statistical_results:
+        test_data = []
+        sample_size_data = []
+        for metric, name in zip(key_metrics, metric_names):
+            if metric in statistical_results:
+                result = statistical_results[metric]
+                effect_size_value = ""
+                effect_size_type = ""
+                if result.get("cohens_d") is not None:
+                    effect_size_value = f"d={result.get('cohens_d'):.3f}"
+                    effect_size_type = "Cohen's d"
+                elif result.get("eta_squared") is not None:
+                    effect_size_value = f"η²={result.get('eta_squared'):.3f}"
+                    effect_size_type = "Eta-squared"  # noqa
+                else:
+                    effect_size_value = "N/A"
+                # 统计检验结果
+                test_data.append(
+                    [
+                        name,
+                        f"{result.get('test_type', 'N/A')}",
+                        f"{result.get('statistic', 'N/A'):.3f}",
+                        f"{result.get('p_value', 'N/A'):.4f}",
+                        effect_size_type,
+                        effect_size_value,
+                        f"{result.get('effect_size_desc', 'N/A')}",
+                    ]
+                )
+
+                # 样本量计算结果
+                if (
+                    "required_sample_size_per_group" in result
+                    and result["required_sample_size_per_group"]
+                ):
+                    effect_size_value = ""
+                    if result.get("cohens_d") is not None:
+                        effect_size_value = f"d={result.get('cohens_d'):.3f}"
+                    elif result.get("eta_squared") is not None:
+                        effect_size_value = f"η²={result.get('eta_squared'):.3f}"
+
+                    sample_size_data.append(
+                        [
+                            name,
+                            effect_size_value,
+                            f"{result['required_sample_size_per_group']}",
+                            f"{result.get('required_total_sample_size', 'N/A')}",
+                        ]
+                    )
+
+    fig_tables = make_subplots(
+        rows=2,
+        cols=1,
+        subplot_titles=("统计检验结果", "建议样本量计算"),
+        specs=[[{"type": "table"}], [{"type": "table"}]],
+        vertical_spacing=0.1,
+    )
+    if test_data:
+        fig_tables.add_trace(
+            go.Table(
+                header=dict(
+                    values=[
+                        "指标",
+                        "检验方法",
+                        "统计量",
+                        "p值",
+                        "效应量类型",
+                        "效应量",
+                        "效应大小",
+                    ],
+                    fill_color="lightblue",
+                    align="left",
+                    font=dict(size=10),
+                ),
+                cells=dict(
+                    values=np.array(test_data).T,
+                    fill_color="lavender",
+                    align="left",
+                    font=dict(size=9),
+                ),
+                # columnwidth=[0.18, 0.18, 0.15, 0.12, 0.15, 0.15, 0.22],
+            ),
+            row=1,
+            col=1,
+        )
+
+    if sample_size_data:
+        fig_tables.add_trace(
+            go.Table(
+                header=dict(
+                    values=["指标", "效应量", "每组需样本量", "总需样本量"],
+                    fill_color="lightcoral",
+                    align="left",
+                    font=dict(size=10),
+                ),
+                cells=dict(
+                    values=np.array(sample_size_data).T,
+                    fill_color="mistyrose",
+                    align="left",
+                    font=dict(size=9),
+                ),
+            ),
+            row=2,
+            col=1,
+        )
+
+    fig_tables.update_layout(height=600, title_text="单组效应量-样本量表格")
+    figures.append(fig_tables)
+
+    # Figure 2: 图表分析 (效应量分析 & 样本量需求曲线)
+    fig_charts = make_subplots(
+        rows=1,
+        cols=2,
+        subplot_titles=("效应量分析", "样本量需求曲线"),
+        specs=[[{"type": "bar"}, {"type": "scatter"}]],
+    )
+
+    # 效应量 Bar
+
+    if statistical_results:
+        effect_sizes = []
+        metrics_names = []
+        effect_size_types = []
+        hover_texts = []
+
+        upper_bonud = 1.0
+        lower_bound = 0.1
+        sample_sizes = []
+
+        for metric, name in zip(key_metrics, metric_names):
+            if metric in statistical_results:
+                result = statistical_results[metric]
+                # 效应量分析
+                if result.get("eta_squared") is not None:
+                    effect_sizes.append(result["eta_squared"])
+                    metrics_names.append(name.split("(")[0].strip())
+                    effect_size_types.append("η²")
+                    hover_texts.append(f"{name}<br>η² = {result['eta_squared']:.3f}")
+                elif result.get("cohens_d") is not None:
+                    effect_sizes.append(abs(result["cohens_d"]))
+                    metrics_names.append(name.split("(")[0].strip())
+                    effect_size_types.append("d")
+                    hover_texts.append(
+                        f"{name}<br>Cohen's d = {abs(result['cohens_d']):.3f}"
+                    )
+                    upper_bonud = max(upper_bonud, abs(result["cohens_d"]))
+                lower_bound = min(lower_bound, abs(effect_sizes[-1]))
+
+                # 计算样本量
+                effect_size = effect_sizes[-1]
+                effect_type = effect_size_types[-1]
+
+                if effect_type == "η²":
+                    sample_size = calculate_sample_size(
+                        effect_size,
+                        test_type="one_sample",
+                        effect_size_type="eta_squared",
+                    )["required_n"]
+                elif effect_type == "d":
+                    sample_size = calculate_sample_size(
+                        effect_size, test_type="one_sample"
+                    )["required_n"]
+                sample_sizes.append(sample_size)
+
+        # 样本量需求曲线
+        if len(sample_sizes):
+            # Cohen's d && η²
+            d_effect_sizes = np.linspace(lower_bound, upper_bonud, 100)
+
+            d_sample_sizes = []
+            eta_sample_sizes = []
+            for d_effect_size in d_effect_sizes:
+                sample_size = calculate_sample_size(
+                    d_effect_size, test_type="one_sample"
+                )["required_n"]
+                d_sample_sizes.append(sample_size)
+
+                if d_effect_size <= 1.0:
+                    sample_size = calculate_sample_size(
+                        d_effect_size,
+                        test_type="anova",
+                        d_effect_size_type="eta_squared",
+                    )["required_n"]
+                    eta_sample_sizes.append(sample_size)
+
+            fig_charts.add_trace(
+                go.Scatter(
+                    x=d_effect_sizes,
+                    y=d_sample_sizes,
+                    mode="lines",
+                    name="样本量需求曲线(Cohen's d)",
+                    line=dict(width=3, color="red"),
+                    fill="tozeroy",
+                    fillcolor="rgba(255, 0, 0, 0.2)",
+                ),
+                row=1,
+                col=2,
+            )
+
+            fig_charts.add_trace(
+                go.Scatter(
+                    x=d_effect_sizes,
+                    y=eta_sample_sizes,
+                    mode="lines",
+                    name="样本量需求曲线(η²)",
+                    line=dict(width=3, color="blue"),
+                    fill="tozeroy",
+                    fillcolor="rgba(0, 0, 255, 0.2)",
+                ),
+                row=1,
+                col=2,
+            )
+
+    if effect_sizes:
+        fig_charts.add_trace(
+            go.Bar(
+                x=metrics_names,
+                y=effect_sizes,
+                name="效应量",
+                marker_color="lightgreen",
+                text=[f"{v:.3f}" for v in effect_sizes],
+                textposition="auto",
+                hovertext=hover_texts,
+                hoverinfo="text",
+            ),
+            row=1,
+            col=1,
+        )
+
+        fig_charts.add_trace(
+            go.Scatter(
+                x=effect_sizes,
+                y=sample_sizes,
+                mode="markers",
+                name="效应量",
+                marker=dict(size=15, color="red", symbol="diamond"),
+            ),
+            row=1,
+            col=2,
+        )
+
+    fig_charts.update_xaxes(title_text="效应量", row=1, col=2)
+    fig_charts.update_yaxes(title_text="所需样本量", row=1, col=2)
+
+    fig_charts.update_layout(height=500, title_text="单组效应量-样本量图表")
+    figures.append(fig_charts)
+
+    return figures
+
+
+def create_common_comparison_figures(
+    comparison_results: dict[str, dict[str, Any]],
+    key_metrics: list[str],
+    metric_names: list[str],
+) -> list[go.Figure]:
+    """
+    生成组间比较分析的通用图表。
+    """
+    figures = []
+
+    # Figure 1: 统计表格 (统计检验结果 & 样本量计算)
+    if comparison_results:
+        table_data = []
+        sample_size_data = []
+        for metric, name in zip(key_metrics, metric_names):
+            if metric in comparison_results:
+                result = comparison_results[metric]
+
+                # 安全格式化可选值
+                stat_val = result.get("statistic", "N/A")
+                p_val = result.get("p_value", "N/A")
+                effect_size = ""
+                effect_type = ""
+                if result.get("cohens_d") is not None:
+                    effect_size = f"d={result.get('cohens_d'):.3f}"
+                    effect_type = "Cohen's d"
+                elif result.get("eta_squared") is not None:
+                    effect_size = f"η²={result.get('eta_squared'):.3f}"
+                    effect_type = "η²"
+                else:
+                    effect_size = "N/A"
+                    effect_type = "N/A"
+
+                eff_mag = result.get("effect_size_desc", "N/A")
+
+                table_data.append(
+                    [
+                        name,
+                        f"{result.get('test_type', 'N/A')}",
+                        f"{stat_val:.3f}",
+                        f"{p_val:.4f}",
+                        effect_type,
+                        effect_size,
+                        f"{eff_mag}",
+                    ]
+                )
+
+                if (
+                    "required_sample_size_per_group" in result
+                    and result["required_sample_size_per_group"]
+                ):
+                    effect_size = ""
+                    effect_type = ""
+                    if result.get("cohens_d") is not None:
+                        effect_size = f"d={result.get('cohens_d'):.3f}"
+                        effect_type = "Cohen's d"
+                    elif result.get("eta_squared") is not None:
+                        effect_size = f"η²={result.get('eta_squared'):.3f}"
+                        effect_type = "η²"
+
+                    sample_size_data.append(
+                        [
+                            name,
+                            effect_type,
+                            effect_size,
+                            f"{result['required_sample_size_per_group']}",
+                            f"{result.get('required_total_sample_size', 'N/A')}",
+                            f"{result.get('sample_size_power', 0.8):.2f}",
+                            f"{result.get('sample_size_alpha', 0.05):.3f}",
+                        ]
+                    )
+
+    fig_tables = make_subplots(
+        rows=2,
+        cols=1,
+        subplot_titles=("组间比较 - 统计检验结果", "组间比较 - 建议样本量"),
+        specs=[[{"type": "table"}], [{"type": "table"}]],
+        vertical_spacing=0.1,
+    )
+
+    if table_data:
+        fig_tables.add_trace(
+            go.Table(
+                header=dict(
+                    values=[
+                        "指标",
+                        "检验方法",
+                        "统计量",
+                        "P值",
+                        "效应量类型",
+                        "效应量",
+                        "效应量描述",
+                    ],
+                    fill_color="lightblue",
+                ),
+                cells=dict(values=np.array(table_data).T, fill_color="lavender"),
+            ),
+            row=1,
+            col=1,
+        )
+
+    if sample_size_data:
+        fig_tables.add_trace(
+            go.Table(
+                header=dict(
+                    values=[
+                        "指标",
+                        "效应量类型",
+                        "效应量",
+                        "单组所需样本量",
+                        "总样本量",
+                        "功率",
+                        "显著性水平",
+                    ],
+                    fill_color="lightcoral",
+                ),
+                cells=dict(values=np.array(sample_size_data).T, fill_color="mistyrose"),
+            ),
+            row=2,
+            col=1,
+        )
+
+    fig_tables.update_layout(height=600, title_text="组间统计数据-样本量表格")
+    figures.append(fig_tables)
+
+    # Figure 2: 图表分析 (样本量需求曲线 & 效应量vs样本量)
+    fig_charts = make_subplots(
+        rows=1,
+        cols=2,
+        subplot_titles=("样本量需求曲线", "效应量"),
+        specs=[[{"type": "scatter"}], [{"type": "bar"}]],
+    )
+
+    if comparison_results:
+        effect_sizes = []
+        metrics_names = []
+        effect_size_types = []
+        hover_texts = []
+
+        upper_bonud = 1.0
+        lower_bound = 0.1
+        sample_sizes = []
+
+        for metric, name in zip(key_metrics, metric_names):
+            if metric in comparison_results:
+                result = comparison_results[metric]
+                if result.get("eta_squared") is not None:
+                    effect_sizes.append(abs(result.get("eta_squared")))
+                    metrics_names.append(name)
+                    effect_size_types.append("η²")
+                    hover_texts.append(f"{name}<br>η²={result.get('eta_squared'):.3f}")
+                elif result.get("cohens_d") is not None:
+                    effect_sizes.append(abs(result.get("cohens_d")))
+                    metrics_names.append(name)
+                    effect_size_types.append("Cohen's d")
+                    hover_texts.append(
+                        f"{name}<br>Cohen's d={result.get('cohens_d'):.3f}"
+                    )
+                    upper_bonud = max(upper_bonud, abs(result.get("cohens_d")))
+                lower_bound = min(lower_bound, abs(effect_sizes[-1]))
+
+                # 计算样本量
+                effect_size = effect_sizes[-1]
+                effect_type = effect_size_types[-1]
+
+                if effect_type == "η²":
+                    sample_size = calculate_sample_size(
+                        effect_size,
+                        test_type="anova",
+                        effect_size_type="eta_squared",
+                    )["required_n"]
+                elif effect_type == "d":
+                    sample_size = calculate_sample_size(
+                        effect_size, test_type="two_sample"
+                    )["required_n"]
+                sample_sizes.append(sample_size)
+
+        # 样本量需求曲线
+        if len(sample_sizes):
+            # Cohen's d && η²
+            d_effect_sizes = np.linspace(lower_bound, upper_bonud, 100)
+
+            d_sample_sizes = []
+            eta_sample_sizes = []
+            for d_effect_size in d_effect_sizes:
+                sample_size = calculate_sample_size(
+                    d_effect_size, test_type="two_sample"
+                )["required_n"]
+                d_sample_sizes.append(sample_size)
+
+                if d_effect_size <= 1.0:
+                    sample_size = calculate_sample_size(
+                        d_effect_size,
+                        test_type="anova",
+                        d_effect_size_type="eta_squared",
+                    )["required_n"]
+                    eta_sample_sizes.append(sample_size)
+
+            fig_charts.add_trace(
+                go.Scatter(
+                    x=d_effect_sizes,
+                    y=d_sample_sizes,
+                    mode="lines",
+                    name="样本量需求曲线(Cohen's d)",
+                    line=dict(width=3, color="red"),
+                    fill="tozeroy",
+                    fillcolor="rgba(255, 0, 0, 0.2)",
+                ),
+                row=1,
+                col=1,
+            )
+
+            fig_charts.add_trace(
+                go.Scatter(
+                    x=d_effect_sizes,
+                    y=eta_sample_sizes,
+                    mode="lines",
+                    name="样本量需求曲线(η²)",
+                    line=dict(width=3, color="blue"),
+                    fill="tozeroy",
+                    fillcolor="rgba(0, 0, 255, 0.2)",
+                ),
+                row=1,
+                col=1,
+            )
+    if effect_sizes:
+        fig_charts.add_trace(
+            go.Bar(
+                x=metrics_names,
+                y=effect_sizes,
+                name="效应量",
+                marker_color="lightgreen",
+                text=[f"{v:.3f}" for v in effect_sizes],
+                textposition="auto",
+                hovertext=hover_texts,
+                hoverinfo="text",
+            ),
+            row=1,
+            col=2,
+        )
+
+        fig_charts.add_trace(
+            go.Scatter(
+                x=effect_sizes,
+                y=sample_sizes,
+                mode="markers",
+                name="效应量",
+                marker=dict(size=15, color="red", symbol="diamond"),
+            ),
+            row=1,
+            col=1,
+        )
+
+    fig_charts.update_xaxes(title_text="效应量", row=1, col=1)
+    fig_charts.update_yaxes(title_text="所需样本量", row=1, col=1)
+
+    fig_charts.update_layout(height=500, title_text="组间效应量-样本量图表")
+    figures.append(fig_charts)
+
+    return figures

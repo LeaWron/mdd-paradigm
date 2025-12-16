@@ -1510,7 +1510,7 @@ def create_group_comparison_visualizations(
                         effect_size=effect_size_for_sample,
                         alpha=0.05,
                         power=0.8,
-                        test_type="two_sample",
+                        test_type="anova",
                     )
                     sample_sizes_per_group.append(sample_size_info["required_n"])
                     sample_sizes_total.append(sample_size_info["required_n_total"])
@@ -1827,7 +1827,7 @@ def run_group_emotion_analysis(
                 effect_size=abs(cohens_d),
                 alpha=0.05,
                 power=0.8,
-                test_type="two_sample",  # 假设未来进行两组比较
+                test_type="one_sample",  # 假设未来进行两组比较
             )
 
         statistical_results[metric] = {

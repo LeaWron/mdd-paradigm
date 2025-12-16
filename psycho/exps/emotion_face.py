@@ -37,9 +37,7 @@ stim_items = list(stim_folder.glob("*.BMP"))
 response_map = {"a": "positive", "s": "neutral", "d": "negative"}
 
 
-intensity_prompt = (
-    "请选择情感的强度（1-9）, 1为<c=#eb5555>最弱</c>, 9为<c=#51d237>最强</c>"
-)
+intensity_prompt = "情绪的强度（1-9）, 1为<c=#eb5555>最弱</c>, 9为<c=#51d237>最强</c>"
 intensity_ticks = list(range(1, 10))
 # === 全局变量 ===
 win = None
@@ -269,7 +267,7 @@ def trial():
         core.wait(1.0)
         return
 
-    prompt, slider = rating_slider()
+    prompt, slider = rating_slider(positive=(resp_emotion == "positive"))
 
     # 按钮
     base_color = [-0.2, -0.2, -0.2]  # 比灰背景稍深
@@ -336,11 +334,12 @@ def post_trial():
     core.wait(0.5)
 
 
-def rating_slider():
+def rating_slider(positive: bool):
     win.setMouseVisible(visibility=True)
+    placeholder = "积极" if positive else "消极"
     prompt = visual.TextBox2(
         win,
-        text=intensity_prompt,
+        text=f"请选择该{placeholder}intensity_prompt",
         color="white",
         pos=(0, 0.4),
         size=(2, None),

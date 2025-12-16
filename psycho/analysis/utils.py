@@ -1,3 +1,4 @@
+import math
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -336,10 +337,10 @@ def calculate_sample_size(
     # 根据检验类型计算样本量
     if test_type == "one_sample":
         # 单样本t检验
-        n = ((z_alpha + z_beta) ** 2) / (effect_size_used**2)
+        n = int((z_alpha + z_beta) ** 2 / (effect_size_used**2))
     elif test_type == "paired":
         # 配对样本t检验
-        n = ((z_alpha + z_beta) ** 2) / (effect_size_used**2)
+        n = int((z_alpha + z_beta) ** 2 / (effect_size_used**2))
     elif test_type == "two_sample":
         # 独立样本t检验（每组样本量）
         n_per_group = 2 * ((z_alpha + z_beta) ** 2) / (effect_size_used**2)
@@ -361,8 +362,12 @@ def calculate_sample_size(
         n = {
             "per_group": n_per_group,
             "total": n_total,
-            "per_group_rounded": int(np.ceil(n_per_group)),
-            "total_rounded": int(np.ceil(n_total)),
+            "per_group_rounded": int(np.ceil(n_per_group))
+            if n_per_group != float("inf")
+            else float("inf"),
+            "total_rounded": int(np.ceil(n_total))
+            if n_total != float("inf")
+            else float("inf"),
         }
     else:
         raise ValueError(f"不支持的检验类型: {test_type}")
@@ -593,14 +598,14 @@ def perform_group_comparisons(
 
 
 def save_html_report(
-    save_path: Path,
+    save_dir: Path,
+    save_name: str,
     figures: list[go.Figure],
     title: str = "Analysis Report",
     descriptions: list[str] = None,
 ):
     """
     将多个 Figure 拼接为一个 HTML 文件。
-    这种方式彻底解耦了图表生成和报告生成。
     """
     if descriptions is None:
         descriptions = [""] * len(figures)
@@ -655,13 +660,14 @@ def save_html_report(
     """)
 
     # Write to file
-    with open(save_path, "w", encoding="utf-8") as f:
+    with open((save_dir / save_name).with_suffix(".html"), "w", encoding="utf-8") as f:
         f.write("\n".join(html_content))
 
-    print(f"📄 报告已生成: {save_path}")
+    print(f"报告已生成: {save_dir / save_name}.html")
 
 
 def create_common_single_group_figures(
+    group_metrics: list[dict[str, float]],
     statistical_results: dict[str, dict[str, Any]],
     key_metrics: list[str],
     metric_names: list[str],
@@ -743,13 +749,10 @@ def create_common_single_group_figures(
                     ],
                     fill_color="lightblue",
                     align="left",
-                    font=dict(size=10),
                 ),
                 cells=dict(
                     values=np.array(test_data).T,
                     fill_color="lavender",
-                    align="left",
-                    font=dict(size=9),
                 ),
                 # columnwidth=[0.18, 0.18, 0.15, 0.12, 0.15, 0.15, 0.22],
             ),
@@ -763,14 +766,10 @@ def create_common_single_group_figures(
                 header=dict(
                     values=["指标", "效应量", "每组需样本量", "总需样本量"],
                     fill_color="lightcoral",
-                    align="left",
-                    font=dict(size=10),
                 ),
                 cells=dict(
                     values=np.array(sample_size_data).T,
                     fill_color="mistyrose",
-                    align="left",
-                    font=dict(size=9),
                 ),
             ),
             row=2,
@@ -783,13 +782,41 @@ def create_common_single_group_figures(
     # Figure 2: 图表分析 (效应量分析 & 样本量需求曲线)
     fig_charts = make_subplots(
         rows=1,
-        cols=2,
-        subplot_titles=("效应量分析", "样本量需求曲线"),
-        specs=[[{"type": "bar"}, {"type": "scatter"}]],
+        cols=3,
+        subplot_titles=("关键指标相关性", "样本量需求曲线", "效应量分析"),
+        specs=[[{"type": "heatmap"}, {"type": "scatter"}, {"type": "bar"}]],
     )
 
-    # 效应量 Bar
+    # 关键指标相关性
+    metrics_df = pd.DataFrame(group_metrics)
+    available_metrics = [m for m in key_metrics if m in metrics_df.columns]
 
+    if len(available_metrics) > 1:
+        corr_matrix = metrics_df[available_metrics].corr()
+        available_names = [
+            metric_names[key_metrics.index(m)] for m in available_metrics
+        ]
+
+        fig_charts.add_trace(
+            go.Heatmap(
+                z=corr_matrix.values,
+                x=available_names,
+                y=available_names,
+                colorscale="RdBu",
+                zmid=0,
+                text=np.around(corr_matrix.values, 2),
+                texttemplate="%{text}",
+                showscale=True,
+            ),
+            row=1,
+            col=1,
+        )
+        fig_charts.update_traces(
+            colorbar=dict(len=0.6, y=0.25),
+            selector=dict(type="heatmap"),
+        )
+
+    # 效应量 Bar
     if statistical_results:
         effect_sizes = []
         metrics_names = []
@@ -841,20 +868,21 @@ def create_common_single_group_figures(
             d_effect_sizes = np.linspace(lower_bound, upper_bonud, 100)
 
             d_sample_sizes = []
-            eta_sample_sizes = []
+            # eta_sample_sizes = []
             for d_effect_size in d_effect_sizes:
                 sample_size = calculate_sample_size(
                     d_effect_size, test_type="one_sample"
                 )["required_n"]
                 d_sample_sizes.append(sample_size)
 
-                if d_effect_size <= 1.0:
-                    sample_size = calculate_sample_size(
-                        d_effect_size,
-                        test_type="anova",
-                        d_effect_size_type="eta_squared",
-                    )["required_n"]
-                    eta_sample_sizes.append(sample_size)
+                # 单组不太会有这种情况
+                # if d_effect_size <= 1.0:
+                #     sample_size = calculate_sample_size(
+                #         d_effect_size,
+                #         test_type="anova",
+                #         effect_size_type="eta_squared",
+                #     )["required_n"]
+                #     eta_sample_sizes.append(sample_size)
 
             fig_charts.add_trace(
                 go.Scatter(
@@ -870,21 +898,32 @@ def create_common_single_group_figures(
                 col=2,
             )
 
-            fig_charts.add_trace(
-                go.Scatter(
-                    x=d_effect_sizes,
-                    y=eta_sample_sizes,
-                    mode="lines",
-                    name="样本量需求曲线(η²)",
-                    line=dict(width=3, color="blue"),
-                    fill="tozeroy",
-                    fillcolor="rgba(0, 0, 255, 0.2)",
-                ),
-                row=1,
-                col=2,
-            )
+            # fig_charts.add_trace(
+            #     go.Scatter(
+            #         x=d_effect_sizes,
+            #         y=eta_sample_sizes,
+            #         mode="lines",
+            #         name="样本量需求曲线(η²)",
+            #         line=dict(width=3, color="blue"),
+            #         fill="tozeroy",
+            #         fillcolor="rgba(0, 0, 255, 0.2)",
+            #     ),
+            #     row=1,
+            #     col=2,
+            # )
 
     if effect_sizes:
+        fig_charts.add_trace(
+            go.Scatter(
+                x=effect_sizes,
+                y=sample_sizes,
+                mode="markers",
+                name="效应量",
+                marker=dict(size=15, color="red", symbol="diamond"),
+            ),
+            row=1,
+            col=2,
+        )
         fig_charts.add_trace(
             go.Bar(
                 x=metrics_names,
@@ -897,19 +936,7 @@ def create_common_single_group_figures(
                 hoverinfo="text",
             ),
             row=1,
-            col=1,
-        )
-
-        fig_charts.add_trace(
-            go.Scatter(
-                x=effect_sizes,
-                y=sample_sizes,
-                mode="markers",
-                name="效应量",
-                marker=dict(size=15, color="red", symbol="diamond"),
-            ),
-            row=1,
-            col=2,
+            col=3,
         )
 
     fig_charts.update_xaxes(title_text="效应量", row=1, col=2)
@@ -1051,7 +1078,7 @@ def create_common_comparison_figures(
         rows=1,
         cols=2,
         subplot_titles=("样本量需求曲线", "效应量"),
-        specs=[[{"type": "scatter"}], [{"type": "bar"}]],
+        specs=[[{"type": "scatter"}, {"type": "bar"}]],
     )
 
     if comparison_results:
@@ -1106,32 +1133,33 @@ def create_common_comparison_figures(
             d_sample_sizes = []
             eta_sample_sizes = []
             for d_effect_size in d_effect_sizes:
-                sample_size = calculate_sample_size(
-                    d_effect_size, test_type="two_sample"
-                )["required_n"]
-                d_sample_sizes.append(sample_size)
+                # 对比一般都用 η²
+                # sample_size = calculate_sample_size(
+                #     d_effect_size, test_type="two_sample"
+                # )["required_n"]
+                # d_sample_sizes.append(sample_size)
 
                 if d_effect_size <= 1.0:
                     sample_size = calculate_sample_size(
                         d_effect_size,
                         test_type="anova",
-                        d_effect_size_type="eta_squared",
+                        effect_size_type="eta_squared",
                     )["required_n"]
                     eta_sample_sizes.append(sample_size)
 
-            fig_charts.add_trace(
-                go.Scatter(
-                    x=d_effect_sizes,
-                    y=d_sample_sizes,
-                    mode="lines",
-                    name="样本量需求曲线(Cohen's d)",
-                    line=dict(width=3, color="red"),
-                    fill="tozeroy",
-                    fillcolor="rgba(255, 0, 0, 0.2)",
-                ),
-                row=1,
-                col=1,
-            )
+            # fig_charts.add_trace(
+            # go.Scatter(
+            # x=d_effect_sizes,
+            # y=d_sample_sizes,
+            # mode="lines",
+            # name="样本量需求曲线(Cohen's d)",
+            # line=dict(width=3, color="red"),
+            # fill="tozeroy",
+            # fillcolor="rgba(255, 0, 0, 0.2)",
+            # ),
+            # row=1,
+            # col=1,
+            # )
 
             fig_charts.add_trace(
                 go.Scatter(

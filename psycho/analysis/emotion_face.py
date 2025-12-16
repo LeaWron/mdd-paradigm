@@ -857,7 +857,6 @@ def create_group_comparison_visualizations_single_group(
             font=dict(size=22, family="Arial Black"),
             x=0.5,
         ),
-        height=1200,
         showlegend=True,
         template="plotly_white",
     )
@@ -988,7 +987,6 @@ def create_group_comparison_visualizations(
             font=dict(size=22, family="Arial Black"),
             x=0.5,
         ),
-        height=1400,
         showlegend=True,
         template="plotly_white",
     )
@@ -1186,9 +1184,9 @@ def run_group_emotion_analysis(
     figs = [fig_spec] + fig_common
     save_html_report(
         save_dir=result_dir,
-        save_name="emotion_face_group_analysis_report",
+        save_name=f"emotion_face-{group_name}_group-analysis_report",
         figures=figs,
-        title="面部情绪识别组分析可视化",
+        title=f"面部情绪识别{group_name}组分析",
     )
 
     return {
@@ -1314,9 +1312,9 @@ def run_groups_emotion_analysis(
     figs = [fig_spec] + fig_common
     save_html_report(
         save_dir=result_dir,
-        save_name="emotion_face_group_comparison_report",
+        save_name=f"emotion_face-{control_name}_{experimental_name}_group-comparison_report",
         figures=figs,
-        title="面部情绪识别组间比较分析报告",
+        title=f"面部情绪识别{control_name}-{experimental_name}组间比较分析",
     )
 
     return {

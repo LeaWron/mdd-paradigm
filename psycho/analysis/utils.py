@@ -1130,7 +1130,7 @@ def create_common_comparison_figures(
             # Cohen's d && η²
             d_effect_sizes = np.linspace(lower_bound, upper_bonud, 100)
 
-            d_sample_sizes = []
+            # d_sample_sizes = []
             eta_sample_sizes = []
             for d_effect_size in d_effect_sizes:
                 # 对比一般都用 η²

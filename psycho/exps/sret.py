@@ -134,9 +134,10 @@ def draw_fixation(time: float):
 
 def rating_slider(resp: Literal["yes", "no"]):
     win.setMouseVisible(visibility=True)
+    verb = "<c=#51d237>符合</c>" if resp == "yes" else "<c=#eb5555>不符合</c>"
     prompt = visual.TextBox2(
         win,
-        text=intensity_prompt,
+        text=f"{intensity_prompt}{verb}程度",
         color="white",
         pos=(0, 0.4),
         size=(1.2, None),
@@ -441,7 +442,11 @@ def entry(exp: Experiment | None = None):
 
         update_trial(one_trial_data, one_block_data)
         update_block(one_block_data, data_to_save)
-        save_csv_data(data_to_save, exp.session_info["save_path"] + "-SRET")
+        save_csv_data(
+            data_to_save,
+            exp.session_info["save_path"] + "-SRET",
+            exp.session_info["group"],
+        )
 
 
 def main():

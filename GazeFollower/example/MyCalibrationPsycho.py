@@ -32,12 +32,14 @@ def eyetracking_calibration(
     model_dir = Path(__file__).resolve().parent.parent.parent / "data" / "calib_models"
     if not model_dir.exists():
         model_dir.mkdir(exist_ok=True)
+
     def _sanitize(s: str) -> str:
         # 仅保留字母数字、下划线与中划线，其他替换为下划线
         return (
             "".join(c if (c.isalnum() or c in ("_", "-")) else "_" for c in s.strip())
             or "unknown"
         )
+
     # 采集被试信息并用作文件夹名
     if formal is False:
         root = tk.Tk()
@@ -68,17 +70,15 @@ def eyetracking_calibration(
         finally:
             root2.destroy()
 
-        
         subject_id_s = info.get("session_id", "unknown")
         subject_name_s = info.get("name", "unknown")
         default_folder = f"{subject_id_s}_{subject_name_s}_{timestamp}"
         folder_name = _sanitize(custom_folder)
-    else: 
-        subject_id_s = info.get("session_id", "unknown") 
+    else:
+        subject_id_s = info.get("session_id", "unknown")
         subject_name_s = info.get("name", "unknown")
         folder_name = f"{subject_id_s}_{subject_name_s}"
 
-    
     target_dir = model_dir / folder_name
     target_dir.mkdir(parents=True, exist_ok=True)
 

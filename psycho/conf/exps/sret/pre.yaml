@@ -34,7 +34,7 @@ phase_prompt:
     height: ~
   alignment: left
 
-intensity_prompt: "请评估该词汇对您个人特征的描述程度"
+intensity_prompt: "请评估该词汇对您个人特征的"
 intensity_ticks:
   start: 0
   end: 10

@@ -202,7 +202,7 @@ class Session:
         dlg.addField(label="姓名 *", key="name", required=True)
         dlg.addField(label="性别", key="gender")
         dlg.addField(label="年龄", key="age")
-        dlg.addField(label="组别", choices=["HC", "MDD", "Other"], key="group")
+        dlg.addField(label="组别", choices=["HC", "MDD", "OHC", "OMDD"], key="group")
         # ..... 其他信息
         dlg.addField(
             label="数据保存路径",
@@ -376,14 +376,10 @@ class Session:
         # 准备session信息数据
         session_data = {
             "session_id": [self.session_info.get("session_id", "unknown")],
-            "participant_info": [
-                {
-                    "name": self.session_info.get("name", "unknown"),
-                    "age": self.session_info.get("age", "unknown"),
-                    "gender": self.session_info.get("gender", "unknown"),
-                    "group": self.session_info.get("group", "unknown"),
-                }
-            ],
+            "participant_name": [self.session_info.get("name", "unknown")],
+            "participant_age": [self.session_info.get("age", "unknown")],
+            "participant_gender": [self.session_info.get("gender", "unknown")],
+            "participant_group": [self.session_info.get("group", "unknown")],
             "date": [self.session_info.get("date", "unknown")],
             "session_start_time": [self.session_start_time],
             "session_end_time": [session_end_time],

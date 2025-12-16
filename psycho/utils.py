@@ -755,7 +755,9 @@ def update_block(one_block_data: dict[str, list], data_to_save: dict[str, list])
         one_block_data[key] = []
 
 
-def save_csv_data(data: dict[str, list], file_name: str | Path):
+def save_csv_data(
+    data: dict[str, list], file_name: str | Path, participant_type: str = None
+):
     """
     将实验数据保存为 CSV 文件
 
@@ -767,6 +769,13 @@ def save_csv_data(data: dict[str, list], file_name: str | Path):
     date_folder = base_path / datetime.now().strftime("%Y-%m-%d")
     # 日期文件夹
     date_folder.mkdir(parents=True, exist_ok=True)
+
+    file_name_2 = None
+    if participant_type is not None:
+        file_name_2 = (
+            date_folder / participant_type.lower() / f"{file_name}"
+        ).with_suffix(".csv")
+        file_name_2.parent.mkdir(parents=True, exist_ok=True)
 
     file_name = (date_folder / f"{file_name}").with_suffix(".csv")
 
@@ -782,6 +791,13 @@ def save_csv_data(data: dict[str, list], file_name: str | Path):
             df.write_csv(f, include_header=False)
     else:
         df.write_csv(file_name)
+
+    if file_name_2 is not None:
+        if file_name_2.exists():
+            with open(file_name_2, "a", encoding="utf-8", newline="") as f:
+                df.write_csv(f, include_header=False)
+        else:
+            df.write_csv(file_name_2)
 
 
 def setup_default_logger():

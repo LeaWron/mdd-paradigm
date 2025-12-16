@@ -593,7 +593,11 @@ def entry(exp: Experiment | None = None):
         update_trial(one_trial_data, one_block_data)
         update_block(one_block_data, data_to_save)
 
-        save_csv_data(data_to_save, exp.session_info["save_path"] + "-prt")
+        save_csv_data(
+            data_to_save,
+            exp.session_info["save_path"] + "-prt",
+            exp.session_info["group"],
+        )
 
 
 def main():

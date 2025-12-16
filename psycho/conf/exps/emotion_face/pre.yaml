@@ -33,7 +33,7 @@ response_map:
   s: neutral
   d: negative
 
-intensity_prompt: "请选择情感的强度（1-9）, 1为<c=#eb5555>最弱</c>, 9为<c=#51d237>最强</c>"
+intensity_prompt: "情绪的强度（1-9）, 1为<c=#eb5555>最弱</c>, 9为<c=#51d237>最强</c>"
 intensity_ticks:
   start: 1
   end: 9

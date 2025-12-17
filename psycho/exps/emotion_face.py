@@ -84,6 +84,7 @@ data_to_save = {
     "choice": [],
     "rt": [],
     "intensity": [],
+    "intensity_rt": [],
     "correct_rate": [],
 }
 
@@ -291,6 +292,9 @@ def trial():
         font=PSYCHO_FONT,
     )
 
+    # 记录强度选择的时间
+    rating_start_time = clock.getTime()
+
     mouse = event.Mouse(win=win)
     # 选择中性的时候不打分
     while resp_emotion != "neutral" and True:
@@ -310,6 +314,10 @@ def trial():
         win.flip()
 
         if slider.rating is not None and mouse.isPressedIn(button_box):
+            # 计算反应时间
+            intensity_rt = clock.getTime() - rating_start_time
+            one_trial_data["intensity_rt"] = intensity_rt
+
             intensity = slider.getValue()
             one_trial_data["intensity"] = intensity
 
@@ -322,6 +330,7 @@ def trial():
     # 选择了中性情绪, 则强度为0
     if resp_emotion == "neutral":
         one_trial_data["intensity"] = 0
+        one_trial_data["intensity_rt"] = 0
         logger.info(
             f"neutral, while true intensity is {one_trial_data['label_intensity']:.2f}"
         )
@@ -336,10 +345,10 @@ def post_trial():
 
 def rating_slider(positive: bool):
     win.setMouseVisible(visibility=True)
-    placeholder = "积极" if positive else "消极"
+    placeholder = "<c=#51d237>积极</c>" if positive else "<c=#eb5555>消极</c>"
     prompt = visual.TextBox2(
         win,
-        text=f"请选择该{placeholder}intensity_prompt",
+        text=f"请选择该{placeholder}{intensity_prompt}",
         color="white",
         pos=(0, 0.4),
         size=(2, None),

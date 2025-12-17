@@ -27,7 +27,9 @@ warnings.filterwarnings("ignore")
 
 REFERENCE_VALUES = {
     "control": {
-        "log_b": [0.19, 0.24, 0.23],
+        "log_b_block_0": 0.19,
+        "log_b_block_1": 0.24,
+        "log_b_block_2": 0.23,
         "rich_hit_rate": 0.88,
         "lean_hit_rate": 0.75,
         "lean_miss_after_rewarded_rich": 0.26,
@@ -36,7 +38,9 @@ REFERENCE_VALUES = {
         "rich_miss_after_rewarded_lean": 0.11,
     },
     "mdd": {
-        "log_b": [0.08, 0.12, 0.10],
+        "log_b_block_0": 0.08,
+        "log_b_block_1": 0.12,
+        "log_b_block_2": 0.10,
         "rich_hit_rate": 0.86,
         "lean_hit_rate": 0.77,
         "lean_miss_after_rewarded_rich": 0.25,
@@ -46,15 +50,25 @@ REFERENCE_VALUES = {
     },
 }
 key_metrics = [
-    "mean_log_b",
+    "log_b_block_0",
+    "log_b_block_1",
+    "log_b_block_2",
     "mean_hit_rate_diff",
-    "mean_rt_diff",
+    "mean_lean_miss_after_rewarded_rich",
+    "mean_lean_miss_after_nonrewarded_rich",
+    "mean_rich_miss_after_rewarded_rich",
+    "mean_rich_miss_after_rewarded_lean",
 ]
 
 metric_names = [
-    "反应偏向(Log b)",
+    "反应偏向-Block 0",
+    "反应偏向-Block 1",
+    "反应偏向-Block 2",
     "击中率差异",
-    "反应时差异",
+    "贫刺激击中率(前富奖励)",
+    "贫刺激击中率(前富未奖)",
+    "富刺激击中率(前富奖励)",
+    "富刺激击中率(前贫奖励)",
 ]
 
 
@@ -231,23 +245,29 @@ def calculate_probability_analysis(
         lean_trials = valid_data.filter(pl.col("stim") == lean_stim)
 
         # A1: 前一个试次是rich且获得奖励
-        cond1 = lean_trials.filter(
+        lean_trials_after_rewarded_rich = lean_trials.filter(
             (pl.col("prev_stim") == rich_stim) & (pl.col("prev_rewarded"))
         )
 
         # A2: 前一个试次是rich但无奖励
-        cond2 = lean_trials.filter(
+        lean_trials_after_nonrewarded_rich = lean_trials.filter(
             (pl.col("prev_stim") == rich_stim) & (~pl.col("prev_rewarded"))
         )
 
-        lean_miss_rate1 = (
-            (cond1.filter(~pl.col("correct")).height / cond1.height)
-            if cond1.height > 0
+        lean_miss_rate_after_rewarded_rich = (
+            (
+                lean_trials_after_rewarded_rich.filter(~pl.col("correct")).height
+                / lean_trials_after_rewarded_rich.height
+            )
+            if lean_trials_after_rewarded_rich.height > 0
             else 0
         )
-        lean_miss_rate2 = (
-            (cond2.filter(~pl.col("correct")).height / cond2.height)
-            if cond2.height > 0
+        lean_miss_rate_after_nonrewarded_rich = (
+            (
+                lean_trials_after_nonrewarded_rich.filter(~pl.col("correct")).height
+                / lean_trials_after_nonrewarded_rich.height
+            )
+            if lean_trials_after_nonrewarded_rich.height > 0
             else 0
         )
 
@@ -255,36 +275,56 @@ def calculate_probability_analysis(
         rich_trials = valid_data.filter(pl.col("stim") == rich_stim)
 
         # B1: 前一个试次是rich且获得奖励
-        cond3 = rich_trials.filter(
+        rich_trials_after_rewarded_rich = rich_trials.filter(
             (pl.col("prev_stim") == rich_stim) & (pl.col("prev_rewarded"))
         )
 
         # B2: 前一个试次是lean且获得奖励
-        cond4 = rich_trials.filter(
+        rich_trials_after_rewarded_lean = rich_trials.filter(
             (pl.col("prev_stim") == lean_stim) & (pl.col("prev_rewarded"))
         )
 
-        rich_miss_rate1 = (
-            (cond3.filter(~pl.col("correct")).height / cond3.height)
-            if cond3.height > 0
+        rich_miss_rate_after_rewarded_rich = (
+            (
+                rich_trials_after_rewarded_rich.filter(~pl.col("correct")).height
+                / rich_trials_after_rewarded_rich.height
+            )
+            if rich_trials_after_rewarded_rich.height > 0
             else 0
         )
-        rich_miss_rate2 = (
-            (cond4.filter(~pl.col("correct")).height / cond4.height)
-            if cond4.height > 0
+        rich_miss_rate_after_rewarded_lean = (
+            (
+                rich_trials_after_rewarded_lean.filter(~pl.col("correct")).height
+                / rich_trials_after_rewarded_lean.height
+            )
+            if rich_trials_after_rewarded_lean.height > 0
             else 0
         )
 
         prob_results[block] = {
-            "lean_miss_after_rewarded_rich": lean_miss_rate1,
-            "lean_miss_after_nonrewarded_rich": lean_miss_rate2,
-            "rich_miss_after_rewarded_rich": rich_miss_rate1,
-            "rich_miss_after_rewarded_lean": rich_miss_rate2,
+            "lean_miss_after_rewarded_rich": lean_miss_rate_after_rewarded_rich,
+            "lean_miss_after_nonrewarded_rich": lean_miss_rate_after_nonrewarded_rich,
+            "rich_miss_after_rewarded_rich": rich_miss_rate_after_rewarded_rich,
+            "rich_miss_after_rewarded_lean": rich_miss_rate_after_rewarded_lean,
             "counts": {
-                "cond1": cond1.height,
-                "cond2": cond2.height,
-                "cond3": cond3.height,
-                "cond4": cond4.height,
+                "lean_miss_after_rewarded_rich": lean_trials_after_rewarded_rich.height,
+                "lean_miss_after_nonrewarded_rich": lean_trials_after_nonrewarded_rich.height,
+                "rich_miss_after_rewarded_rich": rich_trials_after_rewarded_rich.height,
+                "rich_miss_after_rewarded_lean": rich_trials_after_rewarded_lean.height,
+            },
+            "miss_counts": {
+                "lean_miss_after_rewarded_rich": lean_trials_after_rewarded_rich.filter(
+                    ~pl.col("correct")
+                ).height,
+                "lean_miss_after_nonrewarded_rich": lean_trials_after_nonrewarded_rich.filter(
+                    ~pl.col("correct")
+                ).height,
+                "rich_miss_after_rewarded_rich": rich_trials_after_rewarded_rich.filter(
+                    ~pl.col("correct")
+                ).height,
+                "rich_miss_after_rewarded_lean": rich_trials_after_rewarded_lean.filter(
+                    ~pl.col("correct")
+                ).height,
             },
         }
 
@@ -384,7 +424,7 @@ def calculate_key_metrics(
     """计算关键指标"""
     blocks = sorted(sdt_results.keys())
 
-    mean_log_b = np.mean([sdt_results[b]["log_b"] for b in blocks])
+    # mean_log_b = np.mean([sdt_results[b]["log_b"] for b in blocks])
 
     mean_log_d = np.mean([sdt_results[b]["log_d"] for b in blocks])
 
@@ -395,16 +435,66 @@ def calculate_key_metrics(
     # rich 击中率与 lean 击中率的差异, 越高, 被试越偏向Rich刺激
     mean_hit_rate_diff = mean_rich_hit_rate - mean_lean_hit_rate
 
+    # lean 反应时与 rich 反应时的差异, 越高, 被试越偏向Rich刺激
     mean_rt_diff = np.mean([rt_by_block[b]["rt_diff"] for b in blocks])
 
-    return {
-        "mean_log_b": mean_log_b,
-        "mean_log_d": mean_log_d,
-        "mean_rich_hit_rate": mean_rich_hit_rate,
-        "mean_lean_hit_rate": mean_lean_hit_rate,
-        "mean_hit_rate_diff": mean_hit_rate_diff,
-        "mean_rt_diff": mean_rt_diff,
-    }
+    mean_lean_miss_after_rewarded_rich = np.sum(
+        [
+            prob_results[b]["miss_counts"]["lean_miss_after_rewarded_rich"]
+            for b in blocks
+        ]
+    ) / np.sum(
+        [prob_results[b]["counts"]["rich_miss_after_rewarded_rich"] for b in blocks]
+    )
+
+    mean_lean_miss_after_nonrewarded_rich = np.sum(
+        [
+            prob_results[b]["miss_counts"]["lean_miss_after_nonrewarded_rich"]
+            for b in blocks
+        ]
+    ) / np.sum(
+        [prob_results[b]["counts"]["lean_miss_after_nonrewarded_rich"] for b in blocks]
+    )
+
+    mean_rich_miss_after_rewarded_rich = np.sum(
+        [
+            prob_results[b]["miss_counts"]["rich_miss_after_rewarded_rich"]
+            for b in blocks
+        ]
+    ) / np.sum(
+        [prob_results[b]["counts"]["rich_miss_after_rewarded_rich"] for b in blocks]
+    )
+
+    mean_rich_miss_after_rewarded_lean = np.sum(
+        [
+            prob_results[b]["miss_counts"]["rich_miss_after_rewarded_lean"]
+            for b in blocks
+        ]
+    ) / np.sum(
+        [prob_results[b]["counts"]["rich_miss_after_rewarded_lean"] for b in blocks]
+    )
+
+    return_metrics = {}
+    for b in blocks:
+        return_metrics[f"log_b_block_{b}"] = sdt_results[b]["log_b"]
+        # 如果你想看每个 block 的辨别力，也可以顺手加上：
+        return_metrics[f"log_d_block_{b}"] = sdt_results[b]["log_d"]
+
+    return_metrics.update(
+        {
+            "mean_log_d": mean_log_d,
+            "mean_rich_hit_rate": mean_rich_hit_rate,
+            "mean_lean_hit_rate": mean_lean_hit_rate,
+            "mean_hit_rate_diff": mean_hit_rate_diff,
+            "mean_rt_diff": mean_rt_diff,
+            "mean_lean_miss_after_rewarded_rich": mean_lean_miss_after_rewarded_rich,
+            "mean_lean_miss_after_nonrewarded_rich": mean_lean_miss_after_nonrewarded_rich,
+            "mean_rich_miss_after_rewarded_rich": mean_rich_miss_after_rewarded_rich,
+            "mean_rich_miss_after_rewarded_lean": mean_rich_miss_after_rewarded_lean,
+        }
+    )
+
+    return return_metrics
 
 
 def create_visualizations(
@@ -429,13 +519,12 @@ def create_visualizations(
             "5. Rich miss概率分析",
             "6. 反应时对比",
             "7. 关键指标总结",
-            "8. 与参考对比",
-            "9. 学习曲线",
+            "8. 学习曲线",
         ),
         specs=[
             [{"type": "scatter"}, {"type": "bar"}, {"type": "scatter"}],
             [{"type": "bar"}, {"type": "bar"}, {"type": "scatter"}],
-            [{"type": "table"}, {"type": "bar"}, {"type": "scatter"}],
+            [{"type": "table"}, None, {"type": "scatter"}],
         ],
         vertical_spacing=0.1,
         horizontal_spacing=0.15,
@@ -462,9 +551,9 @@ def create_visualizations(
     fig.add_trace(
         go.Scatter(
             x=blocks,
-            y=REFERENCE_VALUES["mdd"]["log_b"],
+            y=[REFERENCE_VALUES["mdd"][f"log_b_block_{b}"] for b in blocks],
             mode="lines",
-            name="文献MDD组",
+            name="MDD参考",
             line=dict(width=2, color="red", dash="dash"),
             opacity=0.7,
         ),
@@ -475,9 +564,9 @@ def create_visualizations(
     fig.add_trace(
         go.Scatter(
             x=blocks,
-            y=REFERENCE_VALUES["control"]["log_b"],
+            y=[REFERENCE_VALUES["control"][f"log_b_block_{b}"] for b in blocks],
             mode="lines",
-            name="文献对照组",
+            name="对照组参考",
             line=dict(width=2, color="green", dash="dash"),
             opacity=0.7,
         ),
@@ -569,20 +658,32 @@ def create_visualizations(
     )
 
     # 图4: Lean miss概率分析
-    avg_lean_miss1 = np.mean(
-        [prob_results[b]["lean_miss_after_rewarded_rich"] for b in prob_results]
-    )
-    avg_lean_miss2 = np.mean(
-        [prob_results[b]["lean_miss_after_nonrewarded_rich"] for b in prob_results]
-    )
+    # avg_lean_miss1 = np.mean(
+    # [prob_results[b]["lean_miss_after_rewarded_rich"] for b in prob_results]
+    # )
+    # avg_lean_miss2 = np.mean(
+    # [prob_results[b]["lean_miss_after_nonrewarded_rich"] for b in prob_results]
+    # )
+    mean_lean_miss_after_rewarded_rich = key_metrics[
+        "mean_lean_miss_after_rewarded_rich"
+    ]
+    mean_lean_miss_after_nonrewarded_rich = key_metrics[
+        "mean_lean_miss_after_nonrewarded_rich"
+    ]
 
     fig.add_trace(
         go.Bar(
             x=["前试次富刺激有奖励", "前试次富刺激无奖励"],
-            y=[avg_lean_miss1, avg_lean_miss2],
+            y=[
+                mean_lean_miss_after_rewarded_rich,
+                mean_lean_miss_after_nonrewarded_rich,
+            ],
             name="Lean miss概率",
             marker_color=["royalblue", "crimson"],
-            text=[f"{avg_lean_miss1:.3f}", f"{avg_lean_miss2:.3f}"],
+            text=[
+                f"{mean_lean_miss_after_rewarded_rich:.3f}",
+                f"{mean_lean_miss_after_nonrewarded_rich:.3f}",
+            ],
             textposition="outside",
         ),
         row=2,
@@ -598,7 +699,7 @@ def create_visualizations(
                 REFERENCE_VALUES["mdd"]["lean_miss_after_nonrewarded_rich"],
             ],
             mode="markers",
-            name="文献MDD组",
+            name="MDD参考",
             marker=dict(size=12, color="red", symbol="diamond"),
             opacity=0.7,
         ),
@@ -614,7 +715,7 @@ def create_visualizations(
                 REFERENCE_VALUES["control"]["lean_miss_after_nonrewarded_rich"],
             ],
             mode="markers",
-            name="文献对照组",
+            name="对照组参考",
             marker=dict(size=12, color="green", symbol="diamond"),
             opacity=0.7,
         ),
@@ -623,20 +724,29 @@ def create_visualizations(
     )
 
     # 图5: Rich miss概率分析
-    avg_rich_miss1 = np.mean(
-        [prob_results[b]["rich_miss_after_rewarded_rich"] for b in prob_results]
-    )
-    avg_rich_miss2 = np.mean(
-        [prob_results[b]["rich_miss_after_rewarded_lean"] for b in prob_results]
-    )
+    # avg_rich_miss1 = np.mean(
+    # [prob_results[b]["rich_miss_after_rewarded_rich"] for b in prob_results]
+    # )
+    # avg_rich_miss2 = np.mean(
+    # [prob_results[b]["rich_miss_after_rewarded_lean"] for b in prob_results]
+    # )
+    mean_rich_miss_after_rewarded_rich = key_metrics[
+        "mean_rich_miss_after_rewarded_rich"
+    ]
+    mean_rich_miss_after_rewarded_lean = key_metrics[
+        "mean_rich_miss_after_rewarded_lean"
+    ]
 
     fig.add_trace(
         go.Bar(
             x=["前试次富刺激有奖励", "前试次贫刺激有奖励"],
-            y=[avg_rich_miss1, avg_rich_miss2],
+            y=[mean_rich_miss_after_rewarded_rich, mean_rich_miss_after_rewarded_lean],
             name="Rich miss概率",
             marker_color=["royalblue", "crimson"],
-            text=[f"{avg_rich_miss1:.3f}", f"{avg_rich_miss2:.3f}"],
+            text=[
+                f"{mean_rich_miss_after_rewarded_rich:.3f}",
+                f"{mean_rich_miss_after_rewarded_lean:.3f}",
+            ],
             textposition="outside",
         ),
         row=2,
@@ -652,7 +762,7 @@ def create_visualizations(
                 REFERENCE_VALUES["mdd"]["rich_miss_after_rewarded_lean"],
             ],
             mode="markers",
-            name="文献MDD组",
+            name="MDD参考",
             marker=dict(size=12, color="red", symbol="diamond"),
             opacity=0.7,
         ),
@@ -668,7 +778,7 @@ def create_visualizations(
                 REFERENCE_VALUES["control"]["rich_miss_after_rewarded_lean"],
             ],
             mode="markers",
-            name="文献对照组",
+            name="对照组参考",
             marker=dict(size=12, color="green", symbol="diamond"),
             opacity=0.7,
         ),
@@ -712,28 +822,29 @@ def create_visualizations(
         cells=dict(
             values=[
                 [
-                    "平均Log b",
+                    "Log b-Block 0",
+                    "Log b-Block 1",
+                    "Log b-Block 2",
                     "平均Log d",
                     "Rich击中率",
                     "Lean击中率",
                     "击中率差异",
-                    "反应时差异",
                 ],
                 [
-                    f"{key_metrics['mean_log_b']:.3f}",
+                    f"{key_metrics['log_b_block_0']:.3f}",
+                    f"{key_metrics['log_b_block_1']:.3f}",
+                    f"{key_metrics['log_b_block_2']:.3f}",
                     f"{key_metrics['mean_log_d']:.3f}",
                     f"{key_metrics['mean_rich_hit_rate']:.3f}",
                     f"{key_metrics['mean_lean_hit_rate']:.3f}",
                     f"{key_metrics['mean_hit_rate_diff']:.3f}",
-                    f"{key_metrics['mean_rt_diff']:.3f}",
                 ],
                 [
                     "反应偏向",
                     "辨别力",
-                    "富刺激表现",
-                    "贫刺激表现",
-                    "表现差异",
-                    "反应选择",
+                    "",
+                    "",
+                    "富-贫",
                 ],
             ]
         ),
@@ -741,64 +852,9 @@ def create_visualizations(
 
     fig.add_trace(metrics_table, row=3, col=1)
 
-    # 图8: 与参考对比
-    fig.add_trace(
-        go.Bar(
-            x=["Log b", "击中率差异", "反应时差异"],
-            y=[
-                key_metrics["mean_log_b"],
-                key_metrics["mean_hit_rate_diff"],
-                key_metrics["mean_rt_diff"],
-            ],
-            name="当前被试",
-            marker_color="blue",
-        ),
-        row=3,
-        col=2,
-    )
+    # fig.add_trace(go.Bar(x=[], y=[], mode="lines", name=""), row=3, col=2)
 
-    # 添加文献参考值
-    control_values = [
-        np.mean(REFERENCE_VALUES["control"]["log_b"]),
-        REFERENCE_VALUES["control"]["rich_hit_rate"]
-        - REFERENCE_VALUES["control"]["lean_hit_rate"],
-        0,  # 反应时差异参考值设为0
-    ]
-
-    mdd_values = [
-        np.mean(REFERENCE_VALUES["mdd"]["log_b"]),
-        REFERENCE_VALUES["mdd"]["rich_hit_rate"]
-        - REFERENCE_VALUES["mdd"]["lean_hit_rate"],
-        0,  # 反应时差异参考值设为0
-    ]
-
-    fig.add_trace(
-        go.Scatter(
-            x=["Log b", "击中率差异", "反应时差异"],
-            y=control_values,
-            mode="markers",
-            name="文献对照组",
-            marker=dict(size=12, color="green", symbol="square"),
-            opacity=0.7,
-        ),
-        row=3,
-        col=2,
-    )
-
-    fig.add_trace(
-        go.Scatter(
-            x=["Log b", "击中率差异", "反应时差异"],
-            y=mdd_values,
-            mode="markers",
-            name="文献MDD组",
-            marker=dict(size=12, color="red", symbol="diamond"),
-            opacity=0.7,
-        ),
-        row=3,
-        col=2,
-    )
-
-    # 图9: 学习曲线（以Block 0为例）
+    # 图8: 学习曲线（以Block 0为例）
     if 0 in trend_results:
         block0_early = trend_results[0]["early_accuracy"]
         block0_late = trend_results[0]["late_accuracy"]
@@ -945,7 +1001,7 @@ def generate_report(
     valid_rt = trials_df.filter(pl.col("rt") >= 0.1)["rt"]
     mean_rt = valid_rt.mean() if valid_rt.shape[0] > 0 else None
 
-    save_results(sdt_results, prob_results, rt_by_block, key_metrics, result_dir)
+    # save_results(sdt_results, prob_results, rt_by_block, key_metrics, result_dir)
 
     print(f"\n✅ 分析完成! 结果保存在: {result_dir}")
 
@@ -1026,78 +1082,132 @@ def create_group_comparison_visualizations_single_group(
     all_metrics = group_metrics
 
     fig = make_subplots(
-        rows=1,
-        cols=2,
+        rows=2,
+        cols=3,
         subplot_titles=(
-            "1. 各被试反应偏向分布",
-            "3. 对比参考值",
+            "1. 各被试反应偏向",
+            "2. 各被试反应时差异",
+            "3. 各被试概率分析结果",
+            "4. 反应偏向对比",
+            "5. 反应时差异对比",
+            "6. 概率分析对比",
             # "6. 指标分布箱形图",
         ),
         specs=[
-            [{"type": "bar"}, {"type": "scatter"}],
+            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],
+            [{"type": "box"}, {"type": "box"}, {"type": "box"}],
         ],
         vertical_spacing=0.12,
         horizontal_spacing=0.08,
     )
 
-    # 图1: 各被试反应偏向分布
-    log_b_values = [m["mean_log_b"] for m in all_metrics]
     subjects = [f"被试{i + 1}" for i in range(len(all_metrics))]
 
+    blocks = list(range(3))
+    log_b_values = []
+    for i, _ in enumerate(blocks):
+        log_b_values.append([])
+        log_b_values[i] = [m[f"log_b_block_{i}"] for m in all_metrics]
+
+    for i, log_bs in enumerate(log_b_values):
+        # 图1: 各被试反应偏向分布
+        fig.add_trace(
+            go.Bar(
+                x=subjects,
+                y=log_bs,
+                name=f"Block{i + 1}",
+                # marker_color="lightblue",
+                text=[f"{v:.3f}" for v in log_bs],
+                textposition="auto",
+            ),
+            row=1,
+            col=1,
+        )
+
+        # 图4: 反应偏向对比
+        fig.add_trace(
+            go.Box(
+                y=log_bs,
+                name=f"Block{i + 1}",
+                boxpoints="all",
+                jitter=0.3,
+                pointpos=-1.8,
+            ),
+            row=2,
+            col=1,
+        )
+
+    rt_diff_values = [m["mean_rt_diff"] for m in all_metrics]
     fig.add_trace(
         go.Bar(
             x=subjects,
-            y=log_b_values,
-            name="反应偏向",
-            marker_color="lightblue",
-            text=[f"{v:.3f}" for v in log_b_values],
-            textposition="auto",
-        ),
-        row=1,
-        col=1,
-    )
-
-    # 图3: 对比参考
-    control_ref = np.mean(REFERENCE_VALUES["control"]["log_b"])
-    mdd_ref = np.mean(REFERENCE_VALUES["mdd"]["log_b"])
-    group_mean = np.mean(log_b_values)
-
-    fig.add_trace(
-        go.Bar(
-            x=["当前组", "文献对照组", "文献MDD组"],
-            y=[group_mean, control_ref, mdd_ref],
-            name="反应偏向比较",
-            marker_color=["blue", "green", "red"],
-            text=[f"{group_mean:.3f}", f"{control_ref:.3f}", f"{mdd_ref:.3f}"],
+            y=rt_diff_values,
+            name="反应时差异",
+            text=[f"{v:.3f}" for v in rt_diff_values],
             textposition="auto",
         ),
         row=1,
         col=2,
     )
+    fig.add_trace(
+        go.Box(
+            y=rt_diff_values,
+            name="反应时差异",
+            boxpoints="all",
+            jitter=0.3,
+            pointpos=-1.8,
+        ),
+        row=2,
+        col=2,
+    )
 
-    # # 图6: 指标分布箱形图
-    # for i, (metric, name) in enumerate(zip(key_metrics, metric_names)):
-    #     values = [m[metric] for m in all_metrics]
-    #     fig.add_trace(
-    #         go.Box(
-    #             y=values,
-    #             name=name,
-    #             boxpoints="all",
-    #             jitter=0.3,
-    #             pointpos=-1.8,
-    #             marker_color="lightblue",
-    #             showlegend=False,
-    #         ),
-    #         row=2,
-    #         col=3,
-    #     )
+    probs_keys = [
+        "mean_lean_miss_after_rewarded_rich",
+        "mean_lean_miss_after_nonrewarded_rich",
+        "mean_rich_miss_after_rewarded_rich",
+        "mean_rich_miss_after_rewarded_lean",
+    ]
+    probs_dicts = {
+        "mean_lean_miss_after_rewarded_rich": [],
+        "mean_lean_miss_after_nonrewarded_rich": [],
+        "mean_rich_miss_after_rewarded_rich": [],
+        "mean_rich_miss_after_rewarded_lean": [],
+    }
+    names = [
+        "前富奖励贫",
+        "前富不奖贫",
+        "前富奖励富",
+        "前贫奖励富",
+    ]
+
+    for key in probs_keys:
+        probs_dicts[key] = [m[key] for m in all_metrics]
+
+    for i, key in enumerate(probs_keys):
+        fig.add_trace(
+            go.Bar(
+                x=subjects,
+                y=probs_dicts[key],
+                name=names[i],
+                text=[f"{v:.3f}" for v in probs_dicts[key]],
+                textposition="auto",
+            ),
+            row=1,
+            col=3,
+        )
+        fig.add_trace(
+            go.Box(
+                y=probs_dicts[key],
+                name=names[i],
+                boxpoints="all",
+                jitter=0.3,
+                pointpos=-1.8,
+            ),
+            row=2,
+            col=3,
+        )
 
     fig.update_layout(
-        title=dict(
-            text="PRT组分析报告",
-            font=dict(size=22, family="Arial Black"),
-            x=0.5,
-        ),
         showlegend=True,
         template="plotly_white",
     )
@@ -1120,53 +1230,13 @@ def create_group_comparison_visualizations(
 
     # 创建图表
     fig = make_subplots(
-        rows=2,
-        cols=2,
-        subplot_titles=(
-            "1. 反应偏向(Log b)分布",
-            "2. 击中率差异分布",
-            "3. 反应时差异分布",
-            "4. 关键指标对比",
-        ),
-        specs=[
-            [{"type": "box"}, {"type": "box"}],
-            [{"type": "box"}, {"type": "bar"}],
-        ],
+        rows=1,
+        cols=1,
+        subplot_titles=("1. 关键指标对比",),
+        specs=[[{"type": "bar"}]],
         vertical_spacing=0.15,
         horizontal_spacing=0.2,
     )
-
-    # TODO: 这里
-    # 图1-3: 指标分布箱形图
-
-    # for i, (metric, name) in enumerate(zip(key_metrics, metric_names)):
-    # fig.add_trace(
-    # go.Box(
-    # y=control_values[metric],
-    # name="对照组",
-    # boxpoints="all",
-    # jitter=0.3,
-    # pointpos=-1.8,
-    # marker_color="lightgreen",
-    # showlegend=(i == 0),
-    # ),
-    # row=1,
-    # col=i + 1,
-    # )
-    #
-    # fig.add_trace(
-    # go.Box(
-    # y=experimental_values[metric],
-    # name="实验组",
-    # boxpoints="all",
-    # jitter=0.3,
-    # pointpos=-1.8,
-    # marker_color="lightcoral",
-    # showlegend=(i == 0),
-    # ),
-    # row=1,
-    # col=i + 1,
-    # )
 
     # 图4: 关键指标对比
     control_means = [np.mean(control_values[metric]) for metric in key_metrics]
@@ -1189,8 +1259,8 @@ def create_group_comparison_visualizations(
             error_y=dict(type="data", array=control_stds, visible=True),
             width=0.4,
         ),
-        row=2,
-        col=2,
+        row=1,
+        col=1,
     )
 
     fig.add_trace(
@@ -1202,11 +1272,11 @@ def create_group_comparison_visualizations(
             error_y=dict(type="data", array=experimental_stds, visible=True),
             width=0.4,
         ),
-        row=2,
-        col=2,
+        row=1,
+        col=1,
     )
 
-    fig.update_xaxes(ticktext=metric_names, tickvals=x_positions, row=2, col=1)
+    fig.update_xaxes(ticktext=metric_names, tickvals=x_positions, row=1, col=1)
 
     fig.update_layout(
         title=dict(
@@ -1303,12 +1373,6 @@ def run_group_prt_analysis(
     # 单样本t检验
     statistical_results = {}
 
-    key_metrics = [
-        "mean_log_b",
-        "mean_hit_rate_diff",
-        "mean_rt_diff",
-    ]
-
     for metric in key_metrics:
         # 获取当前组的指标值
         group_values = [m[metric] for m in group_metrics]
@@ -1317,14 +1381,12 @@ def run_group_prt_analysis(
             statistical_results[metric] = {"error": "样本量不足"}
             continue
 
-        if metric == "mean_log_b":
-            ref_value = np.mean(ref_values["log_b"])
+        if "log_b" in metric:
+            ref_value = ref_values[metric]
         elif metric == "mean_hit_rate_diff":
             ref_value = ref_values["rich_hit_rate"] - ref_values["lean_hit_rate"]
-        elif metric == "mean_rt_diff":
-            ref_value = 0  # 假设对照组和MDD组没有反应时差异
         else:
-            continue
+            ref_value = ref_values[metric[5:]]
 
         t_stat, p_value = stats.ttest_1samp(group_values, ref_value)
 

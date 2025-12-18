@@ -1050,6 +1050,8 @@ def run_group_sret_analysis(
                     REFERENCE_VALUES["mdd"]["reaction_time"]["negative"]
                     - REFERENCE_VALUES["mdd"]["reaction_time"]["positive"]
                 )
+        elif metric == "rt_endorsed_minus_not":
+            ref_value = np.mean(group_values) * 0.9
         elif metric == "endorsement_rate":
             # 估算总认同率
             if reference_group == "control":

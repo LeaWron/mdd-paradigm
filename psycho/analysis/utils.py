@@ -7,7 +7,7 @@ from typing import Any, Literal
 import numpy as np
 import pandas as pd
 import polars as pl
-import statsmodels.stats.power as smp  # 需要引入这个库
+import statsmodels.stats.power as smp
 from plotly import graph_objects as go
 from plotly.subplots import make_subplots
 from scipy import stats
@@ -638,7 +638,6 @@ def save_html_report(
     if descriptions is None:
         descriptions = [""] * len(figures)
 
-    # HTML Header
     html_content = [
         f"""
         <html>
@@ -646,28 +645,25 @@ def save_html_report(
             <title>{title}</title>
             <meta charset="utf-8" />
             <style>
-                body {{ font-family: Arial, sans-serif; margin: 40px; background-color: #f4f4f9; }}
-                .container {{ max-width: 1600px; margin: 0 auto; background: white; padding: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }}
-                h1 {{ text-align: center; color: #333; }}
-                .section {{ margin-bottom: 40px; border-bottom: 1px solid #eee; padding-bottom: 20px; }}
-                .desc {{ font-size: 1.1em; color: #666; margin-bottom: 15px; padding-left: 10px; border-left: 4px solid #007bff; }}
+                body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; background-color: #f8f9fa; color: #333; }}
+                .container {{ max-width: 1600px; margin: 0 auto; background: white; padding: 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 8px; }}
+                h1 {{ text-align: center; color: #2c3e50; margin-bottom: 30px; border-bottom: 2px solid #eaeaea; padding-bottom: 20px; }}
+                .section {{ margin-bottom: 60px; }}
+                .desc {{ font-size: 1.2em; color: #555; margin-bottom: 20px; padding: 10px 15px; border-left: 5px solid #007bff; background-color: #e9ecef; border-radius: 0 4px 4px 0; }}
+                .plot-wrapper {{ display: flex; justify-content: center; }}
+                .footer {{ text-align: center; margin-top: 50px; color: #aaa; font-size: 0.9em; }}
             </style>
         </head>
         <body>
             <div class="container">
                 <h1>{title}</h1>
-                <p style="text-align:center; color:#777;">Generated on {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
         """
     ]
 
-    # Stitch Figures
     for i, fig in enumerate(figures):
-        # 仅第一个图包含 plotly.js，后续图复用，减小文件体积
+        # 仅第一个图包含 plotly.js
         include_plotlyjs = "cdn" if i == 0 else False
-
-        # 获取 div string
         plot_html = fig.to_html(full_html=False, include_plotlyjs=include_plotlyjs)
-
         desc_html = (
             f'<div class="desc">{descriptions[i]}</div>' if descriptions[i] else ""
         )
@@ -675,13 +671,15 @@ def save_html_report(
         section_html = f"""
         <div class="section">
             {desc_html}
-            {plot_html}
+            <div class="plot-wrapper">
+                {plot_html}
+            </div>
         </div>
         """
         html_content.append(section_html)
 
-    # HTML Footer
-    html_content.append("""
+    html_content.append(f"""
+                <div class="footer">Generated on {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</div>
             </div>
         </body>
         </html>
@@ -707,8 +705,7 @@ def create_common_single_group_figures(
 
     # Figure 1: 统计表格 (统计检验结果 & 样本量计算)
     if statistical_results:
-        test_data = []
-        sample_size_data = []
+        sorted_data = []
         for metric, name in zip(key_metrics, metric_names):
             if (
                 metric in statistical_results
@@ -727,16 +724,16 @@ def create_common_single_group_figures(
                     effect_size_value = "N/A"
                 # 统计检验结果
 
-                test_data.append(
-                    [
-                        name,
-                        f"{result.get('test_type', 'N/A')}",
-                        f"{result.get('statistic', 'N/A'):.3f}",
-                        f"{result.get('p_value', 'N/A'):.4f}",
-                        effect_size_type,
-                        effect_size_value,
-                        f"{result.get('effect_size_desc', 'N/A')}",
-                    ]
+                sorted_data.append(
+                    {
+                        "name": name,
+                        "test_type": f"{result.get('test_type', 'N/A')}",
+                        "statistic": f"{result.get('statistic', 'N/A'):.3f}",
+                        "p_value": f"{result.get('p_value', 'N/A'):.4f}",
+                        "effect_size_type": effect_size_type,
+                        "effect_size_value": effect_size_value,
+                        "effect_size_desc": f"{result.get('effect_size_desc', 'N/A')}",
+                    }
                 )
 
                 # 样本量计算结果
@@ -746,18 +743,42 @@ def create_common_single_group_figures(
                 ):
                     effect_size_value = ""
                     if result.get("cohens_d") is not None:
-                        effect_size_value = f"d={result.get('cohens_d'):.3f}"
+                        effect_size_value = result.get("cohens_d")
                     elif result.get("eta_squared") is not None:
-                        effect_size_value = f"η²={result.get('eta_squared'):.3f}"
+                        effect_size_value = result.get("eta_squared")
 
-                    sample_size_data.append(
-                        [
-                            name,
-                            effect_size_value,
-                            f"{result['required_sample_size_per_group']}",
-                            f"{result.get('required_total_sample_size', 'N/A')}",
-                        ]
+                    sorted_data[-1].update(
+                        {
+                            "sort_effect_size_value": effect_size_value,
+                            "required_sample_size_per_group": f"{result['required_sample_size_per_group']}",
+                            "required_total_sample_size": f"{result.get('required_total_sample_size', 'N/A')}",
+                        }
                     )
+
+    sorted_data.sort(key=lambda x: (x["p_value"], abs(x["sort_effect_size_value"])))
+    test_data = [
+        [
+            item["name"],
+            item["test_type"],
+            item["statistic"],
+            item["p_value"],
+            item["effect_size_type"],
+            item["effect_size_value"],
+            item["effect_size_desc"],
+        ]
+        for item in sorted_data
+    ]
+
+    sample_size_data = [
+        [
+            item["name"],
+            item["effect_size_value"],
+            item["required_sample_size_per_group"],
+            item["required_total_sample_size"],
+        ]
+        for item in sorted_data
+        if item.get("required_sample_size_per_group")
+    ]
 
     fig_tables = make_subplots(
         rows=2,
@@ -808,7 +829,7 @@ def create_common_single_group_figures(
             col=1,
         )
 
-    fig_tables.update_layout(height=600, title_text="单组效应量-样本量表格")
+    fig_tables.update_layout(height=600, width=1600, title_text="单组效应量-样本量表格")
     figures.append(fig_tables)
 
     # Figure 2: 图表分析 (效应量分析 & 样本量需求曲线)
@@ -974,7 +995,7 @@ def create_common_single_group_figures(
     fig_charts.update_xaxes(title_text="效应量", row=1, col=2)
     fig_charts.update_yaxes(title_text="所需样本量", row=1, col=2)
 
-    fig_charts.update_layout(height=500, title_text="单组效应量-样本量图表")
+    fig_charts.update_layout(height=500, width=1600, title_text="单组效应量-样本量图表")
     figures.append(fig_charts)
 
     return figures
@@ -992,8 +1013,7 @@ def create_common_comparison_figures(
 
     # Figure 1: 统计表格 (统计检验结果 & 样本量计算)
     if comparison_results:
-        table_data = []
-        sample_size_data = []
+        sorted_data = []
         for metric, name in zip(key_metrics, metric_names):
             if metric in comparison_results:
                 result = comparison_results[metric]
@@ -1015,16 +1035,16 @@ def create_common_comparison_figures(
 
                 eff_mag = result.get("effect_size_desc", "N/A")
 
-                table_data.append(
-                    [
-                        name,
-                        f"{result.get('test_type', 'N/A')}",
-                        f"{stat_val:.3f}",
-                        f"{p_val:.4f}",
-                        effect_type,
-                        effect_size,
-                        f"{eff_mag}",
-                    ]
+                sorted_data.append(
+                    {
+                        "name": name,
+                        "test_type": f"{result.get('test_type', 'N/A')}",
+                        "statistic": f"{stat_val:.3f}",
+                        "p_value": f"{p_val:.4f}",
+                        "effect_type": effect_type,
+                        "effect_size": effect_size,
+                        "effect_size_desc": f"{eff_mag}",
+                    }
                 )
 
                 if (
@@ -1034,24 +1054,48 @@ def create_common_comparison_figures(
                     effect_size = ""
                     effect_type = ""
                     if result.get("cohens_d") is not None:
-                        effect_size = f"d={result.get('cohens_d'):.3f}"
+                        effect_size = result.get("cohens_d")
                         effect_type = "Cohen's d"
                     elif result.get("eta_squared") is not None:
-                        effect_size = f"η²={result.get('eta_squared'):.3f}"
+                        effect_size = result.get("eta_squared")
                         effect_type = "η²"
 
-                    sample_size_data.append(
-                        [
-                            name,
-                            effect_type,
-                            effect_size,
-                            f"{result['required_sample_size_per_group']}",
-                            f"{result.get('required_total_sample_size', 'N/A')}",
-                            f"{result.get('sample_size_power', 0.8):.2f}",
-                            f"{result.get('sample_size_alpha', 0.05):.3f}",
-                        ]
+                    sorted_data[-1].update(
+                        {
+                            "sort_effect_size": effect_size,
+                            "required_sample_size_per_group": f"{result['required_sample_size_per_group']}",
+                            "required_total_sample_size": f"{result.get('required_total_sample_size', 'N/A')}",
+                            "sample_size_power": f"{result.get('sample_size_power', 0.8):.2f}",
+                            "sample_size_alpha": f"{result.get('sample_size_alpha', 0.05):.3f}",
+                        }
                     )
 
+    sorted_data.sort(key=lambda x: (x["p_value"], x["sort_effect_size"]))
+    table_data = [
+        [
+            item["name"],
+            item["test_type"],
+            item["statistic"],
+            item["p_value"],
+            item["effect_type"],
+            item["effect_size"],
+            item["effect_size_desc"],
+        ]
+        for item in sorted_data
+    ]
+
+    sample_size_data = [
+        [
+            item["name"],
+            item["effect_type"],
+            item["effect_size"],
+            item["required_sample_size_per_group"],
+            item["required_total_sample_size"],
+            item["sample_size_power"],
+            item["sample_size_alpha"],
+        ]
+        for item in sorted_data
+    ]
     fig_tables = make_subplots(
         rows=2,
         cols=1,
@@ -1102,7 +1146,9 @@ def create_common_comparison_figures(
             col=1,
         )
 
-    fig_tables.update_layout(height=600, title_text="组间统计数据-样本量表格")
+    fig_tables.update_layout(
+        height=600, width=1600, title_text="组间统计数据-样本量表格"
+    )
     figures.append(fig_tables)
 
     # Figure 2: 图表分析 (样本量需求曲线 & 效应量vs样本量)
@@ -1237,7 +1283,7 @@ def create_common_comparison_figures(
     fig_charts.update_xaxes(title_text="效应量", row=1, col=1)
     fig_charts.update_yaxes(title_text="所需样本量", row=1, col=1)
 
-    fig_charts.update_layout(height=500, title_text="组间效应量-样本量图表")
+    fig_charts.update_layout(height=500, width=1600, title_text="组间效应量-样本量图表")
     figures.append(fig_charts)
 
     return figures

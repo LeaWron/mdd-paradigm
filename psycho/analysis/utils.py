@@ -1,4 +1,3 @@
-import math
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -8,6 +7,7 @@ from typing import Any, Literal
 import numpy as np
 import pandas as pd
 import polars as pl
+import statsmodels.stats.power as smp  # 需要引入这个库
 from plotly import graph_objects as go
 from plotly.subplots import make_subplots
 from scipy import stats
@@ -306,26 +306,15 @@ def calculate_sample_size(
     effect_size: float,
     alpha: float = 0.05,
     power: float = 0.8,
-    test_type: Literal["one_sample", "paired", "two_sample", "anova"] = "two_sample",
-    effect_size_type: Literal["cohens_d", "eta_squared"] = "cohens_d",
+    test_type: str = "two_sample",
+    effect_size_type: str = "cohens_d",
 ) -> dict[str, Any]:
     """
-    根据效应量计算所需样本量
-
-    Args:
-        effect_size: 效应量（Cohen's d 或 η²）
-        alpha: 显著性水平（默认0.05）
-        power: 统计功效（默认0.8）
-        test_type: 检验类型（"one_sample", "paired", "two_sample", "anova"）
-        effect_size_type: 效应量类型（"cohens_d" 或 "eta_squared"）
+    根据效应量计算所需样本量 (使用 statsmodels)
     """
-    # 计算Z分数
-    z_alpha = stats.norm.ppf(1 - alpha / 2)  # 双侧检验
-    z_beta = stats.norm.ppf(power)
-
-    # 对于eta_squared，需要转换为Cohen's f
+    # 1. 预处理效应量
+    # 你的代码里处理 eta_squared 的逻辑必须保留，因为 statsmodels 的 FTestAnovaPower 也是基于 Cohen's f 的
     if effect_size_type == "eta_squared":
-        # η² 转换为 Cohen's f: f = sqrt(η²/(1-η²))
         if effect_size >= 1 or effect_size <= 0:
             effect_size_f = 0
         else:
@@ -334,47 +323,90 @@ def calculate_sample_size(
     else:
         effect_size_used = effect_size
 
-    # 根据检验类型计算样本量
-    if test_type == "one_sample":
-        # 单样本t检验
-        n = int((z_alpha + z_beta) ** 2 / (effect_size_used**2))
-    elif test_type == "paired":
-        # 配对样本t检验
-        n = int((z_alpha + z_beta) ** 2 / (effect_size_used**2))
-    elif test_type == "two_sample":
-        # 独立样本t检验（每组样本量）
-        n_per_group = 2 * ((z_alpha + z_beta) ** 2) / (effect_size_used**2)
-        n_total = 2 * n_per_group
-        n = {
-            "per_group": n_per_group,
-            "total": n_total,
-            "per_group_rounded": int(np.ceil(n_per_group)),
-            "total_rounded": int(np.ceil(n_total)),
+    # 处理无效效应量
+    if not effect_size_used or effect_size_used <= 0:
+        return {
+            "required_n": 0,
+            "required_n_total": 0,
+            "power": power,
+            "alpha": alpha,
+            "effect_size_magnitude": "Undefined",
         }
-    elif test_type == "anova":
-        # 对于ANOVA，使用Cohen's f计算样本量
-        # 公式：n = (φ²/k) + 1，其中 φ = f * sqrt(n)
-        # 简化公式：n = ((z_alpha + z_beta)² / f²) * (k/(k-1))
-        # 这里我们假设两组比较
-        k = 2  # 组数
-        n_per_group = ((z_alpha + z_beta) ** 2) / (effect_size_used**2)
-        n_total = n_per_group * k
-        n = {
-            "per_group": n_per_group,
-            "total": n_total,
-            "per_group_rounded": int(np.ceil(n_per_group))
-            if n_per_group != float("inf")
-            else float("inf"),
-            "total_rounded": int(np.ceil(n_total))
-            if n_total != float("inf")
-            else float("inf"),
-        }
-    else:
-        raise ValueError(f"不支持的检验类型: {test_type}")
 
+    n_res = 0
+    n_total = 0
+
+    # 2. 调用 statsmodels 计算
+    try:
+        if test_type == "two_sample":
+            # 独立样本 t 检验
+            # ratio=1 表示两组样本量相等
+            solver = smp.TTestIndPower()
+            n_per_group = solver.solve_power(
+                effect_size=effect_size_used,
+                nobs1=None,
+                alpha=alpha,
+                power=power,
+                ratio=1.0,
+                alternative="two-sided",
+            )
+            n_res = int(np.ceil(n_per_group))
+            n_total = n_res * 2
+
+        elif test_type == "one_sample":
+            # 单样本 t 检验
+            solver = smp.TTestPower()
+            n = solver.solve_power(
+                effect_size=effect_size_used,
+                nobs=None,
+                alpha=alpha,
+                power=power,
+                alternative="two-sided",
+            )
+            n_res = int(np.ceil(n))
+            n_total = n_res
+
+        elif test_type == "paired":
+            # 配对样本 t 检验 (statsmodels 中通常复用 TTestPower，因为差异值的检验等同于单样本)
+            solver = smp.TTestPower()
+            n = solver.solve_power(
+                effect_size=effect_size_used,
+                nobs=None,
+                alpha=alpha,
+                power=power,
+                alternative="two-sided",
+            )
+            n_res = int(np.ceil(n))
+            n_total = n_res
+
+        elif test_type == "anova":
+            # One-way ANOVA
+            # 默认假设 k=2 (两组)，以保持和你之前的逻辑一致。如果是多组，这里应该通过参数传入 k。
+            k_groups = 2
+            solver = smp.FTestAnovaPower()
+            n_per_group = solver.solve_power(
+                effect_size=effect_size_used,
+                nobs=None,
+                alpha=alpha,
+                power=power,
+                k_groups=k_groups,
+            )
+            n_res = int(np.ceil(n_per_group))
+            n_total = n_res * k_groups
+
+        else:
+            print(f"警告: 未知的 test_type '{test_type}'，无法计算样本量")
+            n_res = 0
+            n_total = 0
+
+    except Exception as e:
+        print(f"计算样本量时出错: {e}")
+        n_res = 0
+        n_total = 0
+
+    # 3. 生成描述文本 (保持你原来的逻辑)
     effect_size_magnitude = ""
     if effect_size_type == "eta_squared":
-        # η² 的效应量标准
         if effect_size < 0.01:
             effect_size_magnitude = "可忽略 (Negligible)"
         elif effect_size < 0.06:
@@ -384,16 +416,17 @@ def calculate_sample_size(
         else:
             effect_size_magnitude = "大 (Large)"
     else:
-        # Cohen's d 的效应量标准
-        if abs(effect_size) < 0.2:
+        abs_d = abs(effect_size)
+        if abs_d < 0.2:
             effect_size_magnitude = "很小 (very small)"
-        elif abs(effect_size) < 0.5:
+        elif abs_d < 0.5:
             effect_size_magnitude = "小 (small)"
-        elif abs(effect_size) < 0.8:
+        elif abs_d < 0.8:
             effect_size_magnitude = "中等 (medium)"
         else:
             effect_size_magnitude = "大 (large)"
 
+    # 4. 返回结果
     return {
         "effect_size": effect_size,
         "effect_size_type": effect_size_type,
@@ -401,15 +434,10 @@ def calculate_sample_size(
         "alpha": alpha,
         "power": power,
         "test_type": test_type,
-        "required_n": n
-        if test_type != "two_sample" and test_type != "anova"
-        else n["per_group_rounded"],
-        "required_n_total": n["total_rounded"]
-        if test_type in ["two_sample", "anova"]
-        else None,
-        "z_alpha": z_alpha,
-        "z_beta": z_beta,
-        "formula_used": f"n = {2 if test_type in ['two_sample', 'anova'] else 1} * ((Z_α + Z_β)² / d²)",
+        "required_n": n_res,
+        "required_n_total": n_total,
+        # 移除了 z_alpha 和 z_beta，因为 statsmodels 使用的是更复杂的分布，不再单纯依赖 Z 分数
+        "formula_used": "statsmodels (Non-central t/F distribution)",
     }
 
 

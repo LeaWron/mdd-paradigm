@@ -85,6 +85,25 @@ def load_and_preprocess_data(df: pl.DataFrame) -> pl.DataFrame:
             ]
         )
 
+        # 添加强度等级划分
+        def get_intensity_level(label_intensity):
+            if label_intensity is None:
+                return None
+            if 1 <= label_intensity <= 3:
+                return "low"
+            elif 4 <= label_intensity <= 6:
+                return "mid"
+            elif 7 <= label_intensity <= 9:
+                return "high"
+            else:
+                return None
+
+        trials_df = trials_df.with_columns(
+            pl.col("label_intensity")
+            .map_elements(get_intensity_level, return_dtype=pl.Utf8, skip_nulls=False)
+            .alias("intensity_level")
+        )
+
         # [ ] 去除过大过小而不是强制转换
         trials_df = trials_df.with_columns(
             pl.when(pl.col("rt") < 0.1)
@@ -106,6 +125,122 @@ def load_and_preprocess_data(df: pl.DataFrame) -> pl.DataFrame:
     except Exception as e:
         print(f"❌ 数据加载错误: {e}")
         return None
+
+
+def calculate_intensity_distribution_metrics(trials_df: pl.DataFrame) -> dict[str, Any]:
+    """计算强度评分分布指标"""
+    metrics = {}
+
+    # 过滤非中性刺激（中性刺激通常没有强度评分）
+    intensity_trials = trials_df.filter(pl.col("stim_type") != "neutral")
+
+    if intensity_trials.height == 0:
+        metrics["has_intensity_data"] = False
+        return metrics
+
+    metrics["has_intensity_data"] = True
+
+    # 基本分布统计
+    intensity_values = intensity_trials["intensity"].drop_nulls().to_list()
+    label_intensity_values = intensity_trials["label_intensity"].drop_nulls().to_list()
+
+    if intensity_values:
+        metrics["intensity_distribution"] = {
+            "mean": float(np.mean(intensity_values)),
+            "std": float(np.std(intensity_values, ddof=1)),
+            "median": float(np.median(intensity_values)),
+            "min": float(np.min(intensity_values)),
+            "max": float(np.max(intensity_values)),
+            "n": len(intensity_values),
+        }
+
+    if label_intensity_values:
+        metrics["label_intensity_distribution"] = {
+            "mean": float(np.mean(label_intensity_values)),
+            "std": float(np.std(label_intensity_values, ddof=1)),
+            "median": float(np.median(label_intensity_values)),
+            "min": float(np.min(label_intensity_values)),
+            "max": float(np.max(label_intensity_values)),
+            "n": len(label_intensity_values),
+        }
+
+    # 按情绪类型的强度分布
+    intensity_by_emotion = (
+        intensity_trials.group_by("stim_type")
+        .agg(
+            [
+                pl.col("intensity").mean().alias("mean_intensity"),
+                pl.col("intensity").std().alias("std_intensity"),
+                pl.col("intensity").median().alias("median_intensity"),
+                pl.col("intensity").count().alias("n_trials"),
+                pl.col("label_intensity").mean().alias("mean_label_intensity"),
+                pl.col("label_intensity").std().alias("std_label_intensity"),
+            ]
+        )
+        .sort("stim_type")
+    )
+    metrics["intensity_by_emotion"] = intensity_by_emotion
+
+    # 强度差异分析（被试评分 vs 标签强度）
+    if len(intensity_values) > 0 and len(label_intensity_values) > 0:
+        # 计算差异
+        intensity_diffs = intensity_trials.with_columns(
+            (pl.col("intensity") - pl.col("label_intensity")).alias("intensity_diff"),
+            (pl.col("intensity") - pl.col("label_intensity"))
+            .abs()
+            .alias("abs_intensity_diff"),
+        )
+
+        diff_stats = intensity_diffs.select(
+            [
+                pl.col("intensity_diff").mean().alias("mean_diff"),
+                pl.col("intensity_diff").std().alias("std_diff"),
+                pl.col("abs_intensity_diff").mean().alias("mean_abs_diff"),
+                pl.col("abs_intensity_diff").std().alias("std_abs_diff"),
+                pl.col("intensity_diff").count().alias("n"),
+            ]
+        )
+
+        metrics["intensity_difference"] = {
+            "mean_diff": float(diff_stats["mean_diff"][0]),
+            "std_diff": float(diff_stats["std_diff"][0]),
+            "mean_abs_diff": float(diff_stats["mean_abs_diff"][0]),
+            "std_abs_diff": float(diff_stats["std_abs_diff"][0]),
+            "n": int(diff_stats["n"][0]),
+        }
+
+        # 按情绪类型的差异
+        diff_by_emotion = (
+            intensity_diffs.group_by("stim_type")
+            .agg(
+                [
+                    pl.col("intensity_diff").mean().alias("mean_diff"),
+                    pl.col("intensity_diff").std().alias("std_diff"),
+                    pl.col("abs_intensity_diff").mean().alias("mean_abs_diff"),
+                    pl.col("intensity_diff").count().alias("n"),
+                ]
+            )
+            .sort("stim_type")
+        )
+        metrics["intensity_diff_by_emotion"] = diff_by_emotion
+
+        # 强度相关性
+        corr_data = intensity_trials.filter(
+            pl.col("label_intensity").is_not_null() & pl.col("intensity").is_not_null()
+        )
+
+        if corr_data.height >= 3:
+            corr_df = corr_data.select(["label_intensity", "intensity"]).to_pandas()
+            corr, p_val = stats.pearsonr(
+                corr_df["label_intensity"], corr_df["intensity"]
+            )
+            metrics["intensity_correlation"] = {
+                "r": float(corr),
+                "p": float(p_val),
+                "n": len(corr_df),
+            }
+
+    return metrics
 
 
 def calculate_basic_metrics(trials_df: pl.DataFrame) -> dict[str, Any]:
@@ -149,51 +284,16 @@ def calculate_basic_metrics(trials_df: pl.DataFrame) -> dict[str, Any]:
     )
     metrics["reaction_time"] = rt_summary
 
+    # 计算强度评分分布指标
+    intensity_metrics = calculate_intensity_distribution_metrics(trials_df)
+    metrics.update(intensity_metrics)
+
     return metrics
 
 
 def calculate_intensity_metrics(trials_df: pl.DataFrame) -> dict[str, Any]:
     """计算强度指标和中性阈值"""
     metrics = {}
-
-    # 强度一致性分析（非中性刺激）
-    df_intensity = trials_df.filter(pl.col("stim_type") != "neutral").with_columns(
-        [
-            (pl.col("intensity") - pl.col("label_intensity")).alias("intensity_diff"),
-            (pl.col("intensity") - pl.col("label_intensity"))
-            .abs()
-            .alias("abs_intensity_diff"),
-        ]
-    )
-
-    if df_intensity.height > 0:
-        intensity_stats = df_intensity.group_by("stim_type").agg(
-            [
-                pl.col("intensity_diff").mean().alias("mean_diff"),
-                pl.col("intensity_diff").std().alias("std_diff"),
-                pl.col("abs_intensity_diff").mean().alias("mean_abs_diff"),
-                pl.col("label_intensity").mean().alias("mean_label_intensity"),
-            ]
-        )
-        metrics["intensity_stats"] = intensity_stats
-
-        # 强度相关性分析
-        intensity_corr_data = df_intensity.filter(
-            pl.col("label_intensity").is_not_null() & pl.col("intensity").is_not_null()
-        )
-
-        if intensity_corr_data.height >= 3:
-            corr_df = intensity_corr_data.select(
-                ["label_intensity", "intensity"]
-            ).to_pandas()
-            corr, p_val = stats.pearsonr(
-                corr_df["label_intensity"], corr_df["intensity"]
-            )
-            metrics["intensity_correlation"] = {
-                "r": corr,
-                "p": p_val,
-                "n": len(corr_df),
-            }
 
     # 中性阈值分析
     neutral_choices_by_stim = trials_df.filter(pl.col("choice_type") == "neutral")
@@ -258,13 +358,15 @@ def create_visualizations(
     key_metrics: dict[str, float],
     result_dir: Path,
 ) -> list[go.Figure]:
-    """可视化图表"""
+    """可视化图表 - 包含强度分布分析"""
     figs = []
+
+    # 原有的可视化图
     emotion_correct_pd = metrics["emotion_accuracy"].to_pandas()
     df_pd = trials_df.to_pandas()
 
-    df_intensity = trials_df.filter(pl.col("stim_type") != "neutral")
-    df_intensity_pd = df_intensity.to_pandas() if df_intensity.height > 0 else None
+    # df_intensity = trials_df.filter(pl.col("stim_type") != "neutral")
+    # df_intensity_pd = df_intensity.to_pandas() if df_intensity.height > 0 else None
 
     fig = make_subplots(
         rows=3,
@@ -273,16 +375,17 @@ def create_visualizations(
             "1. 情绪类型正确率对比",
             "2. 不同情绪类型的反应时分布",
             "3. 反应时与正确率的关系",
-            "4. 强度评分一致性",
+            "4. 分块正确率变化",
             "5. 中性阈值分析",
-            "6. 分块正确率变化",
-            "7. 关键指标总结",
-            "8. 速度-准确性权衡",
+            "6. 关键指标总结",
+            "7. 强度评分整体分布",
+            "8. 情绪强度评分对比",
+            "9. 速度-准确性权衡",
         ),
         specs=[
             [{"type": "bar"}, {"type": "box"}, {"type": "scatter"}],
-            [{"type": "scatter"}, {"type": "bar"}, {"type": "scatter"}],
-            [{"type": "table"}, None, {"type": "scatter"}],
+            [{"type": "scatter"}, {"type": "bar"}, {"type": "table"}],
+            [{"type": "histogram"}, {"type": "box"}, {"type": "scatter"}],
         ],
         vertical_spacing=0.1,
         horizontal_spacing=0.15,
@@ -329,7 +432,7 @@ def create_visualizations(
     fig.update_xaxes(title_text="情绪类型", row=1, col=2)
 
     # 图3: 反应时与正确率的关系
-    scatter_sample = df_pd.sample(frac=0.3, random_state=42)
+    scatter_sample = df_pd.sample(min(len(df_pd), 100), random_state=42)
     fig.add_trace(
         go.Scatter(
             x=scatter_sample["rt_clean"],
@@ -365,53 +468,23 @@ def create_visualizations(
     )
     fig.update_xaxes(title_text="反应时 (秒)", row=1, col=3)
 
-    # 图4: 强度评分一致性
-    if df_intensity_pd is not None and len(df_intensity_pd) > 0:
-        fig.add_trace(
-            go.Scatter(
-                x=df_intensity_pd["label_intensity"],
-                y=df_intensity_pd["intensity"],
-                mode="markers",
-                marker=dict(
-                    size=10,
-                    color=df_intensity_pd["stim_type"].map(
-                        {"positive": 0, "negative": 1}
-                    ),
-                    colorscale=["#00cc96", "#ef553b"],
-                    showscale=True,
-                    colorbar=dict(
-                        title=dict(text="情绪类型", side="top"),
-                        tickvals=[0, 1],
-                        ticktext=["积极", "消极"],
-                        len=0.1,
-                        y=0.5,
-                        x=1.1,
-                        thickness=15,
-                        orientation="h",
-                    ),
-                ),
-                text=df_intensity_pd["stim_type"],
-                hovertemplate="<b>标签强度</b>: %{x}<br><b>被试评分</b>: %{y}<br><b>类型</b>: %{text}<extra></extra>",
-                name="强度一致性",
-            ),
-            row=2,
-            col=1,
-        )
-        max_val = max(df_intensity_pd[["label_intensity", "intensity"]].max().max(), 9)
-        fig.add_trace(
-            go.Scatter(
-                x=[0, max_val],
-                y=[0, max_val],
-                mode="lines",
-                line=dict(dash="dash", color="gray"),
-                showlegend=False,
-                name="对角线",
-            ),
-            row=2,
-            col=1,
-        )
-    fig.update_xaxes(title_text="标签强度 (预设)", row=2, col=1)
-    fig.update_yaxes(title_text="被试评分强度", row=2, col=1)
+    # 图4: 分块正确率变化
+    block_correct_pd = metrics["block_accuracy"].to_pandas()
+    fig.add_trace(
+        go.Scatter(
+            x=block_correct_pd["block_index"],
+            y=block_correct_pd["correct_rate"],
+            mode="lines+markers",
+            marker=dict(size=12),
+            line=dict(width=3),
+            hovertemplate="<b>区块</b>: %{x}<br><b>正确率</b>: %{y:.1%}<extra></extra>",
+            name="分块正确率",
+        ),
+        row=2,
+        col=1,
+    )
+    fig.update_yaxes(range=[0, 1.05], title_text="正确率", row=2, col=1)
+    fig.update_xaxes(title_text="区块编号", row=2, col=1)
 
     # 图5: 中性阈值分析
     if "neutral_threshold_by_stimulus" in metrics:
@@ -436,25 +509,7 @@ def create_visualizations(
     fig.update_yaxes(title_text="被判断为中性的次数", row=2, col=2)
     fig.update_xaxes(title_text="刺激类型", row=2, col=2)
 
-    # 图6: 分块正确率变化
-    block_correct_pd = metrics["block_accuracy"].to_pandas()
-    fig.add_trace(
-        go.Scatter(
-            x=block_correct_pd["block_index"],
-            y=block_correct_pd["correct_rate"],
-            mode="lines+markers",
-            marker=dict(size=12),
-            line=dict(width=3),
-            hovertemplate="<b>区块</b>: %{x}<br><b>正确率</b>: %{y:.1%}<extra></extra>",
-            name="分块正确率",
-        ),
-        row=2,
-        col=3,
-    )
-    fig.update_yaxes(range=[0, 1.05], title_text="正确率", row=2, col=3)
-    fig.update_xaxes(title_text="区块编号", row=2, col=3)
-
-    # 图7: 关键指标总结表格
+    # 图6: 关键指标总结表格
     metrics_table = go.Table(
         header=dict(
             values=["指标", "值", "解释"], fill_color="lightblue", align="left"
@@ -488,7 +543,57 @@ def create_visualizations(
             ]
         ),
     )
-    fig.add_trace(metrics_table, row=3, col=1)
+    fig.add_trace(metrics_table, row=2, col=3)
+
+    # 图7: 强度评分整体分布
+    if metrics.get("has_intensity_data", False):
+        intensity_values = (
+            trials_df.filter(pl.col("stim_type") != "neutral")["intensity"]
+            .drop_nulls()
+            .to_list()
+        )
+        if intensity_values:
+            fig.add_trace(
+                go.Histogram(
+                    x=intensity_values,
+                    nbinsx=20,
+                    name="强度评分分布",
+                    marker_color="lightblue",
+                    opacity=0.7,
+                ),
+                row=3,
+                col=1,
+            )
+    fig.update_xaxes(title_text="强度评分", range=[0, 10], row=3, col=1)
+    fig.update_yaxes(title_text="频数", row=3, col=1)
+
+    # 图8: 情绪强度评分对比
+    if metrics.get("has_intensity_data", False):
+        for stim_type in ["positive", "negative"]:
+            stim_data = (
+                trials_df.filter(
+                    (pl.col("stim_type") == stim_type)
+                    & (pl.col("intensity").is_not_null())
+                )["intensity"]
+                .drop_nulls()
+                .to_list()
+            )
+            if stim_data:
+                fig.add_trace(
+                    go.Box(
+                        y=stim_data,
+                        name=stim_type,
+                        boxpoints="outliers",
+                        marker_color="#00cc96"
+                        if stim_type == "positive"
+                        else "#ef553b",
+                        showlegend=False,
+                    ),
+                    row=3,
+                    col=2,
+                )
+    fig.update_yaxes(title_text="强度评分", range=[0, 10], row=3, col=2)
+    fig.update_xaxes(title_text="情绪类型", row=3, col=2)
 
     # 图9: 速度-准确性权衡
     if "speed_accuracy_tradeoff" in stats_results:
@@ -524,10 +629,190 @@ def create_visualizations(
     html_path = result_dir / "emotion_face_visualization.html"
     fig.write_html(str(html_path))
 
+    figs.append(fig)
+
+    # 添加强度分布详细分析图
+    if metrics.get("has_intensity_data", False):
+        intensity_fig = make_subplots(
+            rows=2,
+            cols=2,
+            subplot_titles=(
+                "强度评分分布直方图",
+                "情绪类型强度对比",
+                "评分与标签强度一致性",
+                "强度差异分析",
+            ),
+            specs=[
+                [{"type": "histogram"}, {"type": "box"}],
+                [{"type": "scatter"}, {"type": "bar"}],
+            ],
+            vertical_spacing=0.15,
+            horizontal_spacing=0.1,
+        )
+
+        # 准备强度数据
+        intensity_trials = trials_df.filter(pl.col("stim_type") != "neutral")
+        intensity_pd = intensity_trials.to_pandas()
+
+        # 图1: 强度评分分布直方图
+        intensity_fig.add_trace(
+            go.Histogram(
+                x=intensity_pd["intensity"],
+                nbinsx=20,
+                name="强度评分分布",
+                marker_color="lightblue",
+                opacity=0.7,
+            ),
+            row=1,
+            col=1,
+        )
+        intensity_fig.update_xaxes(title_text="强度评分", range=[0, 10], row=1, col=1)
+        intensity_fig.update_yaxes(title_text="频数", row=1, col=1)
+
+        # 图2: 情绪类型强度对比箱线图
+        for stim_type in ["positive", "negative"]:
+            stim_data = intensity_pd[intensity_pd["stim_type"] == stim_type][
+                "intensity"
+            ]
+            if len(stim_data) > 0:
+                intensity_fig.add_trace(
+                    go.Box(
+                        y=stim_data,
+                        name=stim_type,
+                        boxpoints="outliers",
+                        marker_color="#00cc96"
+                        if stim_type == "positive"
+                        else "#ef553b",
+                        showlegend=False,
+                    ),
+                    row=1,
+                    col=2,
+                )
+        intensity_fig.update_yaxes(title_text="强度评分", range=[0, 10], row=1, col=2)
+        intensity_fig.update_xaxes(title_text="情绪类型", row=1, col=2)
+
+        # 图3: 评分与标签强度一致性散点图
+        if len(intensity_pd) > 0:
+            intensity_fig.add_trace(
+                go.Scatter(
+                    x=intensity_pd["label_intensity"],
+                    y=intensity_pd["intensity"],
+                    mode="markers",
+                    marker=dict(
+                        size=8,
+                        color=intensity_pd["stim_type"].map(
+                            {"positive": 0, "negative": 1}
+                        ),
+                        colorscale=["#00cc96", "#ef553b"],
+                        showscale=True,
+                        colorbar=dict(
+                            title="情绪类型",
+                            tickvals=[0, 1],
+                            ticktext=["积极", "消极"],
+                            len=0.4,
+                            y=0.3,
+                        ),
+                    ),
+                    name="评分 vs 标签",
+                    text=intensity_pd["stim_type"],
+                    hovertemplate="<b>标签强度</b>: %{x}<br><b>被试评分</b>: %{y}<br><b>情绪类型</b>: %{text}<extra></extra>",
+                ),
+                row=2,
+                col=1,
+            )
+
+            # 添加对角线
+            max_val = max(intensity_pd[["label_intensity", "intensity"]].max().max(), 9)
+            intensity_fig.add_trace(
+                go.Scatter(
+                    x=[0, max_val],
+                    y=[0, max_val],
+                    mode="lines",
+                    line=dict(dash="dash", color="gray", width=2),
+                    name="理想一致性线",
+                    showlegend=False,
+                ),
+                row=2,
+                col=1,
+            )
+
+            # 添加回归线
+            if len(intensity_pd) >= 2:
+                z = np.polyfit(
+                    intensity_pd["label_intensity"], intensity_pd["intensity"], 1
+                )
+                p = np.poly1d(z)
+                x_range = np.linspace(0, max_val, 100)
+                intensity_fig.add_trace(
+                    go.Scatter(
+                        x=x_range,
+                        y=p(x_range),
+                        mode="lines",
+                        line=dict(color="red", width=2),
+                        name="回归线",
+                        showlegend=False,
+                    ),
+                    row=2,
+                    col=1,
+                )
+
+        intensity_fig.update_xaxes(title_text="标签强度", range=[0, 10], row=2, col=1)
+        intensity_fig.update_yaxes(title_text="被试评分", range=[0, 10], row=2, col=1)
+
+        # 图4: 强度差异分析条形图
+        if "intensity_diff_by_emotion" in metrics:
+            diff_data = metrics["intensity_diff_by_emotion"].to_pandas()
+
+            for i, row in diff_data.iterrows():
+                intensity_fig.add_trace(
+                    go.Bar(
+                        x=[row["stim_type"]],
+                        y=[row["mean_diff"]],
+                        name=f"{row['stim_type']}差异",
+                        text=f"{row['mean_diff']:.2f}",
+                        textposition="auto",
+                        marker_color="#00cc96"
+                        if row["stim_type"] == "positive"
+                        else "#ef553b",
+                        error_y=dict(
+                            type="data", array=[row["std_diff"]], visible=True
+                        ),
+                        showlegend=False,
+                    ),
+                    row=2,
+                    col=2,
+                )
+
+            # 添加零线
+            intensity_fig.add_hline(
+                y=0, line_dash="dash", line_color="black", row=2, col=2
+            )
+
+        intensity_fig.update_yaxes(title_text="评分差异均值", row=2, col=2)
+        intensity_fig.update_xaxes(title_text="情绪类型", row=2, col=2)
+
+        intensity_fig.update_layout(
+            height=800,
+            width=1000,
+            title=dict(
+                text="面部情绪强度评分分布分析",
+                font=dict(size=20, family="Arial Black"),
+                x=0.5,
+            ),
+            showlegend=True,
+            template="plotly_white",
+            legend=dict(
+                orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+            ),
+        )
+
+        intensity_path = result_dir / "intensity_distribution_analysis.html"
+        intensity_fig.write_html(str(intensity_path))
+        figs.append(intensity_fig)
+
     if "neutral_threshold_by_stimulus" in metrics:
         create_neutral_threshold_visualization(metrics, result_dir)
 
-    figs.append(fig)
     return figs
 
 
@@ -617,6 +902,19 @@ def calculate_key_metrics(
     if "intensity_correlation" in metrics:
         key_metrics["intensity_correlation_r"] = metrics["intensity_correlation"]["r"]
 
+    # 强度分布指标
+    if "intensity_distribution" in metrics:
+        key_metrics["mean_intensity"] = metrics["intensity_distribution"]["mean"]
+        key_metrics["std_intensity"] = metrics["intensity_distribution"]["std"]
+
+    if "intensity_difference" in metrics:
+        key_metrics["mean_intensity_diff"] = metrics["intensity_difference"][
+            "mean_diff"
+        ]
+        key_metrics["mean_abs_intensity_diff"] = metrics["intensity_difference"][
+            "mean_abs_diff"
+        ]
+
     return key_metrics
 
 
@@ -672,11 +970,11 @@ def save_results(
             stats_df.to_csv(stats_path, index=False)
             saved_files["statistical_tests"] = stats_path
 
-    if "intensity_stats" in metrics:
-        intensity_df = metrics["intensity_stats"].to_pandas()
-        intensity_path = result_dir / "emotion_face_intensity_analysis.csv"
+    if "intensity_by_emotion" in metrics:
+        intensity_df = metrics["intensity_by_emotion"].to_pandas()
+        intensity_path = result_dir / "emotion_face_intensity_by_emotion.csv"
         intensity_df.to_csv(intensity_path, index=False)
-        saved_files["intensity_analysis"] = intensity_path
+        saved_files["intensity_by_emotion"] = intensity_path
 
     if "intensity_correlation" in metrics:
         corr_df = pd.DataFrame([metrics["intensity_correlation"]])
@@ -689,6 +987,27 @@ def save_results(
         threshold_path = result_dir / "emotion_face_neutral_threshold.csv"
         threshold_df.to_csv(threshold_path, index=False)
         saved_files["neutral_threshold"] = threshold_path
+
+    # 保存强度分布数据
+    if "intensity_distribution" in metrics:
+        intensity_dist_df = pd.DataFrame([metrics["intensity_distribution"]])
+        intensity_dist_path = result_dir / "emotion_face_intensity_distribution.csv"
+        intensity_dist_df.to_csv(intensity_dist_path, index=False)
+        saved_files["intensity_distribution"] = intensity_dist_path
+
+    if "intensity_difference" in metrics:
+        intensity_diff_df = pd.DataFrame([metrics["intensity_difference"]])
+        intensity_diff_path = result_dir / "emotion_face_intensity_difference.csv"
+        intensity_diff_df.to_csv(intensity_diff_path, index=False)
+        saved_files["intensity_difference"] = intensity_diff_path
+
+    if "intensity_diff_by_emotion" in metrics:
+        intensity_diff_emotion_df = metrics["intensity_diff_by_emotion"].to_pandas()
+        intensity_diff_emotion_path = (
+            result_dir / "emotion_face_intensity_diff_by_emotion.csv"
+        )
+        intensity_diff_emotion_df.to_csv(intensity_diff_emotion_path, index=False)
+        saved_files["intensity_diff_by_emotion"] = intensity_diff_emotion_path
 
     return saved_files
 
@@ -716,7 +1035,7 @@ def analyze_emotion_face_data(
     key_metrics = calculate_key_metrics(trials_df, metrics)
 
     # 6. 创建可视化
-    fig = create_visualizations(  # noqa: F841
+    figs = create_visualizations(  # noqa: F841
         trials_df, metrics, stats_results, key_metrics, result_dir
     )
 
@@ -735,6 +1054,7 @@ def analyze_emotion_face_data(
         "metrics": metrics,
         "statistical_results": stats_results,
         "saved_files": saved_files,
+        "trials_df": trials_df,  # 保存原始数据供组分析使用
     }
 
     print(f"\n✅ 分析完成！结果保存在: {result_dir}")
@@ -743,18 +1063,18 @@ def analyze_emotion_face_data(
 
 def create_group_comparison_visualizations_single_group(
     group_metrics: list[dict[str, float]],
+    group_trials: list[pl.DataFrame] = None,
+    group_name: str = None,
+    result_dir: Path = None,
 ) -> list[go.Figure]:
     """单个组的组分析可视化"""
-    # [ ], 这里的参数记得改
     figs = []
+
+    # 原有的组分析可视化
     fig = make_subplots(
         rows=2,
         cols=1,
-        subplot_titles=(
-            "1. 各被试总体正确率分布",
-            "3. 描述性统计",
-            # "6. 指标分布箱形图",
-        ),
+        subplot_titles=("1. 各被试总体正确率分布",),
         specs=[[{"type": "bar"}], [{"type": "table"}]],
         vertical_spacing=0.12,
         horizontal_spacing=0.08,
@@ -777,68 +1097,12 @@ def create_group_comparison_visualizations_single_group(
         col=1,
     )
 
-    metrics_df = pd.DataFrame(group_metrics)
-
-    # 图3: 描述性统计表格
-    descriptive_stats = []
-    for metric, name in zip(key_metrics, metric_names):
-        if metric in metrics_df.columns:
-            values = metrics_df[metric].dropna()
-            if len(values) > 0:
-                descriptive_stats.append(
-                    [
-                        name,
-                        f"{values.mean():.3f}",
-                        f"{values.std():.3f}",
-                        f"{values.min():.3f}",
-                        f"{values.max():.3f}",
-                        f"{len(values)}",
-                    ]
-                )
-
-    if descriptive_stats:
-        fig.add_trace(
-            go.Table(
-                header=dict(
-                    values=["指标", "均值", "标准差", "最小值", "最大值", "样本数"],
-                    fill_color="lightgreen",
-                    align="left",
-                    font=dict(size=10),
-                ),
-                cells=dict(
-                    values=np.array(descriptive_stats).T,
-                    fill_color="honeydew",
-                    align="left",
-                    font=dict(size=9),
-                ),
-                columnwidth=[0.2, 0.15, 0.15, 0.15, 0.15, 0.15],
-            ),
-            row=2,
-            col=1,
-        )
-
-    # 图6: 指标分布箱形图
-    # for i, (metric, name) in enumerate(zip(key_metrics_list, metric_names)):
-    #     if metric in metrics_df.columns:
-    #         values = [m[metric] for m in group_metrics if metric in m]
-    #         if values:
-    #             fig.add_trace(
-    #                 go.Box(
-    #                     y=values,
-    #                     name=name,
-    #                     boxpoints="all",
-    #                     jitter=0.3,
-    #                     pointpos=-1.8,
-    #                     marker_color="lightblue",
-    #                     showlegend=False,
-    #                 ),
-    #                 row=2,
-    #                 col=3,
-    #             )
 
     fig.update_layout(
         title=dict(
-            text="面部情绪识别组分析报告",
+            text=f"面部情绪识别{group_name}组分析报告"
+            if group_name
+            else "面部情绪识别组分析报告",
             font=dict(size=22, family="Arial Black"),
             x=0.5,
         ),
@@ -846,19 +1110,211 @@ def create_group_comparison_visualizations_single_group(
         template="plotly_white",
     )
 
-    # fig.write_html(str(result_dir / "emotion_face_group_analysis_report.html"))
-
     figs.append(fig)
+
+    # 添加强度分布可视化
+    if group_trials and len(group_trials) > 0:
+        # 合并所有被试的强度数据
+        all_intensity_data = []
+        for i, trials_df in enumerate(group_trials):
+            intensity_trials = trials_df.filter(
+                (pl.col("stim_type") != "neutral") & (pl.col("intensity").is_not_null())
+            )
+
+            if intensity_trials.height > 0:
+                df = intensity_trials.to_pandas()
+                df["subject_id"] = f"被试{i + 1}"
+                all_intensity_data.append(df)
+
+        if all_intensity_data:
+            combined_df = pd.concat(all_intensity_data, ignore_index=True)
+
+            # 创建组内强度分布分析图
+            intensity_fig = make_subplots(
+                rows=2,
+                cols=2,
+                subplot_titles=(
+                    "组内强度评分分布",
+                    "被试间强度对比",
+                    "情绪类型强度分布",
+                    "强度评分一致性分析",
+                ),
+                specs=[
+                    [{"type": "histogram"}, {"type": "box"}],
+                    [{"type": "box"}, {"type": "scatter"}],
+                ],
+                vertical_spacing=0.15,
+                horizontal_spacing=0.1,
+            )
+
+            # 图1: 组内强度评分分布直方图
+            intensity_fig.add_trace(
+                go.Histogram(
+                    x=combined_df["intensity"],
+                    nbinsx=20,
+                    name="组强度分布",
+                    marker_color="lightblue",
+                    opacity=0.7,
+                ),
+                row=1,
+                col=1,
+            )
+            intensity_fig.update_xaxes(
+                title_text="强度评分", range=[0, 10], row=1, col=1
+            )
+            intensity_fig.update_yaxes(title_text="频数", row=1, col=1)
+
+            # 图2: 被试间强度对比箱线图
+            subject_ids = combined_df["subject_id"].unique()
+            for subject_id in subject_ids:
+                subject_data = combined_df[combined_df["subject_id"] == subject_id][
+                    "intensity"
+                ]
+                if len(subject_data) > 0:
+                    intensity_fig.add_trace(
+                        go.Box(
+                            y=subject_data,
+                            name=subject_id,
+                            boxpoints="outliers",
+                            marker_color="lightblue",
+                            showlegend=False,
+                        ),
+                        row=1,
+                        col=2,
+                    )
+            intensity_fig.update_yaxes(
+                title_text="强度评分", range=[0, 10], row=1, col=2
+            )
+            intensity_fig.update_xaxes(title_text="被试", row=1, col=2)
+
+            # 图3: 情绪类型强度分布
+            for stim_type in ["positive", "negative"]:
+                stim_data = combined_df[combined_df["stim_type"] == stim_type][
+                    "intensity"
+                ]
+                if len(stim_data) > 0:
+                    intensity_fig.add_trace(
+                        go.Box(
+                            y=stim_data,
+                            name=stim_type,
+                            boxpoints="outliers",
+                            marker_color="#00cc96"
+                            if stim_type == "positive"
+                            else "#ef553b",
+                            showlegend=True,
+                        ),
+                        row=2,
+                        col=1,
+                    )
+            intensity_fig.update_yaxes(
+                title_text="强度评分", range=[0, 10], row=2, col=1
+            )
+            intensity_fig.update_xaxes(title_text="情绪类型", row=2, col=1)
+
+            # 图4: 强度评分一致性分析
+            if len(combined_df) > 0:
+                # 计算每个标签强度的平均评分
+                label_stats = (
+                    combined_df.groupby("label_intensity")
+                    .agg({"intensity": ["mean", "std", "count"]})
+                    .reset_index()
+                )
+                label_stats.columns = [
+                    "label_intensity",
+                    "mean_intensity",
+                    "std_intensity",
+                    "count",
+                ]
+
+                intensity_fig.add_trace(
+                    go.Scatter(
+                        x=label_stats["label_intensity"],
+                        y=label_stats["mean_intensity"],
+                        error_y=dict(
+                            type="data",
+                            array=label_stats["std_intensity"],
+                            visible=True,
+                        ),
+                        mode="lines+markers",
+                        name="平均评分",
+                        line=dict(width=3, color="blue"),
+                        marker=dict(size=10),
+                        text=[f"n={n}" for n in label_stats["count"]],
+                        hovertemplate="<b>标签强度</b>: %{x}<br><b>平均评分</b>: %{y:.2f}<br><b>标准差</b>: %{error_y.array}<br><b>试次数</b>: %{text}<extra></extra>",
+                    ),
+                    row=2,
+                    col=2,
+                )
+
+                # 添加对角线
+                max_val = max(
+                    label_stats["label_intensity"].max(),
+                    label_stats["mean_intensity"].max(),
+                    9,
+                )
+                intensity_fig.add_trace(
+                    go.Scatter(
+                        x=[0, max_val],
+                        y=[0, max_val],
+                        mode="lines",
+                        line=dict(dash="dash", color="gray", width=2),
+                        name="理想一致性线",
+                        showlegend=True,
+                    ),
+                    row=2,
+                    col=2,
+                )
+
+            intensity_fig.update_xaxes(
+                title_text="标签强度", range=[0, 10], row=2, col=2
+            )
+            intensity_fig.update_yaxes(
+                title_text="平均评分", range=[0, 10], row=2, col=2
+            )
+
+            intensity_fig.update_layout(
+                height=800,
+                width=1000,
+                title=dict(
+                    text=f"{group_name}组强度评分分布分析"
+                    if group_name
+                    else "组强度评分分布分析",
+                    font=dict(size=20, family="Arial Black"),
+                    x=0.5,
+                ),
+                showlegend=True,
+                template="plotly_white",
+                legend=dict(
+                    orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+                ),
+            )
+
+            figs.append(intensity_fig)
+
     return figs
 
 
 def create_group_comparison_visualizations(
     control_metrics: list[dict[str, float]],
     experimental_metrics: list[dict[str, float]],
+    control_trials: list[pl.DataFrame] = None,
+    experimental_trials: list[pl.DataFrame] = None,
+    control_name: str = "对照组",
+    experimental_name: str = "实验组",
 ) -> list[go.Figure]:
     """创建组间比较可视化"""
-
     figs = []
+
+    # 原有的组间比较可视化
+    fig = make_subplots(
+        rows=1,
+        cols=1,
+        subplot_titles=("关键指标对比",),
+        specs=[[{"type": "bar"}]],
+        vertical_spacing=0.15,
+        horizontal_spacing=0.2,
+    )
+
     # 准备数据
     control_values = {}
     experimental_values = {}
@@ -869,51 +1325,7 @@ def create_group_comparison_visualizations(
             m[metric] for m in experimental_metrics if metric in m
         ]
 
-    # 创建图表
-    fig = make_subplots(
-        rows=1,
-        cols=1,
-        subplot_titles=("3. 关键指标对比",),
-        specs=[[{"type": "bar"}]],
-        vertical_spacing=0.15,
-        horizontal_spacing=0.2,
-    )
-
-    # TODO: 这里实现
-    # 图1-3: 指标分布箱形图
-
-    # for i, (metric, name) in enumerate(zip(key_metrics, metric_names)):
-    #     print(f"row: {i // 2 + 1}, col: {i % 2 + 1}")
-    #     if metric in control_values and metric in experimental_values:
-    #         fig.add_trace(
-    #             go.Box(
-    #                 y=control_values[metric],
-    #                 name="对照组",
-    #                 boxpoints="all",
-    #                 jitter=0.3,
-    #                 pointpos=-1.8,
-    #                 marker_color="lightgreen",
-    #                 showlegend=(i == 0),
-    #             ),
-    #             row=i // 2 + 1,
-    #             col=i % 2 + 1,
-    #         )
-
-    #         fig.add_trace(
-    #             go.Box(
-    #                 y=experimental_values[metric],
-    #                 name="实验组",
-    #                 boxpoints="all",
-    #                 jitter=0.3,
-    #                 pointpos=-1.8,
-    #                 marker_color="lightcoral",
-    #                 showlegend=(i == 0),
-    #             ),
-    #             row=i // 2 + 1,
-    #             col=i % 2 + 1,
-    #         )
-
-    # 图4: 关键指标对比
+    # 关键指标对比
     control_means = []
     control_stds = []
     experimental_means = []
@@ -937,7 +1349,7 @@ def create_group_comparison_visualizations(
             go.Bar(
                 x=x_positions - 0.2,
                 y=control_means,
-                name="对照组",
+                name=control_name,
                 marker_color="green",
                 error_y=dict(type="data", array=control_stds, visible=True),
                 width=0.4,
@@ -950,7 +1362,7 @@ def create_group_comparison_visualizations(
             go.Bar(
                 x=x_positions + 0.2,
                 y=experimental_means,
-                name="实验组",
+                name=experimental_name,
                 marker_color="red",
                 error_y=dict(type="data", array=experimental_stds, visible=True),
                 width=0.4,
@@ -963,7 +1375,7 @@ def create_group_comparison_visualizations(
 
     fig.update_layout(
         title=dict(
-            text="面部情绪识别组间比较分析报告",
+            text=f"面部情绪识别{control_name}-{experimental_name}组间比较分析报告",
             font=dict(size=22, family="Arial Black"),
             x=0.5,
         ),
@@ -971,9 +1383,240 @@ def create_group_comparison_visualizations(
         template="plotly_white",
     )
 
-    # fig.write_html(str(result_dir / "emotion_face_group_comparison_report.html"))
-
     figs.append(fig)
+
+    # 添加强度分布比较可视化
+    if control_trials and experimental_trials:
+        # 准备数据
+        def prepare_group_data(trials_list, group_name):
+            all_data = []
+            for i, trials_df in enumerate(trials_list):
+                intensity_trials = trials_df.filter(
+                    (pl.col("stim_type") != "neutral")
+                    & (pl.col("intensity").is_not_null())
+                )
+
+                if intensity_trials.height > 0:
+                    df = intensity_trials.to_pandas()
+                    df["subject_id"] = f"被试{i + 1}"
+                    df["group"] = group_name
+                    all_data.append(df)
+
+            return (
+                pd.concat(all_data, ignore_index=True) if all_data else pd.DataFrame()
+            )
+
+        control_data = prepare_group_data(control_trials, control_name)
+        experimental_data = prepare_group_data(experimental_trials, experimental_name)
+
+        if not control_data.empty and not experimental_data.empty:
+            combined_data = pd.concat(
+                [control_data, experimental_data], ignore_index=True
+            )
+
+            # 创建组间强度比较图
+            intensity_fig = make_subplots(
+                rows=2,
+                cols=2,
+                subplot_titles=(
+                    "组间强度分布对比",
+                    "情绪类型组间强度对比",
+                    "强度评分准确性比较",
+                    "标签强度与评分关系",
+                ),
+                specs=[
+                    [{"type": "box"}, {"type": "box"}],
+                    [{"type": "bar"}, {"type": "scatter"}],
+                ],
+                vertical_spacing=0.15,
+                horizontal_spacing=0.1,
+            )
+
+            # 图1: 组间强度分布对比
+            for group in [control_name, experimental_name]:
+                group_data = combined_data[combined_data["group"] == group]["intensity"]
+                if len(group_data) > 0:
+                    intensity_fig.add_trace(
+                        go.Box(
+                            y=group_data,
+                            name=group,
+                            boxpoints="outliers",
+                            marker_color="lightgreen"
+                            if group == control_name
+                            else "lightcoral",
+                            showlegend=True,
+                        ),
+                        row=1,
+                        col=1,
+                    )
+            intensity_fig.update_yaxes(
+                title_text="强度评分", range=[0, 10], row=1, col=1
+            )
+            intensity_fig.update_xaxes(title_text="组别", row=1, col=1)
+
+            # 图2: 情绪类型组间强度对比
+            for i, stim_type in enumerate(["positive", "negative"], 1):
+                for group in [control_name, experimental_name]:
+                    group_stim_data = combined_data[
+                        (combined_data["group"] == group)
+                        & (combined_data["stim_type"] == stim_type)
+                    ]["intensity"]
+
+                    if len(group_stim_data) > 0:
+                        intensity_fig.add_trace(
+                            go.Box(
+                                y=group_stim_data,
+                                name=f"{group}-{stim_type}",
+                                boxpoints="outliers",
+                                marker_color="lightgreen"
+                                if group == control_name
+                                else "lightcoral",
+                                showlegend=(i == 1 and group == control_name),
+                            ),
+                            row=1,
+                            col=2,
+                        )
+            intensity_fig.update_yaxes(
+                title_text="强度评分", range=[0, 10], row=1, col=2
+            )
+            intensity_fig.update_xaxes(title_text="组别-情绪类型", row=1, col=2)
+
+            # 图3: 强度评分准确性比较
+            combined_data["intensity_diff"] = (
+                combined_data["intensity"] - combined_data["label_intensity"]
+            )
+
+            diff_stats = (
+                combined_data.groupby(["group", "stim_type"])
+                .agg({"intensity_diff": ["mean", "std", "count"]})
+                .reset_index()
+            )
+            diff_stats.columns = [
+                "group",
+                "stim_type",
+                "mean_diff",
+                "std_diff",
+                "count",
+            ]
+
+            for stim_type in ["positive", "negative"]:
+                for group in [control_name, experimental_name]:
+                    stats_row = diff_stats[
+                        (diff_stats["group"] == group)
+                        & (diff_stats["stim_type"] == stim_type)
+                    ]
+                    if not stats_row.empty:
+                        intensity_fig.add_trace(
+                            go.Bar(
+                                x=[f"{group}-{stim_type}"],
+                                y=[stats_row["mean_diff"].values[0]],
+                                name=f"{group}-{stim_type}",
+                                text=f"{stats_row['mean_diff'].values[0]:.2f}",
+                                textposition="auto",
+                                marker_color="lightgreen"
+                                if group == control_name
+                                else "lightcoral",
+                                error_y=dict(
+                                    type="data",
+                                    array=[stats_row["std_diff"].values[0]],
+                                    visible=True,
+                                ),
+                                showlegend=False,
+                            ),
+                            row=2,
+                            col=1,
+                        )
+
+            # 添加零线
+            intensity_fig.add_hline(
+                y=0, line_dash="dash", line_color="black", row=2, col=1
+            )
+            intensity_fig.update_yaxes(title_text="评分差异均值", row=2, col=1)
+            intensity_fig.update_xaxes(title_text="组别-情绪类型", row=2, col=1)
+
+            # 图4: 标签强度与评分关系
+            label_group_stats = (
+                combined_data.groupby(["label_intensity", "group"])
+                .agg({"intensity": ["mean", "std", "count"]})
+                .reset_index()
+            )
+            label_group_stats.columns = [
+                "label_intensity",
+                "group",
+                "mean_intensity",
+                "std_intensity",
+                "count",
+            ]
+
+            for group in [control_name, experimental_name]:
+                group_data = label_group_stats[label_group_stats["group"] == group]
+                if len(group_data) > 0:
+                    intensity_fig.add_trace(
+                        go.Scatter(
+                            x=group_data["label_intensity"],
+                            y=group_data["mean_intensity"],
+                            error_y=dict(
+                                type="data",
+                                array=group_data["std_intensity"],
+                                visible=True,
+                            ),
+                            mode="lines+markers",
+                            name=group,
+                            line=dict(
+                                width=3,
+                                color="green" if group == control_name else "red",
+                            ),
+                            marker=dict(size=10),
+                            text=[f"n={n}" for n in group_data["count"]],
+                            hovertemplate="<b>标签强度</b>: %{x}<br><b>平均评分</b>: %{y:.2f}<br><b>标准差</b>: %{error_y.array}<br><b>试次数</b>: %{text}<extra></extra>",
+                        ),
+                        row=2,
+                        col=2,
+                    )
+
+            # 添加对角线
+            max_val = max(
+                label_group_stats["label_intensity"].max(),
+                label_group_stats["mean_intensity"].max(),
+                9,
+            )
+            intensity_fig.add_trace(
+                go.Scatter(
+                    x=[0, max_val],
+                    y=[0, max_val],
+                    mode="lines",
+                    line=dict(dash="dash", color="gray", width=2),
+                    name="理想一致性线",
+                    showlegend=True,
+                ),
+                row=2,
+                col=2,
+            )
+
+            intensity_fig.update_xaxes(
+                title_text="标签强度", range=[0, 10], row=2, col=2
+            )
+            intensity_fig.update_yaxes(
+                title_text="平均评分", range=[0, 10], row=2, col=2
+            )
+
+            intensity_fig.update_layout(
+                height=800,
+                width=1000,
+                title=dict(
+                    text=f"{control_name} vs {experimental_name} 强度评分比较分析",
+                    font=dict(size=20, family="Arial Black"),
+                    x=0.5,
+                ),
+                showlegend=True,
+                template="plotly_white",
+                legend=dict(
+                    orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+                ),
+            )
+
+            figs.append(intensity_fig)
+
     return figs
 
 
@@ -1014,6 +1657,7 @@ def run_group_emotion_analysis(
 
     all_results = []
     group_metrics = []
+    all_trials = []  # 保存所有被试的trials_df
 
     for i, file_path in enumerate(data_files):
         print(f"分析被试 {i + 1}/{len(data_files)}: {file_path.name}")
@@ -1036,6 +1680,9 @@ def run_group_emotion_analysis(
             if result:
                 all_results.append(result)
                 group_metrics.append(result["key_metrics"])
+                # 保存trials_df供组分析使用
+                if "trials_df" in result:
+                    all_trials.append(result["trials_df"])
         except Exception as e:
             print(f"❌ 被试 {file_path.name} 分析出错: {e}")
 
@@ -1043,9 +1690,9 @@ def run_group_emotion_analysis(
 
     if len(all_results) < 2:
         print("⚠️ 被试数量不足，无法进行统计检验")
-        return {"all_results": all_results}
+        return {"all_results": all_results, "all_trials": all_trials}
 
-    # TODO: 没有参考值
+    # 统计检验
     statistical_results = {}
 
     for metric in key_metrics:
@@ -1085,13 +1732,16 @@ def run_group_emotion_analysis(
         effect_size_desc = f"{size} (d={cohens_d:.2f})"
 
         sample_size_info = {}
-        if cohens_d is not None:
-            sample_size_info = calculate_sample_size(
-                effect_size=abs(cohens_d),
-                alpha=0.05,
-                power=0.8,
-                test_type="one_sample",  # 假设未来进行两组比较
-            )
+        if cohens_d is not None and cohens_d != 0:
+            try:
+                sample_size_info = calculate_sample_size(
+                    effect_size=abs(cohens_d),
+                    alpha=0.05,
+                    power=0.8,
+                    test_type="one_sample",
+                )
+            except (OverflowError, ZeroDivisionError):
+                sample_size_info = {}
 
         statistical_results[metric] = {
             "group_mean": float(np.mean(group_values)),
@@ -1118,7 +1768,6 @@ def run_group_emotion_analysis(
         }
 
     all_metrics_df = pd.DataFrame([r["key_metrics"] for r in all_results])
-    # all_metrics_df.insert(0, "subject_id", [r["subject_id"] for r in all_results])
     all_metrics_df.to_csv(result_dir / "group_all_metrics.csv", index=False)
 
     group_mean_metrics = all_metrics_df.mean(numeric_only=True).to_dict()
@@ -1131,7 +1780,10 @@ def run_group_emotion_analysis(
 
     sample_size_data = []
     for metric, result in statistical_results.items():
-        if "required_sample_size_per_group" in result:
+        if (
+            "required_sample_size_per_group" in result
+            and result["required_sample_size_per_group"] is not None
+        ):
             sample_size_data.append(
                 {
                     "metric": metric,
@@ -1156,7 +1808,10 @@ def run_group_emotion_analysis(
         stats_test_df.to_csv(result_dir / "group_statistical_tests.csv")
 
     fig_spec = create_group_comparison_visualizations_single_group(
-        group_metrics,
+        group_metrics=group_metrics,
+        group_trials=all_trials,
+        group_name=group_name,
+        result_dir=result_dir,
     )
 
     fig_common = create_common_single_group_figures(
@@ -1166,9 +1821,11 @@ def run_group_emotion_analysis(
     figs = fig_spec + fig_common
     save_html_report(
         save_dir=result_dir,
-        save_name=f"emotion_face-{group_name}_group-analysis_report",
+        save_name=f"emotion_face-{group_name}_group-analysis_report"
+        if group_name
+        else "emotion_face_group-analysis_report",
         figures=figs,
-        title=f"面部情绪识别{group_name}组分析",
+        title=f"面部情绪识别{group_name}组分析" if group_name else "面部情绪识别组分析",
     )
 
     return {
@@ -1177,6 +1834,7 @@ def run_group_emotion_analysis(
         "statistical_results": statistical_results,
         "group_mean": group_mean_metrics,
         "group_std": group_std_metrics,
+        "all_trials": all_trials,
     }
 
 
@@ -1195,6 +1853,7 @@ def run_groups_emotion_analysis(
     )
     control_results = control_group_results["all_results"]
     control_metrics = control_group_results["group_metrics"]
+    control_trials = control_group_results.get("all_trials", [])
 
     experimental_name = groups[1] if groups and len(groups) > 1 else "experimental"
 
@@ -1203,6 +1862,7 @@ def run_groups_emotion_analysis(
     )
     experimental_results = experimental_group_results["all_results"]
     experimental_metrics = experimental_group_results["group_metrics"]
+    experimental_trials = experimental_group_results.get("all_trials", [])
 
     if len(control_results) < 2 or len(experimental_results) < 2:
         print("⚠️ 任一组被试数量不足，无法进行组间统计检验")
@@ -1227,29 +1887,19 @@ def run_groups_emotion_analysis(
 
     all_control_metrics_df = pd.DataFrame([r["key_metrics"] for r in control_results])
     all_control_metrics_df.insert(0, "group", control_name)
-    # all_control_metrics_df.insert(
-    #     1, "subject_id", [r["subject_id"] for r in control_results]
-    # )
 
     all_experimental_metrics_df = pd.DataFrame(
         [r["key_metrics"] for r in experimental_results]
     )
     all_experimental_metrics_df.insert(0, "group", experimental_name)
-    # all_experimental_metrics_df.insert(
-    #     1, "subject_id", [r["subject_id"] for r in experimental_results]
-    # )
 
     all_metrics_df = pd.concat(
         [all_control_metrics_df, all_experimental_metrics_df], ignore_index=True
     )
     all_metrics_df.to_csv(result_dir / "all_subjects_metrics.csv", index=False)
 
-    control_stats = all_control_metrics_df.drop(
-        columns=["group", "subject_id"]
-    ).describe()
-    experimental_stats = all_experimental_metrics_df.drop(
-        columns=["group", "subject_id"]
-    ).describe()
+    control_stats = all_control_metrics_df.drop(columns=["group"]).describe()
+    experimental_stats = all_experimental_metrics_df.drop(columns=["group"]).describe()
 
     control_stats.to_csv(result_dir / f"{control_name}_group_statistics.csv")
     experimental_stats.to_csv(result_dir / f"{experimental_name}_group_statistics.csv")
@@ -1284,7 +1934,12 @@ def run_groups_emotion_analysis(
         comparison_df.to_csv(result_dir / "group_comparisons.csv")
 
     fig_spec = create_group_comparison_visualizations(
-        control_metrics, experimental_metrics
+        control_metrics=control_metrics,
+        experimental_metrics=experimental_metrics,
+        control_trials=control_trials,
+        experimental_trials=experimental_trials,
+        control_name=control_name,
+        experimental_name=experimental_name,
     )
 
     fig_common = create_common_comparison_figures(

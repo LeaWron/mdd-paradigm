@@ -504,8 +504,9 @@ def create_visualizations(
     trend_results: dict[int, dict[str, Any]],
     key_metrics: dict[str, float],
     result_dir: Path,
-) -> go.Figure:
+) -> list[go.Figure]:
     """创建可视化图表"""
+    figs = []
     blocks = sorted(sdt_results.keys())
 
     fig = make_subplots(
@@ -906,8 +907,9 @@ def create_visualizations(
     html_path = result_dir / "prt_visualization.html"
 
     fig.write_html(str(html_path))
+    figs.append(fig)
 
-    return fig
+    return figs
 
 
 def save_results(
@@ -1076,10 +1078,12 @@ def analyze_prt_data(
 
 def create_group_comparison_visualizations_single_group(
     group_metrics: list[dict[str, float]],
-):
+) -> list[go.Figure]:
     """单个组的组分析可视化"""
 
     all_metrics = group_metrics
+
+    figs = []
 
     fig = make_subplots(
         rows=2,
@@ -1101,7 +1105,11 @@ def create_group_comparison_visualizations_single_group(
         horizontal_spacing=0.08,
     )
 
-    subjects = [f"被试{i + 1}" for i in range(len(all_metrics))]
+    subject_ids = [(int(m["subject_id"]), i) for i, m in enumerate(all_metrics)]
+    subject_ids.sort()
+    all_metrics = [all_metrics[m[1]] for m in subject_ids]
+
+    subjects = [f"s{m[0]}" for m in subject_ids]
 
     blocks = list(range(3))
     log_b_values = []
@@ -1214,7 +1222,8 @@ def create_group_comparison_visualizations_single_group(
 
     # 保存图表
     # fig.write_html(str(result_dir / "prt_group_analysis_report.html"))
-    return fig
+    figs.append(fig)
+    return figs
 
 
 def create_group_comparison_visualizations(
@@ -1347,6 +1356,7 @@ def run_group_prt_analysis(
                 result_dir=subject_result_dir,
             )
             result["subject_id"] = subject_id
+            result["key_metrics"]["subject_id"] = subject_id
 
             if result:
                 all_results.append(result)
@@ -1442,7 +1452,7 @@ def run_group_prt_analysis(
         }
 
     all_metrics_df = pd.DataFrame([r["key_metrics"] for r in all_results])
-    all_metrics_df.insert(0, "subject_id", [r["subject_id"] for r in all_results])
+    # all_metrics_df.insert(0, "subject_id", [r["subject_id"] for r in all_results])
     all_metrics_df.to_csv(result_dir / "group_all_metrics.csv", index=False)
 
     group_mean_metrics = all_metrics_df.mean(numeric_only=True).to_dict()
@@ -1485,7 +1495,7 @@ def run_group_prt_analysis(
         group_metrics, statistical_results, key_metrics, metric_names
     )
 
-    figs = [fig_spec] + fig_common
+    figs = fig_spec + fig_common
     save_html_report(
         result_dir,
         f"prt-{group_name}_group-analysis_report",
@@ -1550,17 +1560,17 @@ def run_groups_prt_analysis(
     # 保存所有被试的汇总指标
     all_control_metrics_df = pd.DataFrame([r["key_metrics"] for r in control_results])
     all_control_metrics_df.insert(0, "group", control_name)
-    all_control_metrics_df.insert(
-        1, "subject_id", [r["subject_id"] for r in control_results]
-    )
+    # all_control_metrics_df.insert(
+    #     1, "subject_id", [r["subject_id"] for r in control_results]
+    # )
 
     all_experimental_metrics_df = pd.DataFrame(
         [r["key_metrics"] for r in experimental_results]
     )
     all_experimental_metrics_df.insert(0, "group", experimental_name)
-    all_experimental_metrics_df.insert(
-        1, "subject_id", [r["subject_id"] for r in experimental_results]
-    )
+    # all_experimental_metrics_df.insert(
+    #     1, "subject_id", [r["subject_id"] for r in experimental_results]
+    # )
 
     all_metrics_df = pd.concat(
         [all_control_metrics_df, all_experimental_metrics_df], ignore_index=True

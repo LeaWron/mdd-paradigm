@@ -682,7 +682,10 @@ def create_common_single_group_figures(
         test_data = []
         sample_size_data = []
         for metric, name in zip(key_metrics, metric_names):
-            if metric in statistical_results:
+            if (
+                metric in statistical_results
+                and "error" not in statistical_results[metric]
+            ):
                 result = statistical_results[metric]
                 effect_size_value = ""
                 effect_size_type = ""
@@ -695,6 +698,7 @@ def create_common_single_group_figures(
                 else:
                     effect_size_value = "N/A"
                 # 统计检验结果
+
                 test_data.append(
                     [
                         name,

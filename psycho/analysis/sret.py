@@ -40,6 +40,8 @@ key_metrics = [
     "positive_bias",
     "rt_negative_minus_positive",
     "rt_endorsed_minus_not",
+    "positive_endorsement_rate",
+    "negative_endorsement_rate",
     "endorsement_rate",
 ]
 
@@ -47,7 +49,9 @@ metric_names = [
     "积极偏向(积极认可率-消极认可率)",
     "消极-积极RT差",
     "认同-不认同RT差",
-    "总认同率",
+    "积极认可率",
+    "消极认可率",
+    "总认可率",
 ]
 
 
@@ -113,9 +117,20 @@ def calculate_key_metrics_single(df: pl.DataFrame) -> dict[str, float]:
 
     total = df.height
     yes_count = df.filter(pl.col("response") == "yes").height
+    yes_pos_count = df.filter(
+        (pl.col("response") == "yes") & (pl.col("stim_type") == "positive")
+    ).height
+    yes_neg_count = df.filter(
+        (pl.col("response") == "yes") & (pl.col("stim_type") == "negative")
+    ).height
 
     endorsement_rate = yes_count / total if total > 0 else 0
+    positive_rate = yes_pos_count / total if total > 0 else 0
+    negative_rate = yes_neg_count / total if total > 0 else 0
+
     metrics["endorsement_rate"] = endorsement_rate
+    metrics["positive_endorsement_rate"] = positive_rate
+    metrics["negative_endorsement_rate"] = negative_rate
 
     # 按词性分组统计
     valence_stats = df.group_by("stim_type").agg(
@@ -248,7 +263,9 @@ def create_visualizations_single(
     metrics: dict[str, float],
     valence_results: dict[str, Any],
     result_dir: Path,
-) -> go.Figure:
+) -> list[go.Figure]:
+    figs = []
+
     fig = make_subplots(
         rows=2,
         cols=3,
@@ -504,11 +521,12 @@ def create_visualizations_single(
     )
 
     fig.write_html(str(result_dir / "sret_analysis_report.html"))
+    figs.append(fig)
 
-    return fig
+    return figs
 
 
-def save_results_single(
+def save_results(
     metrics: dict[str, float],
     valence_results: dict[str, Any],
     result_dir: Path,
@@ -553,10 +571,10 @@ def analyze_sret_data_single(
     rt_breakdown = analyze_reaction_time_breakdown(trials_df)
 
     # 5. 创建可视化
-    fig = create_visualizations_single(metrics, valence_results, result_dir)  # noqa: F841
+    figs = create_visualizations_single(metrics, valence_results, result_dir)  # noqa: F841
 
     # 6. 保存结果
-    save_results_single(metrics, valence_results, result_dir)
+    save_results(metrics, valence_results, result_dir)
 
     # 7. 生成报告
     results = {
@@ -579,99 +597,237 @@ def analyze_sret_data_single(
     return results
 
 
+# [ ] 各个词被认同和被不认同的次数(同时可以判断是否合适), 被认同的强度分布图
+# 也可以 csv 中体现
+# 应该是 group 的结果
 def create_group_comparison_visualizations_single_group(
     group_metrics: list[dict[str, float]],
-):
+) -> list[go.Figure]:
     """单个组的组分析可视化"""
 
     all_metrics = group_metrics
+    figs = []
 
-    fig = make_subplots(
-        rows=1,
-        cols=2,
+    fig_1 = make_subplots(
+        rows=2,
+        cols=3,
         subplot_titles=(
-            "1. 各被试积极偏向分布",
-            "3. 与文献对比",
-            # "6. 指标分布箱形图",
+            "1. 各被试积极偏向",
+            "2. 各被试消极积极反应差",
+            "3. 各被试认同不认同反应差",
+            "4. 积极偏向分布",
+            "5. 消极积极反应差分布",
+            "6. 认同不认同反应差分布",
         ),
         specs=[
-            [{"type": "bar"}, {"type": "scatter"}],
+            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],
+            [{"type": "box"}, {"type": "box"}, {"type": "box"}],
         ],
         vertical_spacing=0.12,
         horizontal_spacing=0.08,
     )
 
+    subject_ids = [(int(m["subject_id"]), i) for i, m in enumerate(all_metrics)]
+    subject_ids.sort()
+    all_metrics = [all_metrics[m[1]] for m in subject_ids]
+
+    subjects = [f"s{m[0]}" for m in subject_ids]
+
     # 图1: 各被试积极偏向分布
-    if "positive_bias" in all_metrics[0]:
-        bias_values = [m["positive_bias"] for m in all_metrics]
-        subjects = [f"被试{i + 1}" for i in range(len(all_metrics))]
+    bias_values = [m["positive_bias"] for m in all_metrics]
 
-        fig.add_trace(
-            go.Bar(
-                x=subjects,
-                y=bias_values,
-                name="积极偏向",
-                marker_color="lightblue",
-                text=[f"{v:.3f}" for v in bias_values],
-                textposition="auto",
-            ),
-            row=1,
-            col=1,
-        )
+    fig_1.add_trace(
+        go.Bar(
+            x=subjects,
+            y=bias_values,
+            name="积极偏向",
+            marker_color="lightblue",
+            text=[f"{v:.3f}" for v in bias_values],
+            textposition="auto",
+        ),
+        row=1,
+        col=1,
+    )
+    fig_1.add_trace(
+        go.Box(
+            y=bias_values,
+            name="积极偏向",
+            boxpoints="all",
+            jitter=0.3,
+            pointpos=-1.8,
+        ),
+        row=2,
+        col=1,
+    )
 
-    # 图3: 积极偏向对比参考
-    if "positive_bias" in all_metrics[0]:
-        hco_positive_rate = (
-            REFERENCE_VALUES["control"]["endorsement_count"]["positive"] / 40
-        )
-        hco_negative_rate = (
-            REFERENCE_VALUES["control"]["endorsement_count"]["negative"] / 40
-        )
-        hco_bias = hco_positive_rate - hco_negative_rate
+    # 图2: 各被试消极积极反应差分布
+    diff_values = [m["rt_negative_minus_positive"] for m in all_metrics]
 
-        mdd_positive_rate = (
-            REFERENCE_VALUES["mdd"]["endorsement_count"]["positive"] / 40
-        )
-        mdd_negative_rate = (
-            REFERENCE_VALUES["mdd"]["endorsement_count"]["negative"] / 40
-        )
-        mdd_bias = mdd_positive_rate - mdd_negative_rate
+    fig_1.add_trace(
+        go.Bar(
+            x=subjects,
+            y=diff_values,
+            name="消极-积极RT差",
+            marker_color="salmon",
+            text=[f"{v:.3f}" for v in diff_values],
+            textposition="auto",
+        ),
+        row=1,
+        col=2,
+    )
+    fig_1.add_trace(
+        go.Box(
+            y=diff_values,
+            name="消极-积极RT差",
+            boxpoints="all",
+            jitter=0.3,
+            pointpos=-1.8,
+        ),
+        row=2,
+        col=2,
+    )
 
-        group_mean = np.mean([m["positive_bias"] for m in all_metrics])
+    # 图3: 各被试认同不认同反应差分布
+    diff_values = [m["rt_endorsed_minus_not"] for m in all_metrics]
 
-        fig.add_trace(
-            go.Bar(
-                x=["当前组", "对照组", "mdd组"],
-                y=[group_mean, hco_bias, mdd_bias],
-                name="积极偏向比较",
-                marker_color=["blue", "green", "red"],
-                text=[f"{group_mean:.3f}", f"{hco_bias:.3f}", f"{mdd_bias:.3f}"],
-                textposition="auto",
-            ),
-            row=1,
-            col=2,
-        )
+    fig_1.add_trace(
+        go.Bar(
+            x=subjects,
+            y=diff_values,
+            name="认同-不认同RT差",
+            marker_color="mediumseagreen",
+            text=[f"{v:.3f}" for v in diff_values],
+            textposition="auto",
+        ),
+        row=1,
+        col=3,
+    )
+    fig_1.add_trace(
+        go.Box(
+            y=diff_values,
+            name="认同-不认同RT差",
+            boxpoints="all",
+            jitter=0.3,
+            pointpos=-1.8,
+        ),
+        row=2,
+        col=3,
+    )
 
     # 更新布局
-    fig.update_layout(
-        title=dict(
-            text="SRET组分析报告",
-            font=dict(size=22, family="Arial Black"),
-            x=0.5,
-        ),
+    fig_1.update_layout(
         showlegend=True,
         template="plotly_white",
     )
+    figs.append(fig_1)
 
+    fig_2 = make_subplots(
+        rows=2,
+        cols=3,
+        subplot_titles=(
+            "1. 各被试积极认可率",
+            "2. 各被试消极认可率",
+            "3. 各被试总认可率",
+            "4. 积极认可率分布",
+            "5. 消极认可率分布",
+            "6. 总认可率分布",
+        ),
+        specs=[
+            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],
+            [{"type": "box"}, {"type": "box"}, {"type": "box"}],
+        ],
+        vertical_spacing=0.12,
+        horizontal_spacing=0.08,
+    )
+
+    # 图1: 各被试积极认可率分布
+    positive_values = [m["positive_endorsement_rate"] for m in all_metrics]
+    fig_2.add_trace(
+        go.Bar(
+            x=subjects,
+            y=positive_values,
+            name="积极认可率",
+            marker_color="lightblue",
+            text=[f"{v:.3f}" for v in positive_values],
+            textposition="auto",
+        ),
+        row=1,
+        col=1,
+    )
+    fig_2.add_trace(
+        go.Box(
+            y=positive_values,
+            name="积极认可率",
+            boxpoints="all",
+            jitter=0.3,
+            pointpos=-1.8,
+        ),
+        row=2,
+        col=1,
+    )
+
+    # 图2: 各被试消极认可率分布
+    negative_values = [m["negative_endorsement_rate"] for m in all_metrics]
+    fig_2.add_trace(
+        go.Bar(
+            x=subjects,
+            y=negative_values,
+            name="消极认可率",
+            marker_color="salmon",
+            text=[f"{v:.3f}" for v in negative_values],
+            textposition="auto",
+        ),
+        row=1,
+        col=2,
+    )
+    fig_2.add_trace(
+        go.Box(
+            y=negative_values,
+            name="消极认可率",
+            boxpoints="all",
+            jitter=0.3,
+            pointpos=-1.8,
+        ),
+        row=2,
+        col=2,
+    )
+    # 图3: 各被试总认可率分布
+    total_values = [m["endorsement_rate"] for m in all_metrics]
+    fig_2.add_trace(
+        go.Bar(
+            x=subjects,
+            y=total_values,
+            name="总认可率",
+            marker_color="mediumseagreen",
+            text=[f"{v:.3f}" for v in total_values],
+            textposition="auto",
+        ),
+        row=1,
+        col=3,
+    )
+    fig_2.add_trace(
+        go.Box(
+            y=total_values,
+            name="总认可率",
+            boxpoints="all",
+            jitter=0.3,
+            pointpos=-1.8,
+        ),
+        row=2,
+        col=3,
+    )
+
+    figs.append(fig_2)
     # fig.write_html(str(result_dir / "sret_group_analysis_report.html"))
 
-    return fig
+    return figs
 
 
 def create_group_comparison_visualizations(
     control_metrics: list[dict[str, float]],
     experimental_metrics: list[dict[str, float]],
-):
+) -> list[go.Figure]:
+    figs = []
     control_values = {k: [] for k in control_metrics[0].keys()}
     experimental_values = {k: [] for k in experimental_metrics[0].keys()}
 
@@ -681,104 +837,85 @@ def create_group_comparison_visualizations(
 
     # 创建图表
     fig = make_subplots(
-        rows=2,
-        cols=2,
-        subplot_titles=(
-            "1. 积极偏向分布",
-            "2. 消极-积极RT差分布",
-            "3. 认同-不认同RT差分布",
-            "4. 关键指标对比",
-        ),
+        rows=3,
+        cols=1,
+        subplot_titles=("1. 积极偏向对比", "2. 反应差对比", "3. 认可率对比"),
         specs=[
-            [{"type": "box"}, {"type": "box"}],
-            [{"type": "box"}, {"type": "bar"}],
+            [{"type": "bar"}],
+            [{"type": "bar"}],
+            [{"type": "bar"}],
         ],
         vertical_spacing=0.12,
         horizontal_spacing=0.15,
     )
 
-    # TODO: 这里处理
-    # 图1-3: 指标分布箱形图
+    def type_metric_bar(type_metrics, type_metric_names, row, col):
+        control_means = []
+        control_stds = []
+        experimental_means = []
+        experimental_stds = []
+        valid_metrics = []
 
-    # for i, (metric, name) in enumerate(zip(key_metrics, metric_names)):
-    # if metric in control_values:
-    # fig.add_trace(
-    # go.Box(
-    # y=control_values[metric],
-    # name="对照组",
-    # boxpoints="all",
-    # jitter=0.3,
-    # pointpos=-1.8,
-    # marker_color="lightgreen",
-    # showlegend=(i == 0),
-    # ),
-    # row=1,
-    # col=i + 1,
-    # )
-    #
-    # fig.add_trace(
-    # go.Box(
-    # y=experimental_values[metric],
-    # name="实验组",
-    # boxpoints="all",
-    # jitter=0.3,
-    # pointpos=-1.8,
-    # marker_color="lightcoral",
-    # showlegend=(i == 0),
-    # ),
-    # row=1,
-    # col=i + 1,
-    # )
+        for metric, name in zip(type_metrics, type_metric_names):
+            if metric in control_values and metric in experimental_values:
+                control_means.append(np.mean(control_values[metric]))
+                control_stds.append(np.std(control_values[metric], ddof=1))
+                experimental_means.append(np.mean(experimental_values[metric]))
+                experimental_stds.append(np.std(experimental_values[metric], ddof=1))
+                valid_metrics.append(name)
 
-    # 图4: 关键指标对比
-    control_means = []
-    control_stds = []
-    experimental_means = []
-    experimental_stds = []
-    valid_metrics = []
+        if valid_metrics:
+            x_positions = np.arange(len(valid_metrics))
 
-    for metric, name in zip(key_metrics, metric_names):
-        if metric in control_values and metric in experimental_values:
-            control_means.append(np.mean(control_values[metric]))
-            control_stds.append(np.std(control_values[metric], ddof=1))
-            experimental_means.append(np.mean(experimental_values[metric]))
-            experimental_stds.append(np.std(experimental_values[metric], ddof=1))
-            valid_metrics.append(name)
+            fig.add_trace(
+                go.Bar(
+                    x=x_positions - 0.2,
+                    y=control_means,
+                    name="对照组",
+                    marker_color="green",
+                    error_y=dict(type="data", array=control_stds, visible=True),
+                    width=0.4,
+                    text=[f"{v:.3f}" for v in control_means],
+                    textposition="outside",
+                ),
+                row=row,
+                col=col,
+            )
 
-    if valid_metrics:
-        x_positions = np.arange(len(valid_metrics))
+            fig.add_trace(
+                go.Bar(
+                    x=x_positions + 0.2,
+                    y=experimental_means,
+                    name="实验组",
+                    marker_color="red",
+                    error_y=dict(type="data", array=experimental_stds, visible=True),
+                    width=0.4,
+                    text=[f"{v:.3f}" for v in experimental_means],
+                    textposition="outside",
+                ),
+                row=row,
+                col=col,
+            )
 
-        fig.add_trace(
-            go.Bar(
-                x=x_positions - 0.2,
-                y=control_means,
-                name="对照组",
-                marker_color="green",
-                error_y=dict(type="data", array=control_stds, visible=True),
-                width=0.4,
-                text=[f"{v:.3f}" for v in control_means],
-                textposition="outside",
-            ),
-            row=2,
-            col=2,
-        )
+            fig.update_xaxes(
+                ticktext=valid_metrics, tickvals=x_positions, row=row, col=col
+            )
 
-        fig.add_trace(
-            go.Bar(
-                x=x_positions + 0.2,
-                y=experimental_means,
-                name="实验组",
-                marker_color="red",
-                error_y=dict(type="data", array=experimental_stds, visible=True),
-                width=0.4,
-                text=[f"{v:.3f}" for v in experimental_means],
-                textposition="outside",
-            ),
-            row=2,
-            col=2,
-        )
+    positive_bias_metrics = ["positive_bias"]
+    positive_bias_names = ["积极偏向"]
+    type_metric_bar(positive_bias_metrics, positive_bias_names, 1, 1)
 
-        fig.update_xaxes(ticktext=valid_metrics, tickvals=x_positions, row=2, col=1)
+    rt_diff_metrics = ["rt_negative_minus_positive", "rt_endorsed_minus_not"]
+    rt_diff_names = ["消极-积极反应差", "认可-不认可反应差"]
+    type_metric_bar(rt_diff_metrics, rt_diff_names, 2, 1)
+
+    endorsement_rate_metrics = [
+        "endorsement_rate",
+        "positive_endorsement_rate",
+        "negative_endorsement_rate",
+    ]
+    endorsement_rate_names = ["总认可率", "积极认可率", "消极认可率"]
+    type_metric_bar(endorsement_rate_metrics, endorsement_rate_names, 3, 1)
 
     fig.update_layout(
         title=dict(
@@ -792,7 +929,8 @@ def create_group_comparison_visualizations(
 
     # fig.write_html(str(result_dir / "sret_group_comparison_report.html"))
 
-    return fig
+    figs.append(fig)
+    return figs
 
 
 def run_single_sret_analysis(file_path: Path, result_dir: Path = None):
@@ -852,6 +990,7 @@ def run_group_sret_analysis(
                 result_dir=subject_result_dir,
             )
             result["subject_id"] = subject_id
+            result["key_metrics"]["subject_id"] = subject_id
 
             if result:
                 all_results.append(result)
@@ -876,6 +1015,13 @@ def run_group_sret_analysis(
     # 单样本t检验
     statistical_results = {}
 
+    # ref value 计算
+    ctl_positive_endorsed = REFERENCE_VALUES["control"]["endorsement_count"]["positive"]
+    ctl_negative_endorsed = REFERENCE_VALUES["control"]["endorsement_count"]["negative"]
+
+    mdd_positive_endorsed = REFERENCE_VALUES["mdd"]["endorsement_count"]["positive"]
+    mdd_negative_endorsed = REFERENCE_VALUES["mdd"]["endorsement_count"]["negative"]
+
     for metric in key_metrics:
         # 获取当前组的指标值
         group_values = [m[metric] for m in group_metrics if metric in m]
@@ -886,20 +1032,12 @@ def run_group_sret_analysis(
 
         if metric == "positive_bias":
             if reference_group == "control":
-                positive_rate = (
-                    REFERENCE_VALUES["control"]["endorsement_count"]["positive"] / 40
-                )
-                negative_rate = (
-                    REFERENCE_VALUES["control"]["endorsement_count"]["negative"] / 40
-                )
+                positive_rate = ctl_positive_endorsed / 40
+                negative_rate = ctl_negative_endorsed / 40
                 ref_value = positive_rate - negative_rate
             else:
-                positive_rate = (
-                    REFERENCE_VALUES["mdd"]["endorsement_count"]["positive"] / 40
-                )
-                negative_rate = (
-                    REFERENCE_VALUES["mdd"]["endorsement_count"]["negative"] / 40
-                )
+                positive_rate = mdd_positive_endorsed / 40
+                negative_rate = mdd_negative_endorsed / 40
                 ref_value = positive_rate - negative_rate
         elif metric == "rt_negative_minus_positive":
             if reference_group == "control":
@@ -912,28 +1050,30 @@ def run_group_sret_analysis(
                     REFERENCE_VALUES["mdd"]["reaction_time"]["negative"]
                     - REFERENCE_VALUES["mdd"]["reaction_time"]["positive"]
                 )
-        elif metric == "rt_endorsed_minus_not":
-            ref_value = 0  # 假设没有差异
         elif metric == "endorsement_rate":
             # 估算总认同率
             if reference_group == "control":
-                positive_endorsed = REFERENCE_VALUES["control"]["endorsement_count"][
-                    "positive"
-                ]
-                negative_endorsed = REFERENCE_VALUES["control"]["endorsement_count"][
-                    "negative"
-                ]
+                positive_endorsed = ctl_positive_endorsed
+                negative_endorsed = ctl_negative_endorsed
                 ref_value = (positive_endorsed + negative_endorsed) / 80
             else:
-                positive_endorsed = REFERENCE_VALUES["mdd"]["endorsement_count"][
-                    "positive"
-                ]
-                negative_endorsed = REFERENCE_VALUES["mdd"]["endorsement_count"][
-                    "negative"
-                ]
+                positive_endorsed = mdd_positive_endorsed
+                negative_endorsed = mdd_negative_endorsed
                 ref_value = (positive_endorsed + negative_endorsed) / 80
-        else:
-            continue
+        elif metric == "positive_endorsement_rate":
+            if reference_group == "control":
+                positive_endorsed = ctl_positive_endorsed
+                ref_value = positive_endorsed / 40
+            else:
+                positive_endorsed = mdd_positive_endorsed
+                ref_value = positive_endorsed / 40
+        elif metric == "negative_endorsement_rate":
+            if reference_group == "control":
+                negative_endorsed = ctl_negative_endorsed
+                ref_value = negative_endorsed / 40
+            else:
+                negative_endorsed = mdd_negative_endorsed
+                ref_value = negative_endorsed / 40
 
         # 单样本t检验
         t_stat, p_value = stats.ttest_1samp(group_values, ref_value)
@@ -990,7 +1130,7 @@ def run_group_sret_analysis(
         }
 
     all_metrics_df = pd.DataFrame([r["key_metrics"] for r in all_results])
-    all_metrics_df.insert(0, "subject_id", [r["subject_id"] for r in all_results])
+    # all_metrics_df.insert(0, "subject_id", [r["subject_id"] for r in all_results])
     all_metrics_df.to_csv(result_dir / "group_all_metrics.csv", index=False)
 
     group_mean_metrics = all_metrics_df.mean(numeric_only=True).to_dict()
@@ -1033,7 +1173,7 @@ def run_group_sret_analysis(
         group_metrics, statistical_results, key_metrics, metric_names
     )
 
-    figs = [fig_spec] + fig_common
+    figs = fig_spec + fig_common
 
     save_html_report(
         result_dir,
@@ -1098,17 +1238,17 @@ def run_groups_sret_analysis(
 
     all_control_metrics_df = pd.DataFrame([r["key_metrics"] for r in control_results])
     all_control_metrics_df.insert(0, "group", control_name)
-    all_control_metrics_df.insert(
-        1, "subject_id", [r["subject_id"] for r in control_results]
-    )
+    # all_control_metrics_df.insert(
+    #     1, "subject_id", [r["subject_id"] for r in control_results]
+    # )
 
     all_experimental_metrics_df = pd.DataFrame(
         [r["key_metrics"] for r in experimental_results]
     )
     all_experimental_metrics_df.insert(0, "group", experimental_name)
-    all_experimental_metrics_df.insert(
-        1, "subject_id", [r["subject_id"] for r in experimental_results]
-    )
+    # all_experimental_metrics_df.insert(
+    #     1, "subject_id", [r["subject_id"] for r in experimental_results]
+    # )
 
     all_metrics_df = pd.concat(
         [all_control_metrics_df, all_experimental_metrics_df], ignore_index=True
@@ -1162,7 +1302,7 @@ def run_groups_sret_analysis(
         comparison_results, key_metrics, metric_names
     )
 
-    figs = [fig_spec] + fig_common
+    figs = fig_spec + fig_common
     save_html_report(
         save_dir=result_dir,
         save_name=f"sret-{control_name}_{experimental_name}_group-comparison_report",

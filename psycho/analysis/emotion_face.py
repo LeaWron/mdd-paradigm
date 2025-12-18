@@ -28,17 +28,40 @@ warnings.filterwarnings("ignore")
 
 key_metrics = [
     "overall_accuracy",
-    "median_rt",
     "positive_accuracy",
     "negative_accuracy",
     "neutral_accuracy",
+    "positive_low_rt",
+    "positive_mid_rt",
+    "positive_high_rt",
+    "negative_low_rt",
+    "negative_mid_rt",
+    "negative_high_rt",
+    "positive_low_acc",
+    "positive_mid_acc",
+    "positive_high_acc",
+    "negative_low_acc",
+    "negative_mid_acc",
+    "negative_high_acc",
 ]
+
 metric_names = [
     "总体正确率",
-    "中位反应时",
     "积极正确率",
     "消极正确率",
     "中性正确率",
+    "低积极反应时",
+    "中积极反应时",
+    "高积极反应时",
+    "低消极反应时",
+    "中消极反应时",
+    "高消极反应时",
+    "低积极正确率",
+    "中积极正确率",
+    "高积极正确率",
+    "低消极正确率",
+    "中消极正确率",
+    "高消极正确率",
 ]
 
 
@@ -86,6 +109,7 @@ def load_and_preprocess_data(df: pl.DataFrame) -> pl.DataFrame:
             ]
         )
 
+        # [ ] 去除过大过小而不是强制转换
         trials_df = trials_df.with_columns(
             pl.when(pl.col("rt") < 0.1)
             .then(0.1)
@@ -257,8 +281,9 @@ def create_visualizations(
     stats_results: dict[str, Any],
     key_metrics: dict[str, float],
     result_dir: Path,
-) -> go.Figure:
+) -> list[go.Figure]:
     """可视化图表"""
+    figs = []
     emotion_correct_pd = metrics["emotion_accuracy"].to_pandas()
     df_pd = trials_df.to_pandas()
 
@@ -269,20 +294,19 @@ def create_visualizations(
         rows=3,
         cols=3,
         subplot_titles=(
-            "1. 不同情绪类型的识别正确率",
+            "1. 情绪类型正确率对比",
             "2. 不同情绪类型的反应时分布",
             "3. 反应时与正确率的关系",
             "4. 强度评分一致性",
             "5. 中性阈值分析",
             "6. 分块正确率变化",
             "7. 关键指标总结",
-            "8. 情绪类型正确率对比",
-            "9. 速度-准确性权衡",
+            "8. 速度-准确性权衡",
         ),
         specs=[
             [{"type": "bar"}, {"type": "box"}, {"type": "scatter"}],
             [{"type": "scatter"}, {"type": "bar"}, {"type": "scatter"}],
-            [{"type": "table"}, {"type": "bar"}, {"type": "scatter"}],
+            [{"type": "table"}, None, {"type": "scatter"}],
         ],
         vertical_spacing=0.1,
         horizontal_spacing=0.15,
@@ -490,23 +514,6 @@ def create_visualizations(
     )
     fig.add_trace(metrics_table, row=3, col=1)
 
-    # 图8: 情绪类型正确率对比
-    # 使用之前的emotion_correct_pd数据
-    fig.add_trace(
-        go.Bar(
-            x=emotion_correct_pd["stim_type"],
-            y=emotion_correct_pd["correct_rate"],
-            name="各情绪类型正确率",
-            marker_color=["#636efa", "#00cc96", "#ef553b"],
-            text=[f"{rate:.1%}" for rate in emotion_correct_pd["correct_rate"]],
-            textposition="auto",
-        ),
-        row=3,
-        col=2,
-    )
-    fig.update_yaxes(range=[0, 1.05], title_text="正确率", row=3, col=2)
-    fig.update_xaxes(title_text="情绪类型", row=3, col=2)
-
     # 图9: 速度-准确性权衡
     if "speed_accuracy_tradeoff" in stats_results:
         speed_data = stats_results["speed_accuracy_tradeoff"]
@@ -544,7 +551,8 @@ def create_visualizations(
     if "neutral_threshold_by_stimulus" in metrics:
         create_neutral_threshold_visualization(metrics, result_dir)
 
-    return fig
+    figs.append(fig)
+    return figs
 
 
 def create_neutral_threshold_visualization(
@@ -759,9 +767,10 @@ def analyze_emotion_face_data(
 
 def create_group_comparison_visualizations_single_group(
     group_metrics: list[dict[str, float]],
-) -> go.Figure:
+) -> list[go.Figure]:
     """单个组的组分析可视化"""
     # [ ], 这里的参数记得改
+    figs = []
     fig = make_subplots(
         rows=2,
         cols=1,
@@ -863,15 +872,17 @@ def create_group_comparison_visualizations_single_group(
 
     # fig.write_html(str(result_dir / "emotion_face_group_analysis_report.html"))
 
-    return fig
+    figs.append(fig)
+    return figs
 
 
 def create_group_comparison_visualizations(
     control_metrics: list[dict[str, float]],
     experimental_metrics: list[dict[str, float]],
-) -> go.Figure:
+) -> list[go.Figure]:
     """创建组间比较可视化"""
 
+    figs = []
     # 准备数据
     control_values = {}
     experimental_values = {}
@@ -884,17 +895,10 @@ def create_group_comparison_visualizations(
 
     # 创建图表
     fig = make_subplots(
-        rows=2,
-        cols=2,
-        subplot_titles=(
-            "1. 正确率分布",
-            "2. 反应时分布",
-            "3. 关键指标对比",
-        ),
-        specs=[
-            [{"type": "box"}, {"type": "box"}],
-            [{"type": "bar"}, {"type": "bar"}],
-        ],
+        rows=1,
+        cols=1,
+        subplot_titles=("3. 关键指标对比",),
+        specs=[[{"type": "bar"}]],
         vertical_spacing=0.15,
         horizontal_spacing=0.2,
     )
@@ -962,7 +966,7 @@ def create_group_comparison_visualizations(
                 error_y=dict(type="data", array=control_stds, visible=True),
                 width=0.4,
             ),
-            row=2,
+            row=1,
             col=1,
         )
 
@@ -975,11 +979,11 @@ def create_group_comparison_visualizations(
                 error_y=dict(type="data", array=experimental_stds, visible=True),
                 width=0.4,
             ),
-            row=2,
+            row=1,
             col=1,
         )
 
-        fig.update_xaxes(ticktext=valid_names, tickvals=x_positions, row=2, col=1)
+        fig.update_xaxes(ticktext=valid_names, tickvals=x_positions, row=1, col=1)
 
     fig.update_layout(
         title=dict(
@@ -993,7 +997,8 @@ def create_group_comparison_visualizations(
 
     # fig.write_html(str(result_dir / "emotion_face_group_comparison_report.html"))
 
-    return fig
+    figs.append(fig)
+    return figs
 
 
 def run_single_emotion_analysis(file_path: Path, result_dir: Path = None):
@@ -1050,6 +1055,7 @@ def run_group_emotion_analysis(
                 result_dir=subject_result_dir,
             )
             result["subject_id"] = subject_id
+            result["key_metrics"]["subject_id"] = subject_id
 
             if result:
                 all_results.append(result)
@@ -1136,7 +1142,7 @@ def run_group_emotion_analysis(
         }
 
     all_metrics_df = pd.DataFrame([r["key_metrics"] for r in all_results])
-    all_metrics_df.insert(0, "subject_id", [r["subject_id"] for r in all_results])
+    # all_metrics_df.insert(0, "subject_id", [r["subject_id"] for r in all_results])
     all_metrics_df.to_csv(result_dir / "group_all_metrics.csv", index=False)
 
     group_mean_metrics = all_metrics_df.mean(numeric_only=True).to_dict()
@@ -1181,7 +1187,7 @@ def run_group_emotion_analysis(
         group_metrics, statistical_results, key_metrics, metric_names
     )
 
-    figs = [fig_spec] + fig_common
+    figs = fig_spec + fig_common
     save_html_report(
         save_dir=result_dir,
         save_name=f"emotion_face-{group_name}_group-analysis_report",
@@ -1245,17 +1251,17 @@ def run_groups_emotion_analysis(
 
     all_control_metrics_df = pd.DataFrame([r["key_metrics"] for r in control_results])
     all_control_metrics_df.insert(0, "group", control_name)
-    all_control_metrics_df.insert(
-        1, "subject_id", [r["subject_id"] for r in control_results]
-    )
+    # all_control_metrics_df.insert(
+    #     1, "subject_id", [r["subject_id"] for r in control_results]
+    # )
 
     all_experimental_metrics_df = pd.DataFrame(
         [r["key_metrics"] for r in experimental_results]
     )
     all_experimental_metrics_df.insert(0, "group", experimental_name)
-    all_experimental_metrics_df.insert(
-        1, "subject_id", [r["subject_id"] for r in experimental_results]
-    )
+    # all_experimental_metrics_df.insert(
+    #     1, "subject_id", [r["subject_id"] for r in experimental_results]
+    # )
 
     all_metrics_df = pd.concat(
         [all_control_metrics_df, all_experimental_metrics_df], ignore_index=True
@@ -1309,7 +1315,7 @@ def run_groups_emotion_analysis(
         comparison_results, key_metrics, metric_names
     )
 
-    figs = [fig_spec] + fig_common
+    figs = fig_spec + fig_common
     save_html_report(
         save_dir=result_dir,
         save_name=f"emotion_face-{control_name}_{experimental_name}_group-comparison_report",

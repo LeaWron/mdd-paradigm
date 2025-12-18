@@ -871,37 +871,41 @@ def create_common_single_group_figures(
 
     # 效应量 Bar
     if statistical_results:
-        effect_sizes = []
-        metrics_names = []
-        effect_size_types = []
-        hover_texts = []
-
         upper_bonud = 1.0
         lower_bound = 0.1
-        sample_sizes = []
+
+        sorted_data = []
 
         for metric, name in zip(key_metrics, metric_names):
             if metric in statistical_results:
                 result = statistical_results[metric]
                 # 效应量分析
                 if result.get("eta_squared") is not None:
-                    effect_sizes.append(result["eta_squared"])
-                    metrics_names.append(name.split("(")[0].strip())
-                    effect_size_types.append("η²")
-                    hover_texts.append(f"{name}<br>η² = {result['eta_squared']:.3f}")
+                    sorted_data.append(
+                        {
+                            "name": name.split("(")[0].strip(),
+                            "effect_size_type": "η²",
+                            "effect_size_value": result["eta_squared"],
+                            "hover_text": f"{name}<br>η² = {result['eta_squared']:.3f}",
+                        }
+                    )
                 elif result.get("cohens_d") is not None:
-                    effect_sizes.append(abs(result["cohens_d"]))
-                    metrics_names.append(name.split("(")[0].strip())
-                    effect_size_types.append("d")
-                    hover_texts.append(
-                        f"{name}<br>Cohen's d = {abs(result['cohens_d']):.3f}"
+                    sorted_data.append(
+                        {
+                            "name": name.split("(")[0].strip(),
+                            "effect_size_type": "d",
+                            "effect_size_value": abs(result["cohens_d"]),
+                            "hover_text": f"{name}<br>Cohen's d = {abs(result['cohens_d']):.3f}",
+                        }
                     )
                     upper_bonud = max(upper_bonud, abs(result["cohens_d"]))
-                lower_bound = min(lower_bound, abs(effect_sizes[-1]))
+                lower_bound = min(
+                    lower_bound, abs(sorted_data[-1]["effect_size_value"])
+                )
 
                 # 计算样本量
-                effect_size = effect_sizes[-1]
-                effect_type = effect_size_types[-1]
+                effect_size = sorted_data[-1]["effect_size_value"]
+                effect_type = sorted_data[-1]["effect_size_type"]
 
                 if effect_type == "η²":
                     sample_size = calculate_sample_size(
@@ -913,10 +917,11 @@ def create_common_single_group_figures(
                     sample_size = calculate_sample_size(
                         effect_size, test_type="one_sample"
                     )["required_n"]
-                sample_sizes.append(sample_size)
+                sorted_data[-1]["hover_text"] += f"<br>样本量 = {sample_size:.0f}"
+                sorted_data[-1].update({"sample_size": sample_size})
 
         # 样本量需求曲线
-        if len(sample_sizes):
+        if len(sorted_data):
             # Cohen's d && η²
             d_effect_sizes = np.linspace(lower_bound, upper_bonud, 100)
 
@@ -928,14 +933,7 @@ def create_common_single_group_figures(
                 )["required_n"]
                 d_sample_sizes.append(sample_size)
 
-                # 单组不太会有这种情况
-                # if d_effect_size <= 1.0:
-                #     sample_size = calculate_sample_size(
-                #         d_effect_size,
-                #         test_type="anova",
-                #         effect_size_type="eta_squared",
-                #     )["required_n"]
-                #     eta_sample_sizes.append(sample_size)
+                # 单组不太会有eta这种情况
 
             fig_charts.add_trace(
                 go.Scatter(
@@ -943,7 +941,7 @@ def create_common_single_group_figures(
                     y=d_sample_sizes,
                     mode="lines",
                     name="样本量需求曲线(Cohen's d)",
-                    line=dict(width=3, color="red"),
+                    line=dict(width=3, color="blue"),
                     fill="tozeroy",
                     fillcolor="rgba(255, 0, 0, 0.2)",
                 ),
@@ -951,20 +949,12 @@ def create_common_single_group_figures(
                 col=2,
             )
 
-            # fig_charts.add_trace(
-            #     go.Scatter(
-            #         x=d_effect_sizes,
-            #         y=eta_sample_sizes,
-            #         mode="lines",
-            #         name="样本量需求曲线(η²)",
-            #         line=dict(width=3, color="blue"),
-            #         fill="tozeroy",
-            #         fillcolor="rgba(0, 0, 255, 0.2)",
-            #     ),
-            #     row=1,
-            #     col=2,
-            # )
-
+    sorted_data.sort(key=lambda x: x["effect_size_value"])
+    effect_sizes = [d["effect_size_value"] for d in sorted_data]
+    sample_sizes = [d["sample_size"] for d in sorted_data]
+    metrics_names = [d["name"] for d in sorted_data]
+    # effect_size_types = [d["effect_size_type"] for d in sorted_data]
+    hover_texts = [d["hover_text"] for d in sorted_data]
     if effect_sizes:
         fig_charts.add_trace(
             go.Scatter(
@@ -972,6 +962,8 @@ def create_common_single_group_figures(
                 y=sample_sizes,
                 mode="markers",
                 name="效应量",
+                hovertext=hover_texts,
+                hoverinfo="text",
                 marker=dict(size=15, color="red", symbol="diamond"),
             ),
             row=1,
@@ -1070,7 +1062,7 @@ def create_common_comparison_figures(
                         }
                     )
 
-    sorted_data.sort(key=lambda x: (x["p_value"], x["sort_effect_size"]))
+    sorted_data.sort(key=lambda x: (x["p_value"], abs(x["sort_effect_size"])))
     table_data = [
         [
             item["name"],
@@ -1160,36 +1152,50 @@ def create_common_comparison_figures(
     )
 
     if comparison_results:
-        effect_sizes = []
-        metrics_names = []
-        effect_size_types = []
-        hover_texts = []
-
         upper_bonud = 1.0
         lower_bound = 0.1
-        sample_sizes = []
+
+        sorted_data = []
 
         for metric, name in zip(key_metrics, metric_names):
             if metric in comparison_results:
                 result = comparison_results[metric]
                 if result.get("eta_squared") is not None:
-                    effect_sizes.append(abs(result.get("eta_squared")))
-                    metrics_names.append(name)
-                    effect_size_types.append("η²")
-                    hover_texts.append(f"{name}<br>η²={result.get('eta_squared'):.3f}")
+                    # effect_sizes.append(abs(result.get("eta_squared")))
+                    # metrics_names.append(name)
+                    # effect_size_types.append("η²")
+                    # hover_texts.append(f"{name}<br>η²={result.get('eta_squared'):.3f}")
+                    sorted_data.append(
+                        {
+                            "name": name,
+                            "effect_size_value": abs(result.get("eta_squared")),
+                            "effect_size_type": "η²",
+                            "hover_text": f"{name}<br>η²={result.get('eta_squared'):.3f}",
+                        }
+                    )
                 elif result.get("cohens_d") is not None:
-                    effect_sizes.append(abs(result.get("cohens_d")))
-                    metrics_names.append(name)
-                    effect_size_types.append("Cohen's d")
-                    hover_texts.append(
-                        f"{name}<br>Cohen's d={result.get('cohens_d'):.3f}"
+                    # effect_sizes.append(abs(result.get("cohens_d")))
+                    # metrics_names.append(name)
+                    # effect_size_types.append("Cohen's d")
+                    # hover_texts.append(
+                    #     f"{name}<br>Cohen's d={result.get('cohens_d'):.3f}"
+                    # )
+                    sorted_data.append(
+                        {
+                            "name": name,
+                            "effect_size_value": abs(result.get("cohens_d")),
+                            "effect_size_type": "Cohen's d",
+                            "hover_text": f"{name}<br>Cohen's d={result.get('cohens_d'):.3f}",
+                        }
                     )
                     upper_bonud = max(upper_bonud, abs(result.get("cohens_d")))
-                lower_bound = min(lower_bound, abs(effect_sizes[-1]))
+                lower_bound = min(
+                    lower_bound, abs(sorted_data[-1]["effect_size_value"])
+                )
 
                 # 计算样本量
-                effect_size = effect_sizes[-1]
-                effect_type = effect_size_types[-1]
+                effect_size = sorted_data[-1]["effect_size_value"]
+                effect_type = sorted_data[-1]["effect_size_type"]
 
                 if effect_type == "η²":
                     sample_size = calculate_sample_size(
@@ -1201,10 +1207,11 @@ def create_common_comparison_figures(
                     sample_size = calculate_sample_size(
                         effect_size, test_type="two_sample"
                     )["required_n"]
-                sample_sizes.append(sample_size)
+                sorted_data[-1]["hover_text"] += f"<br>样本量={sample_size:.0f}"
+                sorted_data[-1].update({"sample_size": sample_size})
 
         # 样本量需求曲线
-        if len(sample_sizes):
+        if len(sorted_data):
             # Cohen's d && η²
             d_effect_sizes = np.linspace(lower_bound, upper_bonud, 100)
 
@@ -1212,10 +1219,6 @@ def create_common_comparison_figures(
             eta_sample_sizes = []
             for d_effect_size in d_effect_sizes:
                 # 对比一般都用 η²
-                # sample_size = calculate_sample_size(
-                #     d_effect_size, test_type="two_sample"
-                # )["required_n"]
-                # d_sample_sizes.append(sample_size)
 
                 if d_effect_size <= 1.0:
                     sample_size = calculate_sample_size(
@@ -1224,20 +1227,6 @@ def create_common_comparison_figures(
                         effect_size_type="eta_squared",
                     )["required_n"]
                     eta_sample_sizes.append(sample_size)
-
-            # fig_charts.add_trace(
-            # go.Scatter(
-            # x=d_effect_sizes,
-            # y=d_sample_sizes,
-            # mode="lines",
-            # name="样本量需求曲线(Cohen's d)",
-            # line=dict(width=3, color="red"),
-            # fill="tozeroy",
-            # fillcolor="rgba(255, 0, 0, 0.2)",
-            # ),
-            # row=1,
-            # col=1,
-            # )
 
             fig_charts.add_trace(
                 go.Scatter(
@@ -1252,6 +1241,14 @@ def create_common_comparison_figures(
                 row=1,
                 col=1,
             )
+
+    sorted_data.sort(key=lambda x: abs(x["effect_size_value"]))
+
+    effect_sizes = [d["effect_size_value"] for d in sorted_data]
+    sample_sizes = [d["sample_size"] for d in sorted_data]
+    metrics_names = [d["name"] for d in sorted_data]
+    hover_texts = [d["hover_text"] for d in sorted_data]
+
     if effect_sizes:
         fig_charts.add_trace(
             go.Bar(
@@ -1275,6 +1272,8 @@ def create_common_comparison_figures(
                 mode="markers",
                 name="效应量",
                 marker=dict(size=15, color="red", symbol="diamond"),
+                hovertext=hover_texts,
+                hoverinfo="text",
             ),
             row=1,
             col=1,

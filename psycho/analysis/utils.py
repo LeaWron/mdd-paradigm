@@ -315,7 +315,7 @@ def calculate_sample_size(
     Args:
         effect_size: 效应量（Cohen's d 或 η²）
         alpha: 显著性水平（默认0.05）
-        power: 检测能力（默认0.8）
+        power: 统计功效（默认0.8）
         test_type: 检验类型（"one_sample", "paired", "two_sample", "anova"）
         effect_size_type: 效应量类型（"cohens_d" 或 "eta_squared"）
     """
@@ -1063,7 +1063,7 @@ def create_common_comparison_figures(
                         "效应量",
                         "单组所需样本量",
                         "总样本量",
-                        "功率",
+                        "统计功效",
                         "显著性水平",
                     ],
                     fill_color="lightcoral",

@@ -31,18 +31,6 @@ key_metrics = [
     "positive_accuracy",
     "negative_accuracy",
     "neutral_accuracy",
-    "positive_low_rt",
-    "positive_mid_rt",
-    "positive_high_rt",
-    "negative_low_rt",
-    "negative_mid_rt",
-    "negative_high_rt",
-    "positive_low_acc",
-    "positive_mid_acc",
-    "positive_high_acc",
-    "negative_low_acc",
-    "negative_mid_acc",
-    "negative_high_acc",
 ]
 
 metric_names = [
@@ -50,18 +38,6 @@ metric_names = [
     "积极正确率",
     "消极正确率",
     "中性正确率",
-    "低积极反应时",
-    "中积极反应时",
-    "高积极反应时",
-    "低消极反应时",
-    "中消极反应时",
-    "高消极反应时",
-    "低积极正确率",
-    "中积极正确率",
-    "高积极正确率",
-    "低消极正确率",
-    "中消极正确率",
-    "高消极正确率",
 ]
 
 

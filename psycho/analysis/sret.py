@@ -54,6 +54,60 @@ metric_names = [
     "总认可率",
 ]
 
+# 新增：全局所有指标
+all_metrics = [
+    "positive_bias",
+    "rt_negative_minus_positive",
+    "rt_endorsed_minus_not",
+    "positive_endorsement_rate",
+    "negative_endorsement_rate",
+    "endorsement_rate",
+    "positive_endorsement_count",
+    "negative_endorsement_count",
+    "positive_rt",
+    "negative_rt",
+    "yes_rt",
+    "no_rt",
+    "positive_intensity",
+    "negative_intensity",
+    "intensity_negative_minus_positive",
+]
+
+all_metric_names = [
+    "积极偏向(积极认可率-消极认可率)",
+    "消极-积极RT差",
+    "认同-不认同RT差",
+    "积极认可率",
+    "消极认可率",
+    "总认可率",
+    "积极词认同数",
+    "消极词认同数",
+    "积极词平均反应时",
+    "消极词平均反应时",
+    "认同平均反应时",
+    "不认同平均反应时",
+    "积极词平均符合程度",
+    "消极词平均符合程度",
+    "消极-积极符合程度差",
+]
+
+# 新增：词级指标（用于保存每个词的详细信息）
+word_metrics = [
+    "word_endorsement_count",
+    "word_rejection_count",
+    "word_endorsement_rate",
+    "word_mean_intensity",
+    "word_mean_rt",
+]
+
+word_metric_names = [
+    "词认同次数",
+    "词拒绝次数",
+    "词认同率",
+    "词平均符合程度",
+    "词平均反应时",
+]
+
 
 def find_sret_files(data_dir: Path) -> list[Path]:
     """查找指定目录下的SRET实验结果文件"""
@@ -109,6 +163,81 @@ def load_and_preprocess_data(df: pl.DataFrame) -> pl.DataFrame:
     except Exception as e:
         print(f"❌ 数据加载错误: {e}")
         return None
+
+
+def calculate_word_level_metrics(df: pl.DataFrame) -> dict[str, Any]:
+    """计算词级指标：每个词的认同次数、拒绝次数、符合程度和反应时"""
+    word_results = {}
+
+    # 按词分组统计
+    word_stats = df.group_by(["stim_word", "stim_type"]).agg(
+        [
+            pl.col("response")
+            .filter(pl.col("response") == "yes")
+            .count()
+            .alias("endorsement_count"),
+            pl.col("response")
+            .filter(pl.col("response") == "no")
+            .count()
+            .alias("rejection_count"),
+            pl.col("intensity").mean().alias("mean_intensity")
+            if "intensity" in df.columns
+            else pl.lit(None).alias("mean_intensity"),
+            pl.col("rt_ms").mean().alias("mean_rt"),
+            pl.count().alias("total_trials"),
+        ]
+    )
+
+    # 计算词认同率
+    word_stats = word_stats.with_columns(
+        (pl.col("endorsement_count") / pl.col("total_trials")).alias("endorsement_rate")
+    )
+
+    # 转换为字典格式
+    word_results["word_stats"] = word_stats.to_dicts()
+
+    # 按词性汇总
+    valence_stats = word_stats.group_by("stim_type").agg(
+        [
+            pl.col("endorsement_count").sum().alias("total_endorsement_count"),
+            pl.col("rejection_count").sum().alias("total_rejection_count"),
+            pl.col("mean_intensity").mean().alias("mean_intensity")
+            if "intensity" in df.columns
+            else pl.lit(None).alias("mean_intensity"),
+            pl.col("mean_rt").mean().alias("mean_rt"),
+            pl.col("endorsement_rate").mean().alias("mean_endorsement_rate"),
+        ]
+    )
+
+    word_results["valence_stats"] = valence_stats.to_dicts()
+
+    return word_results
+
+
+def calculate_all_metrics_single(df: pl.DataFrame) -> dict[str, float]:
+    """计算单个被试的所有指标（包括词级指标）"""
+    metrics = calculate_key_metrics_single(df)
+
+    # 计算词级指标（汇总）
+    word_results = calculate_word_level_metrics(df)
+
+    # 添加词级汇总指标到metrics
+    for valence_stat in word_results.get("valence_stats", []):
+        valence = valence_stat["stim_type"]
+        metrics[f"{valence}_endorsement_count"] = valence_stat.get(
+            "total_endorsement_count", 0
+        )
+        metrics[f"{valence}_rejection_count"] = valence_stat.get(
+            "total_rejection_count", 0
+        )
+
+        if valence_stat.get("mean_intensity") is not None:
+            metrics[f"{valence}_intensity"] = valence_stat.get("mean_intensity")
+
+        if valence_stat.get("mean_rt") is not None:
+            metrics[f"{valence}_rt"] = valence_stat.get("mean_rt")
+
+    return metrics
 
 
 def calculate_key_metrics_single(df: pl.DataFrame) -> dict[str, float]:
@@ -530,9 +659,9 @@ def save_results(
     metrics: dict[str, float],
     valence_results: dict[str, Any],
     result_dir: Path,
+    word_results: dict[str, Any] = None,
 ):
     """保存结果"""
-
     metrics_df = pl.DataFrame([metrics])
     metrics_df.write_csv(result_dir / "sret_key_metrics.csv")
 
@@ -540,10 +669,18 @@ def save_results(
         valence_df = pl.DataFrame(valence_results["valence_stats"])
         valence_df.write_csv(result_dir / "sret_valence_stats.csv")
 
+    # 保存词级结果
+    if word_results and "word_stats" in word_results:
+        word_df = pl.DataFrame(word_results["word_stats"])
+        word_df.write_csv(result_dir / "sret_word_level_stats.csv")
+
     results = {
         "key_metrics": metrics,
         "valence_analysis": valence_results,
     }
+
+    if word_results:
+        results["word_level_analysis"] = word_results
 
     with open(result_dir / "sret_analysis_results.json", "w", encoding="utf-8") as f:
         json.dump(results, f, ensure_ascii=False, indent=2)
@@ -561,22 +698,25 @@ def analyze_sret_data_single(
     # 1. 提取试次数据
     trials_df = load_and_preprocess_data(df)
 
-    # 2. 计算关键指标
-    metrics = calculate_key_metrics_single(trials_df)
+    # 2. 计算所有指标（包括词级指标）
+    metrics = calculate_all_metrics_single(trials_df)
 
     # 3. 词性表现分析
     valence_results = analyze_valence_performance(trials_df)
 
-    # 4. 反应时细分分析
+    # 4. 词级指标分析
+    word_results = calculate_word_level_metrics(trials_df)
+
+    # 5. 反应时细分分析
     rt_breakdown = analyze_reaction_time_breakdown(trials_df)
 
-    # 5. 创建可视化
+    # 6. 创建可视化
     figs = create_visualizations_single(metrics, valence_results, result_dir)  # noqa: F841
 
-    # 6. 保存结果
-    save_results(metrics, valence_results, result_dir)
+    # 7. 保存结果
+    save_results(metrics, valence_results, result_dir, word_results)
 
-    # 7. 生成报告
+    # 8. 生成报告
     results = {
         "data_summary": {
             "total_trials": trials_df.height,
@@ -591,15 +731,13 @@ def analyze_sret_data_single(
         },
         "key_metrics": metrics,
         "valence_results": valence_results,
+        "word_results": word_results,
         "rt_breakdown": rt_breakdown,
     }
 
     return results
 
 
-# [ ] 各个词被认同和被不认同的次数(同时可以判断是否合适), 被认同的强度分布图
-# 也可以 csv 中体现
-# 应该是 group 的结果
 def create_group_comparison_visualizations_single_group(
     group_metrics: list[dict[str, float]],
 ) -> list[go.Figure]:
@@ -716,6 +854,8 @@ def create_group_comparison_visualizations_single_group(
 
     # 更新布局
     fig_1.update_layout(
+        height=400 * 2,
+        width=1600,
         showlegend=True,
         template="plotly_white",
     )
@@ -816,9 +956,64 @@ def create_group_comparison_visualizations_single_group(
         row=2,
         col=3,
     )
+    fig_2.update_layout(
+        height=400 * 2,
+        width=1600,
+        showlegend=True,
+        template="plotly_white",
+    )
 
     figs.append(fig_2)
-    # fig.write_html(str(result_dir / "sret_group_analysis_report.html"))
+
+    # 新增：强度对比图
+    if (
+        "positive_intensity" in all_metrics[0]
+        and "negative_intensity" in all_metrics[0]
+    ):
+        fig_3 = make_subplots(
+            rows=1,
+            cols=2,
+            subplot_titles=("积极词符合程度分布", "消极词符合程度分布"),
+            specs=[
+                [{"type": "box"}, {"type": "box"}],
+            ],
+            vertical_spacing=0.12,
+        )
+
+        pos_intensity = [
+            m["positive_intensity"] for m in all_metrics if "positive_intensity" in m
+        ]
+        neg_intensity = [
+            m["negative_intensity"] for m in all_metrics if "negative_intensity" in m
+        ]
+
+        fig_3.add_trace(
+            go.Box(
+                y=pos_intensity,
+                name="积极词符合程度",
+                boxpoints="all",
+                jitter=0.3,
+                pointpos=-1.8,
+                marker_color="lightblue",
+            ),
+            row=1,
+            col=1,
+        )
+
+        fig_3.add_trace(
+            go.Box(
+                y=neg_intensity,
+                name="消极词符合程度",
+                boxpoints="all",
+                jitter=0.3,
+                pointpos=-1.8,
+                marker_color="lightcoral",
+            ),
+            row=1,
+            col=2,
+        )
+
+        figs.append(fig_3)
 
     return figs
 
@@ -827,109 +1022,191 @@ def create_group_comparison_visualizations(
     control_metrics: list[dict[str, float]],
     experimental_metrics: list[dict[str, float]],
 ) -> list[go.Figure]:
+    """多组分析可视化 - 使用all_metrics中的所有指标"""
     figs = []
-    control_values = {k: [] for k in control_metrics[0].keys()}
-    experimental_values = {k: [] for k in experimental_metrics[0].keys()}
 
-    for metric in control_metrics[0].keys():
-        control_values[metric] = [m[metric] for m in control_metrics]
-        experimental_values[metric] = [m[metric] for m in experimental_metrics]
+    # 收集所有可用的指标
+    all_available_metrics = []
+    for metric in all_metrics:
+        if metric in control_metrics[0] and metric in experimental_metrics[0]:
+            all_available_metrics.append(metric)
 
-    # 创建图表
-    fig = make_subplots(
-        rows=3,
-        cols=1,
-        subplot_titles=("1. 积极偏向对比", "2. 反应差对比", "3. 认可率对比"),
-        specs=[
-            [{"type": "bar"}],
-            [{"type": "bar"}],
-            [{"type": "bar"}],
-        ],
-        vertical_spacing=0.12,
-        horizontal_spacing=0.15,
+    # 创建多个图表
+    fig_bias = make_subplots(
+        rows=1, cols=1, subplot_titles=("积极偏向对比",), specs=[[{"type": "bar"}]]
     )
 
-    def type_metric_bar(type_metrics, type_metric_names, row, col):
-        control_means = []
-        control_stds = []
-        experimental_means = []
-        experimental_stds = []
-        valid_metrics = []
-
-        for metric, name in zip(type_metrics, type_metric_names):
-            if metric in control_values and metric in experimental_values:
-                control_means.append(np.mean(control_values[metric]))
-                control_stds.append(np.std(control_values[metric], ddof=1))
-                experimental_means.append(np.mean(experimental_values[metric]))
-                experimental_stds.append(np.std(experimental_values[metric], ddof=1))
-                valid_metrics.append(name)
-
-        if valid_metrics:
-            x_positions = np.arange(len(valid_metrics))
-
-            fig.add_trace(
-                go.Bar(
-                    x=x_positions - 0.2,
-                    y=control_means,
-                    name="对照组",
-                    marker_color="green",
-                    error_y=dict(type="data", array=control_stds, visible=True),
-                    width=0.4,
-                    text=[f"{v:.3f}" for v in control_means],
-                    textposition="outside",
-                ),
-                row=row,
-                col=col,
-            )
-
-            fig.add_trace(
-                go.Bar(
-                    x=x_positions + 0.2,
-                    y=experimental_means,
-                    name="实验组",
-                    marker_color="red",
-                    error_y=dict(type="data", array=experimental_stds, visible=True),
-                    width=0.4,
-                    text=[f"{v:.3f}" for v in experimental_means],
-                    textposition="outside",
-                ),
-                row=row,
-                col=col,
-            )
-
-            fig.update_xaxes(
-                ticktext=valid_metrics, tickvals=x_positions, row=row, col=col
-            )
-
-    positive_bias_metrics = ["positive_bias"]
-    positive_bias_names = ["积极偏向"]
-    type_metric_bar(positive_bias_metrics, positive_bias_names, 1, 1)
-
-    rt_diff_metrics = ["rt_negative_minus_positive", "rt_endorsed_minus_not"]
-    rt_diff_names = ["消极-积极反应差", "认可-不认可反应差"]
-    type_metric_bar(rt_diff_metrics, rt_diff_names, 2, 1)
-
-    endorsement_rate_metrics = [
-        "endorsement_rate",
-        "positive_endorsement_rate",
-        "negative_endorsement_rate",
-    ]
-    endorsement_rate_names = ["总认可率", "积极认可率", "消极认可率"]
-    type_metric_bar(endorsement_rate_metrics, endorsement_rate_names, 3, 1)
-
-    fig.update_layout(
-        title=dict(
-            text="SRET组间比较分析报告",
-            font=dict(size=22, family="Arial Black"),
-            x=0.5,
+    fig_rt = make_subplots(
+        rows=2,
+        cols=3,
+        subplot_titles=(
+            "消极-积极RT差",
+            "认同-不认同RT差",
+            "积极词RT",
+            "消极词RT",
+            "认同RT",
+            "不认同RT",
         ),
-        showlegend=True,
+        specs=[
+            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],
+            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],
+        ],
+    )
+
+    fig_endorsement = make_subplots(
+        rows=1,
+        cols=3,
+        subplot_titles=("积极认可率", "消极认可率", "总认可率"),
+        specs=[[{"type": "bar"}, {"type": "bar"}, {"type": "bar"}]],
+    )
+
+    fig_intensity = make_subplots(
+        rows=1,
+        cols=3,
+        subplot_titles=("积极词符合程度", "消极词符合程度", "消极-积极符合程度差"),
+        specs=[[{"type": "bar"}, {"type": "bar"}, {"type": "bar"}]],
+    )
+
+    # 辅助函数：添加柱状图对比
+    def add_bar_comparison(
+        fig, metric_name, display_name, row, col, control_metrics, experimental_metrics
+    ):
+        control_values = [m[metric_name] for m in control_metrics if metric_name in m]
+        experimental_values = [
+            m[metric_name] for m in experimental_metrics if metric_name in m
+        ]
+
+        if control_values and experimental_values:
+            control_mean = np.mean(control_values)
+            control_std = (
+                np.std(control_values, ddof=1) if len(control_values) > 1 else 0
+            )
+            experimental_mean = np.mean(experimental_values)
+            experimental_std = (
+                np.std(experimental_values, ddof=1)
+                if len(experimental_values) > 1
+                else 0
+            )
+
+            fig.add_trace(
+                go.Bar(
+                    x=["对照组", "实验组"],
+                    y=[control_mean, experimental_mean],
+                    name=display_name,
+                    marker_color=["green", "red"],
+                    error_y=dict(
+                        type="data", array=[control_std, experimental_std], visible=True
+                    ),
+                    text=[f"{control_mean:.3f}", f"{experimental_mean:.3f}"],
+                    textposition="auto",
+                ),
+                row=row,
+                col=col,
+            )
+
+    # 添加积极偏向对比
+    add_bar_comparison(
+        fig_bias,
+        "positive_bias",
+        "积极偏向",
+        1,
+        1,
+        control_metrics,
+        experimental_metrics,
+    )
+
+    # 添加反应时指标对比
+    rt_metrics_list = [
+        ("rt_negative_minus_positive", "消极-积极RT差", 1, 1),
+        ("rt_endorsed_minus_not", "认同-不认同RT差", 1, 2),
+        ("positive_rt", "积极词RT", 1, 3),
+        ("negative_rt", "消极词RT", 2, 1),
+        ("yes_rt", "认同RT", 2, 2),
+        ("no_rt", "不认同RT", 2, 3),
+    ]
+
+    for metric, display_name, row, col in rt_metrics_list:
+        add_bar_comparison(
+            fig_rt,
+            metric,
+            display_name,
+            row,
+            col,
+            control_metrics,
+            experimental_metrics,
+        )
+
+    # 添加认可率指标对比
+    endorsement_metrics_list = [
+        ("positive_endorsement_rate", "积极认可率", 1, 1),
+        ("negative_endorsement_rate", "消极认可率", 1, 2),
+        ("endorsement_rate", "总认可率", 1, 3),
+    ]
+
+    for metric, display_name, row, col in endorsement_metrics_list:
+        add_bar_comparison(
+            fig_endorsement,
+            metric,
+            display_name,
+            row,
+            col,
+            control_metrics,
+            experimental_metrics,
+        )
+
+    # 添加强度指标对比
+    intensity_metrics_list = [
+        ("positive_intensity", "积极词符合程度", 1, 1),
+        ("negative_intensity", "消极词符合程度", 1, 2),
+        ("intensity_negative_minus_positive", "消极-积极符合程度差", 1, 3),
+    ]
+
+    for metric, display_name, row, col in intensity_metrics_list:
+        add_bar_comparison(
+            fig_intensity,
+            metric,
+            display_name,
+            row,
+            col,
+            control_metrics,
+            experimental_metrics,
+        )
+
+    # 更新所有图的布局
+    fig_bias.update_layout(
+        height=400,
+        title=dict(text="积极偏向对比", font=dict(size=16)),
+        showlegend=False,
         template="plotly_white",
     )
 
-    # fig.write_html(str(result_dir / "sret_group_comparison_report.html"))
+    fig_rt.update_layout(
+        height=400 * 2,
+        width=1600,
+        title=dict(text="反应时指标对比", font=dict(size=16)),
+        showlegend=False,
+        template="plotly_white",
+    )
 
-    figs.append(fig)
+    fig_endorsement.update_layout(
+        height=400,
+        width=1600,
+        title=dict(text="认可率指标对比", font=dict(size=16)),
+        showlegend=False,
+        template="plotly_white",
+    )
+
+    fig_intensity.update_layout(
+        height=400,
+        width=1600,
+        title=dict(text="符合程度指标对比", font=dict(size=16)),
+        showlegend=False,
+        template="plotly_white",
+    )
+
+    # 将所有图添加到返回列表
+    figs.extend([fig_bias, fig_rt, fig_endorsement, fig_intensity])
+
     return figs
 
 
@@ -1012,7 +1289,7 @@ def run_group_sret_analysis(
 
         reference_group = "control" if choice == "1" else "mdd"
 
-    # 单样本t检验
+    # 单样本t检验 - 仍使用key_metrics
     statistical_results = {}
 
     # ref value 计算
@@ -1132,7 +1409,6 @@ def run_group_sret_analysis(
         }
 
     all_metrics_df = pd.DataFrame([r["key_metrics"] for r in all_results])
-    # all_metrics_df.insert(0, "subject_id", [r["subject_id"] for r in all_results])
     all_metrics_df.to_csv(result_dir / "group_all_metrics.csv", index=False)
 
     group_mean_metrics = all_metrics_df.mean(numeric_only=True).to_dict()
@@ -1199,7 +1475,7 @@ def run_groups_sret_analysis(
     result_dir: Path = Path("group_comparison_results"),
     groups: list[str] = None,
 ) -> dict[str, Any]:
-    """比较对照组和实验组"""
+    """比较对照组和实验组 - 使用all_metrics进行组间比较"""
 
     control_name = groups[0] if groups else "control"
 
@@ -1228,41 +1504,31 @@ def run_groups_sret_analysis(
 
     print("\n检查正态性和方差齐性...")
     normality_results = check_normality_and_homoscedasticity(
-        control_metrics + experimental_metrics, key_metrics
+        control_metrics + experimental_metrics, all_metrics
     )
 
     print("\n执行组间比较分析...")
     comparison_results = perform_group_comparisons(
-        control_metrics, experimental_metrics, key_metrics
+        control_metrics, experimental_metrics, all_metrics
     )
 
     print("\n保存组分析结果...")
 
     all_control_metrics_df = pd.DataFrame([r["key_metrics"] for r in control_results])
     all_control_metrics_df.insert(0, "group", control_name)
-    # all_control_metrics_df.insert(
-    #     1, "subject_id", [r["subject_id"] for r in control_results]
-    # )
 
     all_experimental_metrics_df = pd.DataFrame(
         [r["key_metrics"] for r in experimental_results]
     )
     all_experimental_metrics_df.insert(0, "group", experimental_name)
-    # all_experimental_metrics_df.insert(
-    #     1, "subject_id", [r["subject_id"] for r in experimental_results]
-    # )
 
     all_metrics_df = pd.concat(
         [all_control_metrics_df, all_experimental_metrics_df], ignore_index=True
     )
     all_metrics_df.to_csv(result_dir / "all_subjects_metrics.csv", index=False)
 
-    control_stats = all_control_metrics_df.drop(
-        columns=["group", "subject_id"]
-    ).describe()
-    experimental_stats = all_experimental_metrics_df.drop(
-        columns=["group", "subject_id"]
-    ).describe()
+    control_stats = all_control_metrics_df.drop(columns=["group"]).describe()
+    experimental_stats = all_experimental_metrics_df.drop(columns=["group"]).describe()
 
     control_stats.to_csv(result_dir / f"{control_name}_group_statistics.csv")
     experimental_stats.to_csv(result_dir / f"{experimental_name}_group_statistics.csv")
@@ -1301,7 +1567,7 @@ def run_groups_sret_analysis(
     )
 
     fig_common = create_common_comparison_figures(
-        comparison_results, key_metrics, metric_names
+        comparison_results, all_metrics, all_metric_names
     )
 
     figs = fig_spec + fig_common

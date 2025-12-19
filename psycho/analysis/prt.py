@@ -67,10 +67,10 @@ metric_names = [
     "反应偏向-Block 1",
     "反应偏向-Block 2",
     "击中率差异",
-    "贫刺激错误率(前富奖励)",
-    "贫刺激错误率(前富未奖)",
-    "富刺激错误率(前富奖励)",
-    "富刺激错误率(前贫奖励)",
+    "贫刺激错误率-前富奖励",
+    "贫刺激错误率-前富未奖",
+    "富刺激错误率-前富奖励",
+    "富刺激错误率-前贫奖励",
 ]
 
 
@@ -1138,6 +1138,7 @@ def create_group_comparison_visualizations_single_group(
         fig.add_trace(
             go.Box(
                 y=log_bs,
+                boxmean="sd",
                 name=f"Block{i + 1}",
                 boxpoints="all",
                 jitter=0.3,
@@ -1162,6 +1163,7 @@ def create_group_comparison_visualizations_single_group(
     fig.add_trace(
         go.Box(
             y=rt_diff_values,
+            boxmean="sd",
             name="反应时差异",
             boxpoints="all",
             jitter=0.3,
@@ -1208,6 +1210,7 @@ def create_group_comparison_visualizations_single_group(
         fig.add_trace(
             go.Box(
                 y=probs_dicts[key],
+                boxmean="sd",
                 name=names[i],
                 boxpoints="all",
                 jitter=0.3,
@@ -1218,6 +1221,8 @@ def create_group_comparison_visualizations_single_group(
         )
 
     fig.update_layout(
+        height=400 * 2,
+        width=1600,
         showlegend=True,
         template="plotly_white",
     )

@@ -789,6 +789,7 @@ def create_group_comparison_visualizations_single_group(
     fig_1.add_trace(
         go.Box(
             y=bias_values,
+            boxmean="sd",
             name="积极偏向",
             boxpoints="all",
             jitter=0.3,
@@ -816,6 +817,7 @@ def create_group_comparison_visualizations_single_group(
     fig_1.add_trace(
         go.Box(
             y=diff_values,
+            boxmean="sd",
             name="消极-积极RT差",
             boxpoints="all",
             jitter=0.3,
@@ -843,6 +845,7 @@ def create_group_comparison_visualizations_single_group(
     fig_1.add_trace(
         go.Box(
             y=diff_values,
+            boxmean="sd",
             name="认同-不认同RT差",
             boxpoints="all",
             jitter=0.3,
@@ -897,6 +900,7 @@ def create_group_comparison_visualizations_single_group(
     fig_2.add_trace(
         go.Box(
             y=positive_values,
+            boxmean="sd",
             name="积极认可率",
             boxpoints="all",
             jitter=0.3,
@@ -923,6 +927,7 @@ def create_group_comparison_visualizations_single_group(
     fig_2.add_trace(
         go.Box(
             y=negative_values,
+            boxmean="sd",
             name="消极认可率",
             boxpoints="all",
             jitter=0.3,
@@ -948,6 +953,7 @@ def create_group_comparison_visualizations_single_group(
     fig_2.add_trace(
         go.Box(
             y=total_values,
+            boxmean="sd",
             name="总认可率",
             boxpoints="all",
             jitter=0.3,
@@ -990,6 +996,7 @@ def create_group_comparison_visualizations_single_group(
         fig_3.add_trace(
             go.Box(
                 y=pos_intensity,
+                boxmean="sd",
                 name="积极词符合程度",
                 boxpoints="all",
                 jitter=0.3,
@@ -1003,6 +1010,7 @@ def create_group_comparison_visualizations_single_group(
         fig_3.add_trace(
             go.Box(
                 y=neg_intensity,
+                boxmean="sd",
                 name="消极词符合程度",
                 boxpoints="all",
                 jitter=0.3,

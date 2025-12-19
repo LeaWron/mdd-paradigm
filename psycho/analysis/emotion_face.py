@@ -720,6 +720,7 @@ def create_visualizations(
                 fig.add_trace(
                     go.Box(
                         y=stim_data,
+                        boxmean="sd",
                         name=stim_type,
                         boxpoints="outliers",
                         marker_color="#00cc96"
@@ -816,6 +817,7 @@ def create_visualizations(
                 intensity_fig.add_trace(
                     go.Box(
                         y=stim_data,
+                        boxmean="sd",
                         name=stim_type,
                         boxpoints="outliers",
                         marker_color="#00cc96"
@@ -1227,6 +1229,7 @@ def create_group_comparison_visualizations_single_group(
             fig.add_trace(
                 go.Box(
                     y=emotion_acc_values[emotion],
+                    boxmean="sd",
                     name=emotion,
                     boxpoints="all",
                     marker_color=color,
@@ -1245,6 +1248,7 @@ def create_group_comparison_visualizations_single_group(
     fig.add_trace(
         go.Box(
             y=rt_metrics,
+            boxmean="sd",
             name="中位反应时",
             boxpoints="all",
             marker_color="orange",
@@ -1257,6 +1261,7 @@ def create_group_comparison_visualizations_single_group(
     fig.add_trace(
         go.Box(
             y=rt_pos_neg_diff,
+            boxmean="sd",
             name="积极-消极反应时差",
             boxpoints="all",
             marker_color="purple",
@@ -1389,6 +1394,7 @@ def create_group_comparison_visualizations_single_group(
                     intensity_fig.add_trace(
                         go.Box(
                             y=subject_data,
+                            boxmean="sd",
                             name=subject_id,
                             boxpoints="outliers",
                             marker_color="lightblue",
@@ -1411,6 +1417,7 @@ def create_group_comparison_visualizations_single_group(
                     intensity_fig.add_trace(
                         go.Box(
                             y=stim_data,
+                            boxmean="sd",
                             name=stim_type,
                             boxpoints="outliers",
                             marker_color="#00cc96"
@@ -1563,6 +1570,7 @@ def create_group_comparison_visualizations(
                 fig.add_trace(
                     go.Box(
                         y=control_values,
+                        boxmean="sd",
                         name=control_name,
                         boxpoints="outliers",
                         marker_color="lightgreen",
@@ -1578,6 +1586,7 @@ def create_group_comparison_visualizations(
                 fig.add_trace(
                     go.Box(
                         y=experimental_values,
+                        boxmean="sd",
                         name=experimental_name,
                         boxpoints="outliers",
                         marker_color="lightcoral",

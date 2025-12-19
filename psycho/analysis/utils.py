@@ -736,24 +736,24 @@ def create_common_single_group_figures(
                     }
                 )
 
+                effect_size_value = 0
                 # 样本量计算结果
                 if (
                     "required_sample_size_per_group" in result
                     and result["required_sample_size_per_group"]
                 ):
-                    effect_size_value = ""
                     if result.get("cohens_d") is not None:
                         effect_size_value = result.get("cohens_d")
                     elif result.get("eta_squared") is not None:
                         effect_size_value = result.get("eta_squared")
 
-                    sorted_data[-1].update(
-                        {
-                            "sort_effect_size_value": effect_size_value,
-                            "required_sample_size_per_group": f"{result['required_sample_size_per_group']}",
-                            "required_total_sample_size": f"{result.get('required_total_sample_size', 'N/A')}",
-                        }
-                    )
+                sorted_data[-1].update(
+                    {
+                        "sort_effect_size_value": effect_size_value,
+                        "required_sample_size_per_group": f"{result['required_sample_size_per_group']}",
+                        "required_total_sample_size": f"{result.get('required_total_sample_size', 'N/A')}",
+                    }
+                )
 
     sorted_data.sort(key=lambda x: (x["p_value"], abs(x["sort_effect_size_value"])))
     test_data = [

@@ -499,7 +499,7 @@ def calculate_key_metrics(
     return return_metrics
 
 
-def create_visualizations(
+def create_single_visualizations(
     sdt_results: dict[int, dict[str, float]],
     prob_results: dict[int, dict[str, Any]],
     rt_by_block: dict[int, dict[str, float]],
@@ -1052,7 +1052,7 @@ def analyze_prt_data(
     key_metrics = calculate_key_metrics(sdt_results, prob_results, rt_by_block)
 
     # 8. 创建可视化
-    fig = create_visualizations(  # noqa: F841
+    fig = create_single_visualizations(  # noqa: F841
         sdt_results,
         prob_results,
         rt_by_block,
@@ -1078,7 +1078,7 @@ def analyze_prt_data(
     return results
 
 
-def create_group_comparison_visualizations_single_group(
+def create_single_group_visualizations(
     group_metrics: list[dict[str, float]],
 ) -> list[go.Figure]:
     """单个组的组分析可视化"""
@@ -1233,7 +1233,7 @@ def create_group_comparison_visualizations_single_group(
     return figs
 
 
-def create_group_comparison_visualizations(
+def create_multi_group_visualizations(
     control_metrics: list[dict[str, float]],
     experimental_metrics: list[dict[str, float]],
 ):
@@ -1496,7 +1496,7 @@ def run_group_prt_analysis(
         stats_test_df = pd.DataFrame(statistical_results).T
         stats_test_df.to_csv(result_dir / "group_statistical_tests.csv")
 
-    fig_spec = create_group_comparison_visualizations_single_group(group_metrics)
+    fig_spec = create_single_group_visualizations(group_metrics)
 
     fig_common = create_common_single_group_figures(
         group_metrics, statistical_results, key_metrics, metric_names
@@ -1625,9 +1625,7 @@ def run_groups_prt_analysis(
         comparison_df.to_csv(result_dir / "group_comparisons.csv")
 
     # 创建组比较可视化
-    fig_spec = create_group_comparison_visualizations(
-        control_metrics, experimental_metrics
-    )
+    fig_spec = create_multi_group_visualizations(control_metrics, experimental_metrics)
 
     fig_common = create_common_comparison_figures(
         comparison_results, key_metrics, metric_names

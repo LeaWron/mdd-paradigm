@@ -67,13 +67,13 @@ calculate_key_metrics, 这个函数需要返回包含所有 key_metrics 中键�
 
 - 可以是汇总其他函数的计算结果,也可以在这个函数中直接计算, 反正只要结果
 
-create_visualizations, 单人分析的可视化创建函数, 按需编写
+create_single_visualizations, 单人分析的可视化创建函数, 按需编写
 
 save_results, 保存你分析的所有结果
 
-create_group_comparison_visualization_single_group, 单组分析可视化创建
+create_single_group_visualizations, 单组分析可视化创建
 
-create_group_comparison_visualizations, 多组分析可视化
+create_multi_group_visualizations, 多组分析可视化
 
 ### others
 
@@ -92,7 +92,7 @@ analyze_..._data
 - 调用 load_and_preprocess_data 预处理raw DataFrame
 - 调用一些其他的函数计算中结果或者进行其他的处理
 - 调用 calculate_key_metrics 获得关键指标的 dict
-- 调用 create_visualizeations 创建可视化
+- 调用 create_single_visualizations 创建可视化
 - 调用 save_results 保存所有(想保存)的分析结果
 - 返回一个dict
   - 这个dict一般需要包含你 save_results 中保存的所有内容(dict)
@@ -110,7 +110,7 @@ run_group, 传入属于该组的文件路径的 list, 结果保存目录, 该组
   - metric 为对应的 key_metrics 中的键
 - 计算all_metrics 的均值方差
 - 统计样本量和效应量的 list[dict]{sample_size_data}
-- 调用 create_group_comparison_visualizations_single_group 绘制可视化,得到一个 fig 对象
+- 调用 create_single_group_visualizations 绘制可视化,得到一个 fig 对象
 - 调用 create_common_single_group_figures(见 utils.py), 得到一个  list[go.Figure]
 - 调用 save_html_report将以上两者保存为一个 html 可视化文件
 - 返回结果
@@ -133,7 +133,7 @@ run_groups, 分别传入对照组和实验组的文件路径的 list, 结果保�
 - 会对所有 key_metrics 计算 t 检验或者 anova 分析
 - 返回一个包含效应量,样本量等等的results dict
 
-调用 create_group_comparison_visualizations 绘制可视化,得到一个 fig 对象
+调用 create_multi_group_visualizations 绘制可视化,得到一个 fig 对象
 
 调用 create_common_comparisons_figures(见 utils.py), 得到一个  list[go.Figure]
 

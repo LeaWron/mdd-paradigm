@@ -388,7 +388,7 @@ def analyze_reaction_time_breakdown(df: pl.DataFrame) -> dict[str, Any]:
     return results
 
 
-def create_visualizations_single(
+def create_single_visualizations(
     metrics: dict[str, float],
     valence_results: dict[str, Any],
     result_dir: Path,
@@ -711,7 +711,7 @@ def analyze_sret_data_single(
     rt_breakdown = analyze_reaction_time_breakdown(trials_df)
 
     # 6. 创建可视化
-    figs = create_visualizations_single(metrics, valence_results, result_dir)  # noqa: F841
+    figs = create_single_visualizations(metrics, valence_results, result_dir)  # noqa: F841
 
     # 7. 保存结果
     save_results(metrics, valence_results, result_dir, word_results)
@@ -738,7 +738,7 @@ def analyze_sret_data_single(
     return results
 
 
-def create_group_comparison_visualizations_single_group(
+def create_single_group_visualizations(
     group_metrics: list[dict[str, float]],
 ) -> list[go.Figure]:
     """单个组的组分析可视化"""
@@ -1026,7 +1026,7 @@ def create_group_comparison_visualizations_single_group(
     return figs
 
 
-def create_group_comparison_visualizations(
+def create_multi_group_visualizations(
     control_metrics: list[dict[str, float]],
     experimental_metrics: list[dict[str, float]],
 ) -> list[go.Figure]:
@@ -1453,7 +1453,7 @@ def run_group_sret_analysis(
         stats_test_df = pd.DataFrame(statistical_results).T
         stats_test_df.to_csv(result_dir / "group_statistical_tests.csv")
 
-    fig_spec = create_group_comparison_visualizations_single_group(group_metrics)
+    fig_spec = create_single_group_visualizations(group_metrics)
 
     fig_common = create_common_single_group_figures(
         group_metrics, statistical_results, key_metrics, metric_names
@@ -1570,9 +1570,7 @@ def run_groups_sret_analysis(
         comparison_df = pd.DataFrame(comparison_results).T
         comparison_df.to_csv(result_dir / "group_comparisons.csv")
 
-    fig_spec = create_group_comparison_visualizations(
-        control_metrics, experimental_metrics
-    )
+    fig_spec = create_multi_group_visualizations(control_metrics, experimental_metrics)
 
     fig_common = create_common_comparison_figures(
         comparison_results, all_metrics, all_metric_names

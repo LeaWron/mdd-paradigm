@@ -1286,3 +1286,94 @@ def create_common_comparison_figures(
     figures.append(fig_charts)
 
     return figures
+
+
+def draw_ci_scatter(
+    x: list[float],
+    y: list[float],
+    y_lower: list[float],
+    y_upper: list[float],
+    name: str,
+    width: int = 3,
+    opacity: float = 0.2,
+    color: str = "blue",
+) -> list[go.Scatter]:
+    """
+    绘制置信区间散点图
+
+    参数:
+        x (list[float]): x轴数据
+        y (list[float]): y轴数据
+        y_lower (list[float]): y轴下置信区间
+        y_upper (list[float]): y轴上置信区间
+        name (str): 图例名称
+        width (int, optional): 折线宽度. 默认 3.
+        opacity (float, optional): 填充透明度. 默认 0.2.
+        color (str, optional): 颜色. 默认 "blue".
+
+    返回:
+        list[go.Scatter]: 包含下界线、上界填充线和主折线的 Plotly 图表对象列表
+    """
+
+    # 常用颜色名到 RGB 的映射 (CSS 标准颜色)
+    color_map = {
+        "red": (255, 0, 0),
+        "green": (0, 128, 0),
+        "blue": (0, 0, 255),
+        "yellow": (255, 255, 0),
+        "magenta": (255, 0, 255),
+        "cyan": (0, 255, 255),
+        "black": (0, 0, 0),
+        "white": (255, 255, 255),
+        "gray": (128, 128, 128),
+        "orange": (255, 165, 0),
+        "purple": (128, 0, 128),
+        "pink": (255, 192, 203),
+        "teal": (0, 128, 128),
+        "gold": (255, 215, 0),
+    }
+
+    # 解析颜色以生成 rgba 字符串
+    if color.startswith("#"):
+        # 处理 Hex
+        hex_c = color.lstrip("#")
+        rgb = tuple(int(hex_c[i : i + 2], 16) for i in (0, 2, 4))
+    else:
+        # 处理字符串名称 (如果不在字典里，默认返回一个灰色)
+        rgb = color_map.get(color.lower(), (128, 128, 128))
+
+    fill_color = f"rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {opacity})"
+
+    # 1. 下界线
+    lower_trace = go.Scatter(
+        x=x,
+        y=y_lower,
+        mode="lines",
+        line=dict(width=0),
+        showlegend=False,
+        hoverinfo="skip",
+    )
+
+    # 2. 上界填充线
+    upper_trace = go.Scatter(
+        x=x,
+        y=y_upper,
+        mode="lines",
+        line=dict(width=0),
+        fill="tonexty",
+        fillcolor=fill_color,
+        showlegend=False,
+        hoverinfo="skip",
+    )
+
+    # 3. 主折线
+    main_trace = go.Scatter(
+        x=x,
+        y=y,
+        mode="lines+markers",
+        name=name,
+        line=dict(color=color, width=width),
+        marker=dict(size=8, color=color),
+    )
+
+    return [lower_trace, upper_trace, main_trace]

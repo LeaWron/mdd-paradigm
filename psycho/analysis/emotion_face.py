@@ -25,7 +25,6 @@ from psycho.analysis.utils import (
 
 warnings.filterwarnings("ignore")
 
-# 核心关键指标 - 单人/单组分析使用
 key_metrics = [
     "intensity",
     "positive_intensity",
@@ -83,8 +82,8 @@ all_metrics = [
     "positive_neutral_intensity",
     "negative_neutral_intensity",
     # 强度差异和相关性指标
-    "mean_intensity_diff",
-    "intensity_correlation_r",
+    "mean_intensity_diff",  # 平均强度差异=选择的强度评分－实际强度评分
+    "intensity_correlation_r",  # 强度相关性r值=所选强度评分与实际强度评分的相关系数
 ]
 
 all_metric_names = [
@@ -1746,34 +1745,48 @@ def create_multi_group_visualizations(
         print("⚠️ 至少一组数据中没有正确的试次，无法生成多组对比可视化")
         return figs
 
-    # 3. 创建多组对比可视化 - 使用与单人分析完全相同的布局，但每个子图显示两组数据
+    # 3. 创建多组对比可视化 - 使用4行3列布局，将积极和消极拆分为不同子图
     fig = make_subplots(
-        rows=2,
+        rows=4,  # 增加行数
         cols=3,
         subplot_titles=(
-            "各标签强度对应选择强度（组间对比）",
-            "各标签强度对应反应时（组间对比）",
-            "模糊等级对应选择强度（组间对比）",
-            "模糊等级对应反应时（组间对比）",
+            # 第一行：积极情绪相关
+            "各标签强度对应选择强度（积极）",
+            "各标签强度对应反应时（积极）",
+            "模糊等级对应选择强度（积极）",
+            # 第二行：消极情绪相关
+            "各标签强度对应选择强度（消极）",
+            "各标签强度对应反应时（消极）",
+            "模糊等级对应选择强度（消极）",
+            # 第三行：反应时和中性判定
+            "模糊等级对应反应时（积极）",
+            "模糊等级对应反应时（消极）",
+            # 第四行：强度一致性分析
             "中性判定强度（组间对比）",
-            "强度一致性分析（组间对比）",
+            "强度一致性分析",
         ),
         specs=[
-            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],
-            [{"type": "bar"}, {"type": "bar"}, {"type": "scatter"}],
+            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],  # 第一行
+            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],  # 第二行
+            [{"type": "bar"}, {"type": "bar"}, None],  # 第三行
+            [{"type": "scatter"}, {"type": "scatter"}, None],  # 第四行
         ],
-        vertical_spacing=0.15,
+        vertical_spacing=0.12,
         horizontal_spacing=0.1,
     )
-
-    # 定义等级顺序
-    level_order = ["blur", "mid", "clear"]
 
     # 颜色定义
     control_color = "#1f77b4"  # 蓝色
     experimental_color = "#ff7f0e"  # 橙色
 
-    # 图1: 各标签强度对应选择强度（0-9，积极和消极分开，两组对比）
+    # 定义图案区分积极和消极
+    control_negative_pattern = dict(shape="/", size=5, solidity=0.7)
+    experimental_negative_pattern = dict(shape="\\", size=5, solidity=0.7)
+
+    # 定义等级顺序
+    level_order = ["blur", "mid", "clear"]
+
+    # 图1: 各标签强度对应选择强度（积极）- 两组对比
     if (
         "intensity_by_label_emotion" in control_full_metrics
         and "intensity_by_label_emotion" in experimental_full_metrics
@@ -1785,27 +1798,24 @@ def create_multi_group_visualizations(
             "intensity_by_label_emotion"
         ].to_pandas()
 
-        # 分离积极和消极数据
+        # 只提取积极数据
         control_pos_data = control_intensity_data[
             control_intensity_data["stim_type"] == "positive"
-        ]
-        control_neg_data = control_intensity_data[
-            control_intensity_data["stim_type"] == "negative"
         ]
         experimental_pos_data = experimental_intensity_data[
             experimental_intensity_data["stim_type"] == "positive"
         ]
-        experimental_neg_data = experimental_intensity_data[
-            experimental_intensity_data["stim_type"] == "negative"
-        ]
 
-        # 获取所有强度级别（取两组并集）
+        # 获取所有强度级别
         all_intensities = sorted(
             set(
                 control_intensity_data["label_intensity_signed"].tolist()
                 + experimental_intensity_data["label_intensity_signed"].tolist()
             )
         )
+
+        # 只保留积极强度（0-9）
+        all_intensities = [i for i in all_intensities if i >= 0]
 
         # 为每个强度级别创建条形
         for i, intensity in enumerate(all_intensities):
@@ -1816,7 +1826,7 @@ def create_multi_group_visualizations(
             if not control_pos_intensity.empty:
                 fig.add_trace(
                     go.Bar(
-                        x=[i - 0.3],
+                        x=[i - 0.2],
                         y=control_pos_intensity["mean_intensity"].values,
                         error_y=dict(
                             type="data",
@@ -1827,10 +1837,10 @@ def create_multi_group_visualizations(
                         if intensity == all_intensities[0]
                         else "",
                         marker_color=control_color,
-                        marker=dict(opacity=0.7),
+                        marker=dict(opacity=0.8),
                         legendgroup=f"{control_name}-positive",
                         showlegend=intensity == all_intensities[0],
-                        width=0.2,
+                        width=0.4,
                     ),
                     row=1,
                     col=1,
@@ -1843,7 +1853,7 @@ def create_multi_group_visualizations(
             if not experimental_pos_intensity.empty:
                 fig.add_trace(
                     go.Bar(
-                        x=[i - 0.1],
+                        x=[i + 0.2],
                         y=experimental_pos_intensity["mean_intensity"].values,
                         error_y=dict(
                             type="data",
@@ -1854,64 +1864,10 @@ def create_multi_group_visualizations(
                         if intensity == all_intensities[0]
                         else "",
                         marker_color=experimental_color,
-                        marker=dict(opacity=0.7),
+                        marker=dict(opacity=0.8),
                         legendgroup=f"{experimental_name}-positive",
                         showlegend=intensity == all_intensities[0],
-                        width=0.2,
-                    ),
-                    row=1,
-                    col=1,
-                )
-
-            # 对照组消极数据
-            control_neg_intensity = control_neg_data[
-                control_neg_data["label_intensity_signed"] == intensity
-            ]
-            if not control_neg_intensity.empty:
-                fig.add_trace(
-                    go.Bar(
-                        x=[i + 0.1],
-                        y=control_neg_intensity["mean_intensity"].values,
-                        error_y=dict(
-                            type="data",
-                            array=control_neg_intensity["std_intensity"].values,
-                            visible=True,
-                        ),
-                        name=f"{control_name}消极"
-                        if intensity == all_intensities[0]
-                        else "",
-                        marker_color=control_color,
-                        marker=dict(opacity=0.7, pattern=dict(shape="/")),
-                        legendgroup=f"{control_name}-negative",
-                        showlegend=intensity == all_intensities[0],
-                        width=0.2,
-                    ),
-                    row=1,
-                    col=1,
-                )
-
-            # 实验组消极数据
-            experimental_neg_intensity = experimental_neg_data[
-                experimental_neg_data["label_intensity_signed"] == intensity
-            ]
-            if not experimental_neg_intensity.empty:
-                fig.add_trace(
-                    go.Bar(
-                        x=[i + 0.3],
-                        y=experimental_neg_intensity["mean_intensity"].values,
-                        error_y=dict(
-                            type="data",
-                            array=experimental_neg_intensity["std_intensity"].values,
-                            visible=True,
-                        ),
-                        name=f"{experimental_name}消极"
-                        if intensity == all_intensities[0]
-                        else "",
-                        marker_color=experimental_color,
-                        marker=dict(opacity=0.7, pattern=dict(shape="/")),
-                        legendgroup=f"{experimental_name}-negative",
-                        showlegend=intensity == all_intensities[0],
-                        width=0.2,
+                        width=0.4,
                     ),
                     row=1,
                     col=1,
@@ -1925,11 +1881,10 @@ def create_multi_group_visualizations(
             row=1,
             col=1,
         )
-
         fig.update_yaxes(title_text="选择强度", range=[0, 10], row=1, col=1)
         fig.update_xaxes(title_text="标签强度", row=1, col=1)
 
-    # 图2: 各标签强度对应反应时（0-9，积极和消极分开，两组对比）
+    # 图2: 各标签强度对应反应时（积极）- 两组对比
     if (
         "rt_by_label_emotion" in control_full_metrics
         and "rt_by_label_emotion" in experimental_full_metrics
@@ -1939,23 +1894,22 @@ def create_multi_group_visualizations(
             "rt_by_label_emotion"
         ].to_pandas()
 
-        # 分离积极和消极数据
+        # 只提取积极数据
         control_pos_data = control_rt_data[control_rt_data["stim_type"] == "positive"]
-        control_neg_data = control_rt_data[control_rt_data["stim_type"] == "negative"]
         experimental_pos_data = experimental_rt_data[
             experimental_rt_data["stim_type"] == "positive"
         ]
-        experimental_neg_data = experimental_rt_data[
-            experimental_rt_data["stim_type"] == "negative"
-        ]
 
-        # 获取所有强度级别（取两组并集）
+        # 获取所有强度级别
         all_intensities = sorted(
             set(
                 control_rt_data["label_intensity_signed"].tolist()
                 + experimental_rt_data["label_intensity_signed"].tolist()
             )
         )
+
+        # 只保留积极强度（0-9）
+        all_intensities = [i for i in all_intensities if i >= 0]
 
         for i, intensity in enumerate(all_intensities):
             # 对照组积极数据
@@ -1965,7 +1919,7 @@ def create_multi_group_visualizations(
             if not control_pos_intensity.empty:
                 fig.add_trace(
                     go.Bar(
-                        x=[i - 0.3],
+                        x=[i - 0.2],
                         y=control_pos_intensity["mean_rt"].values,
                         error_y=dict(
                             type="data",
@@ -1974,10 +1928,10 @@ def create_multi_group_visualizations(
                         ),
                         name=f"{control_name}积极",
                         marker_color=control_color,
-                        marker=dict(opacity=0.7),
+                        marker=dict(opacity=0.8),
                         legendgroup=f"{control_name}-positive",
                         showlegend=False,
-                        width=0.2,
+                        width=0.4,
                     ),
                     row=1,
                     col=2,
@@ -1990,7 +1944,7 @@ def create_multi_group_visualizations(
             if not experimental_pos_intensity.empty:
                 fig.add_trace(
                     go.Bar(
-                        x=[i - 0.1],
+                        x=[i + 0.2],
                         y=experimental_pos_intensity["mean_rt"].values,
                         error_y=dict(
                             type="data",
@@ -1999,60 +1953,10 @@ def create_multi_group_visualizations(
                         ),
                         name=f"{experimental_name}积极",
                         marker_color=experimental_color,
-                        marker=dict(opacity=0.7),
+                        marker=dict(opacity=0.8),
                         legendgroup=f"{experimental_name}-positive",
                         showlegend=False,
-                        width=0.2,
-                    ),
-                    row=1,
-                    col=2,
-                )
-
-            # 对照组消极数据
-            control_neg_intensity = control_neg_data[
-                control_neg_data["label_intensity_signed"] == intensity
-            ]
-            if not control_neg_intensity.empty:
-                fig.add_trace(
-                    go.Bar(
-                        x=[i + 0.1],
-                        y=control_neg_intensity["mean_rt"].values,
-                        error_y=dict(
-                            type="data",
-                            array=control_neg_intensity["std_rt"].values,
-                            visible=True,
-                        ),
-                        name=f"{control_name}消极",
-                        marker_color=control_color,
-                        marker=dict(opacity=0.7, pattern=dict(shape="/")),
-                        legendgroup=f"{control_name}-negative",
-                        showlegend=False,
-                        width=0.2,
-                    ),
-                    row=1,
-                    col=2,
-                )
-
-            # 实验组消极数据
-            experimental_neg_intensity = experimental_neg_data[
-                experimental_neg_data["label_intensity_signed"] == intensity
-            ]
-            if not experimental_neg_intensity.empty:
-                fig.add_trace(
-                    go.Bar(
-                        x=[i + 0.3],
-                        y=experimental_neg_intensity["mean_rt"].values,
-                        error_y=dict(
-                            type="data",
-                            array=experimental_neg_intensity["std_rt"].values,
-                            visible=True,
-                        ),
-                        name=f"{experimental_name}消极",
-                        marker_color=experimental_color,
-                        marker=dict(opacity=0.7, pattern=dict(shape="/")),
-                        legendgroup=f"{experimental_name}-negative",
-                        showlegend=False,
-                        width=0.2,
+                        width=0.4,
                     ),
                     row=1,
                     col=2,
@@ -2066,11 +1970,10 @@ def create_multi_group_visualizations(
             row=1,
             col=2,
         )
-
         fig.update_yaxes(title_text="反应时(秒)", row=1, col=2)
         fig.update_xaxes(title_text="标签强度", row=1, col=2)
 
-    # 图3: 模糊等级对应选择强度（3个等级，积极和消极分开，两组对比）
+    # 图3: 模糊等级对应选择强度（积极）- 两组对比
     if (
         "intensity_by_level_emotion" in control_full_metrics
         and "intensity_by_level_emotion" in experimental_full_metrics
@@ -2082,18 +1985,12 @@ def create_multi_group_visualizations(
             "intensity_by_level_emotion"
         ].to_pandas()
 
-        # 分离积极和消极数据
+        # 只提取积极数据
         control_pos_data = control_intensity_data[
             control_intensity_data["stim_type"] == "positive"
         ]
-        control_neg_data = control_intensity_data[
-            control_intensity_data["stim_type"] == "negative"
-        ]
         experimental_pos_data = experimental_intensity_data[
             experimental_intensity_data["stim_type"] == "positive"
-        ]
-        experimental_neg_data = experimental_intensity_data[
-            experimental_intensity_data["stim_type"] == "negative"
         ]
 
         # 为每个等级创建条形
@@ -2105,7 +2002,7 @@ def create_multi_group_visualizations(
             if not control_pos_level.empty:
                 fig.add_trace(
                     go.Bar(
-                        x=[i - 0.3],
+                        x=[i - 0.2],
                         y=control_pos_level["mean_intensity"].values,
                         error_y=dict(
                             type="data",
@@ -2114,10 +2011,10 @@ def create_multi_group_visualizations(
                         ),
                         name=f"{control_name}积极",
                         marker_color=control_color,
-                        marker=dict(opacity=0.7),
+                        marker=dict(opacity=0.8),
                         legendgroup=f"{control_name}-positive",
                         showlegend=False,
-                        width=0.2,
+                        width=0.4,
                     ),
                     row=1,
                     col=3,
@@ -2130,7 +2027,7 @@ def create_multi_group_visualizations(
             if not experimental_pos_level.empty:
                 fig.add_trace(
                     go.Bar(
-                        x=[i - 0.1],
+                        x=[i + 0.2],
                         y=experimental_pos_level["mean_intensity"].values,
                         error_y=dict(
                             type="data",
@@ -2139,60 +2036,10 @@ def create_multi_group_visualizations(
                         ),
                         name=f"{experimental_name}积极",
                         marker_color=experimental_color,
-                        marker=dict(opacity=0.7),
+                        marker=dict(opacity=0.8),
                         legendgroup=f"{experimental_name}-positive",
                         showlegend=False,
-                        width=0.2,
-                    ),
-                    row=1,
-                    col=3,
-                )
-
-            # 对照组消极数据
-            control_neg_level = control_neg_data[
-                control_neg_data["intensity_level"] == level
-            ]
-            if not control_neg_level.empty:
-                fig.add_trace(
-                    go.Bar(
-                        x=[i + 0.1],
-                        y=control_neg_level["mean_intensity"].values,
-                        error_y=dict(
-                            type="data",
-                            array=control_neg_level["std_intensity"].values,
-                            visible=True,
-                        ),
-                        name=f"{control_name}消极",
-                        marker_color=control_color,
-                        marker=dict(opacity=0.7, pattern=dict(shape="/")),
-                        legendgroup=f"{control_name}-negative",
-                        showlegend=False,
-                        width=0.2,
-                    ),
-                    row=1,
-                    col=3,
-                )
-
-            # 实验组消极数据
-            experimental_neg_level = experimental_neg_data[
-                experimental_neg_data["intensity_level"] == level
-            ]
-            if not experimental_neg_level.empty:
-                fig.add_trace(
-                    go.Bar(
-                        x=[i + 0.3],
-                        y=experimental_neg_level["mean_intensity"].values,
-                        error_y=dict(
-                            type="data",
-                            array=experimental_neg_level["std_intensity"].values,
-                            visible=True,
-                        ),
-                        name=f"{experimental_name}消极",
-                        marker_color=experimental_color,
-                        marker=dict(opacity=0.7, pattern=dict(shape="/")),
-                        legendgroup=f"{experimental_name}-negative",
-                        showlegend=False,
-                        width=0.2,
+                        width=0.4,
                     ),
                     row=1,
                     col=3,
@@ -2206,11 +2053,280 @@ def create_multi_group_visualizations(
             row=1,
             col=3,
         )
-
         fig.update_yaxes(title_text="选择强度", range=[0, 10], row=1, col=3)
         fig.update_xaxes(title_text="模糊等级", row=1, col=3)
 
-    # 图4: 模糊等级对应反应时（3个等级，积极和消极分开，两组对比）
+    # 图4: 各标签强度对应选择强度（消极）- 两组对比
+    if (
+        "intensity_by_label_emotion" in control_full_metrics
+        and "intensity_by_label_emotion" in experimental_full_metrics
+    ):
+        control_intensity_data = control_full_metrics[
+            "intensity_by_label_emotion"
+        ].to_pandas()
+        experimental_intensity_data = experimental_full_metrics[
+            "intensity_by_label_emotion"
+        ].to_pandas()
+
+        # 只提取消极数据
+        control_neg_data = control_intensity_data[
+            control_intensity_data["stim_type"] == "negative"
+        ]
+        experimental_neg_data = experimental_intensity_data[
+            experimental_intensity_data["stim_type"] == "negative"
+        ]
+
+        # 获取所有强度级别
+        all_intensities = sorted(
+            set(
+                control_intensity_data["label_intensity_signed"].tolist()
+                + experimental_intensity_data["label_intensity_signed"].tolist()
+            )
+        )
+
+        # 只保留消极强度（0-9），但显示为正数
+        all_intensities = [i for i in all_intensities if i >= 0]
+
+        # 为每个强度级别创建条形
+        for i, intensity in enumerate(all_intensities):
+            # 对照组消极数据
+            control_neg_intensity = control_neg_data[
+                control_neg_data["label_intensity_signed"] == intensity
+            ]
+            if not control_neg_intensity.empty:
+                fig.add_trace(
+                    go.Bar(
+                        x=[i - 0.2],
+                        y=control_neg_intensity["mean_intensity"].values,
+                        error_y=dict(
+                            type="data",
+                            array=control_neg_intensity["std_intensity"].values,
+                            visible=True,
+                        ),
+                        name=f"{control_name}消极"
+                        if intensity == all_intensities[0]
+                        else "",
+                        marker_color=control_color,
+                        marker=dict(opacity=0.8, pattern=control_negative_pattern),
+                        legendgroup=f"{control_name}-negative",
+                        showlegend=intensity == all_intensities[0],
+                        width=0.4,
+                    ),
+                    row=2,
+                    col=1,
+                )
+
+            # 实验组消极数据
+            experimental_neg_intensity = experimental_neg_data[
+                experimental_neg_data["label_intensity_signed"] == intensity
+            ]
+            if not experimental_neg_intensity.empty:
+                fig.add_trace(
+                    go.Bar(
+                        x=[i + 0.2],
+                        y=experimental_neg_intensity["mean_intensity"].values,
+                        error_y=dict(
+                            type="data",
+                            array=experimental_neg_intensity["std_intensity"].values,
+                            visible=True,
+                        ),
+                        name=f"{experimental_name}消极"
+                        if intensity == all_intensities[0]
+                        else "",
+                        marker_color=experimental_color,
+                        marker=dict(opacity=0.8, pattern=experimental_negative_pattern),
+                        legendgroup=f"{experimental_name}-negative",
+                        showlegend=intensity == all_intensities[0],
+                        width=0.4,
+                    ),
+                    row=2,
+                    col=1,
+                )
+
+        # 设置x轴刻度
+        fig.update_xaxes(
+            tickmode="array",
+            tickvals=list(range(len(all_intensities))),
+            ticktext=[str(i) for i in all_intensities],
+            row=2,
+            col=1,
+        )
+        fig.update_yaxes(title_text="选择强度", range=[0, 10], row=2, col=1)
+        fig.update_xaxes(title_text="标签强度", row=2, col=1)
+
+    # 图5: 各标签强度对应反应时（消极）- 两组对比
+    if (
+        "rt_by_label_emotion" in control_full_metrics
+        and "rt_by_label_emotion" in experimental_full_metrics
+    ):
+        control_rt_data = control_full_metrics["rt_by_label_emotion"].to_pandas()
+        experimental_rt_data = experimental_full_metrics[
+            "rt_by_label_emotion"
+        ].to_pandas()
+
+        # 只提取消极数据
+        control_neg_data = control_rt_data[control_rt_data["stim_type"] == "negative"]
+        experimental_neg_data = experimental_rt_data[
+            experimental_rt_data["stim_type"] == "negative"
+        ]
+
+        # 获取所有强度级别
+        all_intensities = sorted(
+            set(
+                control_rt_data["label_intensity_signed"].tolist()
+                + experimental_rt_data["label_intensity_signed"].tolist()
+            )
+        )
+
+        # 只保留消极强度（0-9）
+        all_intensities = [i for i in all_intensities if i >= 0]
+
+        for i, intensity in enumerate(all_intensities):
+            # 对照组消极数据
+            control_neg_intensity = control_neg_data[
+                control_neg_data["label_intensity_signed"] == intensity
+            ]
+            if not control_neg_intensity.empty:
+                fig.add_trace(
+                    go.Bar(
+                        x=[i - 0.2],
+                        y=control_neg_intensity["mean_rt"].values,
+                        error_y=dict(
+                            type="data",
+                            array=control_neg_intensity["std_rt"].values,
+                            visible=True,
+                        ),
+                        name=f"{control_name}消极",
+                        marker_color=control_color,
+                        marker=dict(opacity=0.8, pattern=control_negative_pattern),
+                        legendgroup=f"{control_name}-negative",
+                        showlegend=False,
+                        width=0.4,
+                    ),
+                    row=2,
+                    col=2,
+                )
+
+            # 实验组消极数据
+            experimental_neg_intensity = experimental_neg_data[
+                experimental_neg_data["label_intensity_signed"] == intensity
+            ]
+            if not experimental_neg_intensity.empty:
+                fig.add_trace(
+                    go.Bar(
+                        x=[i + 0.2],
+                        y=experimental_neg_intensity["mean_rt"].values,
+                        error_y=dict(
+                            type="data",
+                            array=experimental_neg_intensity["std_rt"].values,
+                            visible=True,
+                        ),
+                        name=f"{experimental_name}消极",
+                        marker_color=experimental_color,
+                        marker=dict(opacity=0.8, pattern=experimental_negative_pattern),
+                        legendgroup=f"{experimental_name}-negative",
+                        showlegend=False,
+                        width=0.4,
+                    ),
+                    row=2,
+                    col=2,
+                )
+
+        # 设置x轴刻度
+        fig.update_xaxes(
+            tickmode="array",
+            tickvals=list(range(len(all_intensities))),
+            ticktext=[str(i) for i in all_intensities],
+            row=2,
+            col=2,
+        )
+        fig.update_yaxes(title_text="反应时(秒)", row=2, col=2)
+        fig.update_xaxes(title_text="标签强度", row=2, col=2)
+
+    # 图6: 模糊等级对应选择强度（消极）- 两组对比
+    if (
+        "intensity_by_level_emotion" in control_full_metrics
+        and "intensity_by_level_emotion" in experimental_full_metrics
+    ):
+        control_intensity_data = control_full_metrics[
+            "intensity_by_level_emotion"
+        ].to_pandas()
+        experimental_intensity_data = experimental_full_metrics[
+            "intensity_by_level_emotion"
+        ].to_pandas()
+
+        # 只提取消极数据
+        control_neg_data = control_intensity_data[
+            control_intensity_data["stim_type"] == "negative"
+        ]
+        experimental_neg_data = experimental_intensity_data[
+            experimental_intensity_data["stim_type"] == "negative"
+        ]
+
+        # 为每个等级创建条形
+        for i, level in enumerate(level_order):
+            # 对照组消极数据
+            control_neg_level = control_neg_data[
+                control_neg_data["intensity_level"] == level
+            ]
+            if not control_neg_level.empty:
+                fig.add_trace(
+                    go.Bar(
+                        x=[i - 0.2],
+                        y=control_neg_level["mean_intensity"].values,
+                        error_y=dict(
+                            type="data",
+                            array=control_neg_level["std_intensity"].values,
+                            visible=True,
+                        ),
+                        name=f"{control_name}消极",
+                        marker_color=control_color,
+                        marker=dict(opacity=0.8, pattern=control_negative_pattern),
+                        legendgroup=f"{control_name}-negative",
+                        showlegend=False,
+                        width=0.4,
+                    ),
+                    row=2,
+                    col=3,
+                )
+
+            # 实验组消极数据
+            experimental_neg_level = experimental_neg_data[
+                experimental_neg_data["intensity_level"] == level
+            ]
+            if not experimental_neg_level.empty:
+                fig.add_trace(
+                    go.Bar(
+                        x=[i + 0.2],
+                        y=experimental_neg_level["mean_intensity"].values,
+                        error_y=dict(
+                            type="data",
+                            array=experimental_neg_level["std_intensity"].values,
+                            visible=True,
+                        ),
+                        name=f"{experimental_name}消极",
+                        marker_color=experimental_color,
+                        marker=dict(opacity=0.8, pattern=experimental_negative_pattern),
+                        legendgroup=f"{experimental_name}-negative",
+                        showlegend=False,
+                        width=0.4,
+                    ),
+                    row=2,
+                    col=3,
+                )
+
+        # 设置x轴刻度
+        fig.update_xaxes(
+            tickmode="array",
+            tickvals=list(range(3)),
+            ticktext=["模糊", "中等", "清晰"],
+            row=2,
+            col=3,
+        )
+        fig.update_yaxes(title_text="选择强度", range=[0, 10], row=2, col=3)
+        fig.update_xaxes(title_text="模糊等级", row=2, col=3)
+
+    # 图7: 模糊等级对应反应时（积极）- 两组对比
     if (
         "rt_by_level_emotion" in control_full_metrics
         and "rt_by_level_emotion" in experimental_full_metrics
@@ -2220,14 +2336,10 @@ def create_multi_group_visualizations(
             "rt_by_level_emotion"
         ].to_pandas()
 
-        # 分离积极和消极数据
+        # 只提取积极数据
         control_pos_data = control_rt_data[control_rt_data["stim_type"] == "positive"]
-        control_neg_data = control_rt_data[control_rt_data["stim_type"] == "negative"]
         experimental_pos_data = experimental_rt_data[
             experimental_rt_data["stim_type"] == "positive"
-        ]
-        experimental_neg_data = experimental_rt_data[
-            experimental_rt_data["stim_type"] == "negative"
         ]
 
         # 为每个等级创建条形
@@ -2239,7 +2351,7 @@ def create_multi_group_visualizations(
             if not control_pos_level.empty:
                 fig.add_trace(
                     go.Bar(
-                        x=[i - 0.3],
+                        x=[i - 0.2],
                         y=control_pos_level["mean_rt"].values,
                         error_y=dict(
                             type="data",
@@ -2248,12 +2360,12 @@ def create_multi_group_visualizations(
                         ),
                         name=f"{control_name}积极",
                         marker_color=control_color,
-                        marker=dict(opacity=0.7),
+                        marker=dict(opacity=0.8),
                         legendgroup=f"{control_name}-positive",
                         showlegend=False,
-                        width=0.2,
+                        width=0.4,
                     ),
-                    row=2,
+                    row=3,
                     col=1,
                 )
 
@@ -2264,7 +2376,7 @@ def create_multi_group_visualizations(
             if not experimental_pos_level.empty:
                 fig.add_trace(
                     go.Bar(
-                        x=[i - 0.1],
+                        x=[i + 0.2],
                         y=experimental_pos_level["mean_rt"].values,
                         error_y=dict(
                             type="data",
@@ -2273,15 +2385,44 @@ def create_multi_group_visualizations(
                         ),
                         name=f"{experimental_name}积极",
                         marker_color=experimental_color,
-                        marker=dict(opacity=0.7),
+                        marker=dict(opacity=0.8),
                         legendgroup=f"{experimental_name}-positive",
                         showlegend=False,
-                        width=0.2,
+                        width=0.4,
                     ),
-                    row=2,
+                    row=3,
                     col=1,
                 )
 
+        # 设置x轴刻度
+        fig.update_xaxes(
+            tickmode="array",
+            tickvals=list(range(3)),
+            ticktext=["模糊", "中等", "清晰"],
+            row=3,
+            col=1,
+        )
+        fig.update_yaxes(title_text="反应时(秒)", row=3, col=1)
+        fig.update_xaxes(title_text="模糊等级", row=3, col=1)
+
+    # 图8: 模糊等级对应反应时（消极）
+    if (
+        "rt_by_level_emotion" in control_full_metrics
+        and "rt_by_level_emotion" in experimental_full_metrics
+    ):
+        control_rt_data = control_full_metrics["rt_by_level_emotion"].to_pandas()
+        experimental_rt_data = experimental_full_metrics[
+            "rt_by_level_emotion"
+        ].to_pandas()
+
+        # 只提取消极数据
+        control_neg_data = control_rt_data[control_rt_data["stim_type"] == "negative"]
+        experimental_neg_data = experimental_rt_data[
+            experimental_rt_data["stim_type"] == "negative"
+        ]
+
+        # 为每个等级创建条形
+        for i, level in enumerate(level_order):
             # 对照组消极数据
             control_neg_level = control_neg_data[
                 control_neg_data["intensity_level"] == level
@@ -2289,7 +2430,7 @@ def create_multi_group_visualizations(
             if not control_neg_level.empty:
                 fig.add_trace(
                     go.Bar(
-                        x=[i + 0.1],
+                        x=[i - 0.2],
                         y=control_neg_level["mean_rt"].values,
                         error_y=dict(
                             type="data",
@@ -2298,13 +2439,13 @@ def create_multi_group_visualizations(
                         ),
                         name=f"{control_name}消极",
                         marker_color=control_color,
-                        marker=dict(opacity=0.7, pattern=dict(shape="/")),
+                        marker=dict(opacity=0.8, pattern=control_negative_pattern),
                         legendgroup=f"{control_name}-negative",
                         showlegend=False,
-                        width=0.2,
+                        width=0.4,
                     ),
-                    row=2,
-                    col=1,
+                    row=3,
+                    col=2,
                 )
 
             # 实验组消极数据
@@ -2314,7 +2455,7 @@ def create_multi_group_visualizations(
             if not experimental_neg_level.empty:
                 fig.add_trace(
                     go.Bar(
-                        x=[i + 0.3],
+                        x=[i + 0.2],
                         y=experimental_neg_level["mean_rt"].values,
                         error_y=dict(
                             type="data",
@@ -2323,13 +2464,13 @@ def create_multi_group_visualizations(
                         ),
                         name=f"{experimental_name}消极",
                         marker_color=experimental_color,
-                        marker=dict(opacity=0.7, pattern=dict(shape="/")),
+                        marker=dict(opacity=0.8, pattern=experimental_negative_pattern),
                         legendgroup=f"{experimental_name}-negative",
                         showlegend=False,
-                        width=0.2,
+                        width=0.4,
                     ),
-                    row=2,
-                    col=1,
+                    row=3,
+                    col=2,
                 )
 
         # 设置x轴刻度
@@ -2337,13 +2478,13 @@ def create_multi_group_visualizations(
             tickmode="array",
             tickvals=list(range(3)),
             ticktext=["模糊", "中等", "清晰"],
-            row=2,
-            col=1,
+            row=3,
+            col=2,
         )
+        fig.update_yaxes(title_text="反应时(秒)", row=3, col=2)
+        fig.update_xaxes(title_text="模糊等级", row=3, col=2)
 
-        fig.update_yaxes(title_text="反应时(秒)", row=2, col=1)
-        fig.update_xaxes(title_text="模糊等级", row=2, col=1)
-    # 图5: 中性判定强度（积极、消极和中性分开，两组对比）
+    # 图9: 中性判定强度（积极、消极和中性分开，两组对比）
     if (
         "neutral_by_label_emotion" in control_full_metrics
         and "neutral_by_label_emotion" in experimental_full_metrics
@@ -2456,8 +2597,8 @@ def create_multi_group_visualizations(
                     name=f"{control_name}",
                     showlegend=True,
                 ),
-                row=2,
-                col=2,
+                row=4,
+                col=1,
             )
 
         # 绘制实验组数据 - 使用lines+markers模式，所有点使用相同的marker
@@ -2496,16 +2637,16 @@ def create_multi_group_visualizations(
                     name=f"{experimental_name}",
                     showlegend=True,
                 ),
-                row=2,
-                col=2,
+                row=4,
+                col=1,
             )
 
-        fig.update_yaxes(title_text="中性判定比例", range=[0, 1.2], row=2, col=2)
+        fig.update_yaxes(title_text="中性判定比例", range=[0, 1], row=4, col=1)
         fig.update_xaxes(
-            title_text="标签强度（积极为正，消极为负，中性为0）", row=2, col=2
+            title_text="标签强度（积极为正，消极为负，中性为0）", row=4, col=1
         )
 
-    # 图6: 强度一致性分析（两组对比）
+    # 图10: 强度一致性分析（两组对比）
     if (
         "intensity_by_label_emotion" in control_full_metrics
         and "intensity_by_label_emotion" in experimental_full_metrics
@@ -2637,9 +2778,9 @@ def create_multi_group_visualizations(
                 color=control_color,
             )
 
-            fig.add_trace(control_lower, row=2, col=3)
-            fig.add_trace(control_upper, row=2, col=3)
-            fig.add_trace(control_main, row=2, col=3)
+            fig.add_trace(control_lower, row=4, col=2)
+            fig.add_trace(control_upper, row=4, col=2)
+            fig.add_trace(control_main, row=4, col=2)
 
         # 合并实验组所有数据（积极、消极和中性）
         if (
@@ -2730,9 +2871,9 @@ def create_multi_group_visualizations(
                 color=experimental_color,
             )
 
-            fig.add_trace(experimental_lower, row=2, col=3)
-            fig.add_trace(experimental_upper, row=2, col=3)
-            fig.add_trace(experimental_main, row=2, col=3)
+            fig.add_trace(experimental_lower, row=4, col=2)
+            fig.add_trace(experimental_upper, row=4, col=2)
+            fig.add_trace(experimental_main, row=4, col=2)
 
         # 添加对角线（理想一致性线）
         max_val = 9
@@ -2745,20 +2886,20 @@ def create_multi_group_visualizations(
                 name="理想一致性线",
                 showlegend=True,
             ),
-            row=2,
-            col=3,
+            row=4,
+            col=2,
         )
 
         fig.update_yaxes(
-            title_text="选择强度", range=[-max_val - 1, max_val + 1], row=2, col=3
+            title_text="选择强度", range=[-max_val - 1, max_val + 1], row=4, col=2
         )
         fig.update_xaxes(
-            title_text="标签强度（积极为正，消极为负，中性为0）", row=2, col=3
+            title_text="标签强度（积极为正，消极为负，中性为0）", row=4, col=2
         )
 
     # 调整布局
     fig.update_layout(
-        height=1400,
+        height=400 * 4,
         width=1800,
         title=dict(
             text=f"面部情绪识别{control_name} vs {experimental_name}组间对比分析",

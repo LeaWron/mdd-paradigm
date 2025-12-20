@@ -45,16 +45,6 @@ run_groups 是多组分析的入口
 
 analyze_`<name>`_data, 真正的调用各个函数的入口
 
-### 常量
-
-REFERENCE_VALUES 是前期从文献中摘录出的参考值
-
-- 当然也可能是自己造的
-
-key_metrics 则是可视化时会用到的关键性指标
-
-metric_names 则是 key_metrics 的中文翻译
-
 ### 共同结构
 
 find_`<name>`_files, 这个是用来寻找给定目录下属于该范式的 csv 文件的函数

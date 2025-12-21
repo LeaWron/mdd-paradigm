@@ -634,24 +634,79 @@ def save_html_report(
 ):
     """
     将多个 Figure 拼接为一个 HTML 文件。
+    解决了超宽图表（如 width=2000）导致背景容器宽度不足的问题。
     """
     if descriptions is None:
         descriptions = [""] * len(figures)
 
+    # 确保保存目录存在
+    save_dir.mkdir(parents=True, exist_ok=True)
+
     html_content = [
         f"""
+        <!DOCTYPE html>
         <html>
         <head>
             <title>{title}</title>
             <meta charset="utf-8" />
             <style>
-                body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; background-color: #f8f9fa; color: #333; }}
-                .container {{ max-width: 1600px; margin: 0 auto; background: white; padding: 40px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 8px; }}
-                h1 {{ text-align: center; color: #2c3e50; margin-bottom: 30px; border-bottom: 2px solid #eaeaea; padding-bottom: 20px; }}
-                .section {{ margin-bottom: 60px; }}
-                .desc {{ font-size: 1.2em; color: #555; margin-bottom: 20px; padding: 10px 15px; border-left: 5px solid #007bff; background-color: #e9ecef; border-radius: 0 4px 4px 0; }}
-                .plot-wrapper {{ display: flex; justify-content: center; }}
-                .footer {{ text-align: center; margin-top: 50px; color: #aaa; font-size: 0.9em; }}
+                body {{
+                    font-family: 'Segoe UI', Arial, sans-serif;
+                    margin: 0;
+                    padding: 40px;
+                    background-color: #f8f9fa;
+                    color: #333;
+                    /* 使用 flex 确保内部容器能够根据内容宽度居中 */
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                }}
+                .container {{
+                    /* 关键修改：使容器宽度根据内部图表自动撑开，而不是被限制在 1600px */
+                    display: block;
+                    width: fit-content;
+                    min-width: 1000px;
+                    max-width: 98vw; /* 防止在极窄屏幕上溢出视口 */
+                    margin: 0 auto;
+                    background: white;
+                    padding: 40px;
+                    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+                    border-radius: 8px;
+                }}
+                h1 {{
+                    text-align: center;
+                    color: #2c3e50;
+                    margin-bottom: 30px;
+                    border-bottom: 2px solid #eaeaea;
+                    padding-bottom: 20px;
+                    width: 100%;
+                }}
+                .section {{
+                    margin-bottom: 60px;
+                    width: 100%;
+                }}
+                .desc {{
+                    font-size: 1.1em;
+                    color: #555;
+                    margin-bottom: 20px;
+                    padding: 12px 20px;
+                    border-left: 5px solid #1abc9c;
+                    background-color: #f0fdfa;
+                    border-radius: 0 4px 4px 0;
+                }}
+                .plot-wrapper {{
+                    display: flex;
+                    justify-content: center;
+                    width: 100%;
+                    overflow-x: auto; /* 若图表超过视口宽度，允许内部滚动 */
+                }}
+                .footer {{
+                    text-align: center;
+                    margin-top: 50px;
+                    color: #aaa;
+                    font-size: 0.9em;
+                    width: 100%;
+                }}
             </style>
         </head>
         <body>
@@ -661,9 +716,10 @@ def save_html_report(
     ]
 
     for i, fig in enumerate(figures):
-        # 仅第一个图包含 plotly.js
+        # 仅第一个图包含 plotly.js 核心库以减小文件体积
         include_plotlyjs = "cdn" if i == 0 else False
         plot_html = fig.to_html(full_html=False, include_plotlyjs=include_plotlyjs)
+
         desc_html = (
             f'<div class="desc">{descriptions[i]}</div>' if descriptions[i] else ""
         )

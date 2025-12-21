@@ -388,13 +388,141 @@ def analyze_reaction_time_breakdown(df: pl.DataFrame) -> dict[str, Any]:
     return results
 
 
+def create_word_level_visualizations_single(
+    word_stats: list[dict], result_dir: Path = None
+) -> go.Figure:
+    """创建单人分析的词级可视化"""
+    if not word_stats:
+        return None
+
+    # 按词性排序：先积极词后消极词
+    positive_words = [w for w in word_stats if w["stim_type"] == "positive"]
+    negative_words = [w for w in word_stats if w["stim_type"] == "negative"]
+
+    # 按认同率排序
+    positive_words.sort(key=lambda x: x["endorsement_rate"], reverse=True)
+    negative_words.sort(key=lambda x: x["endorsement_rate"], reverse=True)
+
+    sorted_words = positive_words + negative_words
+
+    words = [w["stim_word"] for w in sorted_words]
+    stim_types = [w["stim_type"] for w in sorted_words]
+    endorsement_rates = [w["endorsement_rate"] for w in sorted_words]
+    mean_rts = [w.get("mean_rt", 0) for w in sorted_words]
+
+    # 创建子图
+    fig = make_subplots(
+        rows=3,
+        cols=1,
+        subplot_titles=(
+            "每个词的平均反应时",
+            "每个词的认同率",
+            "词性分布统计",
+        ),
+        vertical_spacing=0.15,
+        horizontal_spacing=0.15,
+    )
+
+    # 颜色映射
+    colors = ["lightblue" if t == "positive" else "lightcoral" for t in stim_types]
+
+    # 图1:每个词的平均反应时
+    fig.add_trace(
+        go.Bar(
+            x=words,
+            y=mean_rts,
+            name="平均反应时(ms)",
+            marker_color=colors,
+            text=[f"{rt:.0f}ms" for rt in mean_rts],
+            textposition="auto",
+        ),
+        row=1,
+        col=1,
+    )
+
+    # 图2：每个词的认同率
+    fig.add_trace(
+        go.Scatter(
+            x=words,
+            y=endorsement_rates,
+            mode="lines+markers",
+            name="认同率",
+            line=dict(color="blue", width=2),
+            marker=dict(
+                size=8, color=colors, line=dict(width=1, color="DarkSlateGrey")
+            ),
+            text=[f"{rate:.1%}" for rate in endorsement_rates],
+            textposition="top center",
+        ),
+        row=2,
+        col=1,
+    )
+
+    # 图3：词性分布统计
+    positive_endorsed = sum([w["endorsement_count"] for w in positive_words])
+    positive_rejected = sum([w["rejection_count"] for w in positive_words])
+    negative_endorsed = sum([w["endorsement_count"] for w in negative_words])
+    negative_rejected = sum([w["rejection_count"] for w in negative_words])
+
+    fig.add_trace(
+        go.Bar(
+            x=["积极词", "消极词"],
+            y=[positive_endorsed, negative_endorsed],
+            name="认同",
+            marker_color=["lightblue", "lightcoral"],
+            text=[positive_endorsed, negative_endorsed],
+            textposition="auto",
+        ),
+        row=3,
+        col=1,
+    )
+
+    fig.add_trace(
+        go.Bar(
+            x=["积极词", "消极词"],
+            y=[positive_rejected, negative_rejected],
+            name="拒绝",
+            marker_color=["powderblue", "mistyrose"],
+            text=[positive_rejected, negative_rejected],
+            textposition="auto",
+        ),
+        row=3,
+        col=1,
+    )
+
+    # 更新布局
+    fig.update_layout(
+        title=dict(
+            text="SRET词级分析报告", font=dict(size=20, family="Arial Black"), x=0.5
+        ),
+        height=400 * 3,
+        width=1400,
+        showlegend=True,
+        template="plotly_white",
+        barmode="stack",  # 对于堆叠条形图
+    )
+
+    # 更新x轴标签角度
+    fig.update_xaxes(tickangle=90, row=1, col=1)
+    fig.update_xaxes(tickangle=90, row=2, col=1)
+    fig.update_xaxes(tickangle=90, row=3, col=1)
+
+    if result_dir:
+        fig.write_html(str(result_dir / "sret_word_level_analysis.html"))
+
+    return fig
+
+
 def create_single_visualizations(
     metrics: dict[str, float],
     valence_results: dict[str, Any],
     result_dir: Path,
+    word_results: dict[str, Any] = None,
 ) -> list[go.Figure]:
+    """创建单人分析可视化"""
     figs = []
 
+    # 原有的可视化图
     fig = make_subplots(
         rows=2,
         cols=3,
@@ -651,7 +779,12 @@ def create_single_visualizations(
 
     fig.write_html(str(result_dir / "sret_analysis_report.html"))
     figs.append(fig)
-
+    if word_results and "word_stats" in word_results:
+        word_fig = create_word_level_visualizations_single(
+            word_results["word_stats"], result_dir
+        )
+        if word_fig:
+            figs.append(word_fig)
     return figs
 
 
@@ -711,7 +844,9 @@ def analyze_sret_data_single(
     rt_breakdown = analyze_reaction_time_breakdown(trials_df)
 
     # 6. 创建可视化
-    figs = create_single_visualizations(metrics, valence_results, result_dir)  # noqa: F841
+    figs = create_single_visualizations(  # noqa: F841
+        metrics, valence_results, result_dir, word_results
+    )
 
     # 7. 保存结果
     save_results(metrics, valence_results, result_dir, word_results)
@@ -738,14 +873,331 @@ def analyze_sret_data_single(
     return results
 
 
+def create_word_level_visualizations_group(
+    all_word_stats: list[list[dict]],  # 每个被试的词级数据列表
+    result_dir: Path = None,
+) -> list[go.Figure]:
+    """创建单组分析的词级可视化 - 横向条形图"""
+    if not all_word_stats:
+        return []
+
+    figs = []
+
+    # 收集所有被试的数据
+    word_data = {}
+    for subject_word_stats in all_word_stats:
+        for word_stat in subject_word_stats:
+            word = word_stat["stim_word"]
+            stim_type = word_stat["stim_type"]
+
+            if word not in word_data:
+                word_data[word] = {
+                    "stim_type": stim_type,
+                    "endorsement_counts": [],
+                    "rejection_counts": [],
+                    "mean_rts": [],
+                }
+
+            word_data[word]["endorsement_counts"].append(word_stat["endorsement_count"])
+            word_data[word]["rejection_counts"].append(word_stat["rejection_count"])
+
+            if word_stat.get("mean_rt") is not None:
+                word_data[word]["mean_rts"].append(word_stat["mean_rt"])
+
+    # 计算每个词的组统计
+    words = []
+    stim_types = []
+    mean_endorsement_counts = []
+    std_endorsement_counts = []
+    mean_rejection_counts = []
+    std_rejection_counts = []
+    endorsement_rates = []
+    mean_rts = []
+    std_rts = []
+    se_rts = []  # 标准误
+
+    for word, data in word_data.items():
+        words.append(word)
+        stim_types.append(data["stim_type"])
+
+        # 平均选择次数和标准差
+        mean_endorsement_counts.append(np.mean(data["endorsement_counts"]))
+        std_endorsement_counts.append(
+            np.std(data["endorsement_counts"], ddof=1)
+            if len(data["endorsement_counts"]) > 1
+            else 0
+        )
+        mean_rejection_counts.append(np.mean(data["rejection_counts"]))
+        std_rejection_counts.append(
+            np.std(data["rejection_counts"], ddof=1)
+            if len(data["rejection_counts"]) > 1
+            else 0
+        )
+
+        # 平均认同率
+        total_trials = np.sum(data["endorsement_counts"]) + np.sum(
+            data["rejection_counts"]
+        )
+        if total_trials > 0:
+            endorsement_rate = np.sum(data["endorsement_counts"]) / total_trials
+        else:
+            endorsement_rate = 0
+        endorsement_rates.append(endorsement_rate)
+
+        # 平均反应时 - 确保有有效数据
+        if data["mean_rts"] and not all(np.isnan(rt) for rt in data["mean_rts"]):
+            valid_rts = [rt for rt in data["mean_rts"] if not np.isnan(rt)]
+            if valid_rts:
+                mean_rt = np.mean(valid_rts)
+                std_rt = np.std(valid_rts, ddof=1) if len(valid_rts) > 1 else 0
+                se_rt = std_rt / np.sqrt(len(valid_rts)) if len(valid_rts) > 0 else 0
+                mean_rts.append(mean_rt)
+                std_rts.append(std_rt)
+                se_rts.append(se_rt)
+            else:
+                mean_rts.append(0)
+                std_rts.append(0)
+                se_rts.append(0)
+        else:
+            mean_rts.append(0)
+            std_rts.append(0)
+            se_rts.append(0)
+
+    # 按词性排序
+    positive_indices = [i for i, t in enumerate(stim_types) if t == "positive"]
+    negative_indices = [i for i, t in enumerate(stim_types) if t == "negative"]
+
+    sorted_indices = positive_indices + negative_indices
+    words = [words[i] for i in sorted_indices]
+    stim_types = [stim_types[i] for i in sorted_indices]
+    mean_endorsement_counts = [mean_endorsement_counts[i] for i in sorted_indices]
+    std_endorsement_counts = [std_endorsement_counts[i] for i in sorted_indices]
+    mean_rejection_counts = [mean_rejection_counts[i] for i in sorted_indices]
+    std_rejection_counts = [std_rejection_counts[i] for i in sorted_indices]
+    endorsement_rates = [endorsement_rates[i] for i in sorted_indices]
+    mean_rts = [mean_rts[i] for i in sorted_indices]
+    std_rts = [std_rts[i] for i in sorted_indices]
+    se_rts = [se_rts[i] for i in sorted_indices]
+
+    # 1. 创建选择次数图
+    fig = make_subplots(
+        rows=3,
+        cols=1,
+        subplot_titles=(
+            "选择次数",
+            "反应时间对比",
+            "认同率",
+        ),
+        specs=[[{"type": "bar"}], [{"type": "bar"}], [{"type": "bar"}]],
+    )
+
+    # 只显示前30个词，避免图表过于拥挤
+    display_limit = min(80, len(words))
+    display_words = words[:display_limit]
+    display_stim_types = stim_types[:display_limit]
+    display_mean_endorsed = mean_endorsement_counts[:display_limit]
+    display_std_endorsed = std_endorsement_counts[:display_limit]
+    display_mean_rejected = mean_rejection_counts[:display_limit]
+    display_std_rejected = std_rejection_counts[:display_limit]
+
+    # 积极词和消极词分开显示
+    for i, (
+        word,
+        stim_type,
+        mean_endorsed,
+        std_endorsed,
+        mean_rejected,
+        std_rejected,
+    ) in enumerate(
+        zip(
+            display_words,
+            display_stim_types,
+            display_mean_endorsed,
+            display_std_endorsed,
+            display_mean_rejected,
+            display_std_rejected,
+        )
+    ):
+        fig.add_trace(
+            go.Bar(
+                x=[word],
+                y=[mean_endorsed],
+                name=f"{word} (认同)",
+                marker_color="lightblue" if stim_type == "positive" else "lightcoral",
+                text=[f"{mean_endorsed:.2f}"],
+                textposition="auto",
+                showlegend=False,
+                hovertemplate=f"词: {word}<br>词性: {stim_type}<br>平均认同次数: {mean_endorsed:.2f}<br>标准差: {std_endorsed:.2f}<br><extra></extra>",
+            ),
+            row=1,
+            col=1,
+        )
+        fig.add_trace(
+            go.Bar(
+                x=[word],
+                y=[mean_rejected],
+                name=f"{word} (拒绝)",
+                marker_color="powderblue" if stim_type == "positive" else "mistyrose",
+                text=[f"{mean_rejected:.2f}"],
+                textposition="auto",
+                showlegend=False,
+                hovertemplate=f"词: {word}<br>词性: {stim_type}<br>平均拒绝次数: {mean_rejected:.2f}<br>标准差: {std_rejected:.2f}<br><extra></extra>",
+            ),
+            row=1,
+            col=1,
+        )
+
+        # 更新x轴标签角度
+        fig.update_xaxes(tickangle=45, row=1, col=1)
+
+    # 2. 创建反应时图 - 确保有有效数据
+    if any(rt > 0 for rt in mean_rts):
+        # 只显示前30个词
+        display_mean_rts = mean_rts[:display_limit]
+        display_std_rts = std_rts[:display_limit]
+        display_se_rts = se_rts[:display_limit]
+
+        for i, (word, stim_type, mean_rt, std_rt, se_rt) in enumerate(
+            zip(
+                display_words,
+                display_stim_types,
+                display_mean_rts,
+                display_std_rts,
+                display_se_rts,
+            )
+        ):
+            if mean_rt > 0:  # 只显示有有效数据的词
+                fig.add_trace(
+                    go.Bar(
+                        x=[word],
+                        y=[mean_rt],
+                        name=word,
+                        marker_color="lightblue"
+                        if stim_type == "positive"
+                        else "lightcoral",
+                        text=[f"{mean_rt:.0f}±{std_rt:.0f}ms"],
+                        textposition="auto",
+                        showlegend=False,
+                        error_y=dict(
+                            type="data",
+                            array=[std_rt],
+                            visible=True,
+                            color="rgba(0,0,0,0.5)",
+                        ),
+                        hovertemplate=f"词: {word}<br>词性: {stim_type}<br>平均反应时: {mean_rt:.0f}ms<br>标准差: {std_rt:.0f}ms<br>标准误: {se_rt:.0f}ms<br><extra></extra>",
+                    ),
+                    row=2,
+                    col=1,
+                )
+
+                # 更新x轴标签角度
+                fig.update_xaxes(tickangle=45, row=2, col=1)
+
+    # 3. 创建认同率图 - 计算认同率的标准误
+
+    # 计算认同率的标准误
+    endorsement_rate_ses = []
+    for i, (rate, mean_endorsed, mean_rejected) in enumerate(
+        zip(endorsement_rates, mean_endorsement_counts, mean_rejection_counts)
+    ):
+        n = len(all_word_stats)  # 被试数
+        if n > 0 and rate > 0 and rate < 1:
+            # 使用二项分布标准误公式
+            se = np.sqrt(rate * (1 - rate) / n) * 100  # 转换为百分比
+        else:
+            se = 0
+        endorsement_rate_ses.append(se)
+
+    # 只显示前30个词
+    display_endorsement_rates = endorsement_rates[:display_limit]
+    display_endorsement_rate_ses = endorsement_rate_ses[:display_limit]
+
+    for i, (word, stim_type, rate, se) in enumerate(
+        zip(
+            display_words,
+            display_stim_types,
+            display_endorsement_rates,
+            display_endorsement_rate_ses,
+        )
+    ):
+        fig.add_trace(
+            go.Bar(
+                x=[word],
+                y=[rate * 100],  # 转换为百分比
+                name=word,
+                marker_color="lightblue" if stim_type == "positive" else "lightcoral",
+                text=[f"{rate:.1%}"],
+                textposition="auto",
+                showlegend=False,
+                error_y=dict(
+                    type="data",
+                    array=[se],
+                    visible=True,
+                    color="rgba(0,0,0,0.5)",
+                ),
+                hovertemplate=f"词: {word}<br>词性: {stim_type}<br>平均认同率: {rate:.1%}<br>标准误: {se:.1f}%<br><extra></extra>",
+            ),
+            row=3,
+            col=1,
+        )
+
+    # 更新x轴标签角度
+    fig.update_xaxes(tickangle=45, row=3, col=1)
+
+    if result_dir:
+        # 保存完整的词级数据到CSV
+        word_stats_df = pd.DataFrame(
+            {
+                "word": words,
+                "stim_type": stim_types,
+                "mean_endorsement_count": mean_endorsement_counts,
+                "std_endorsement_count": std_endorsement_counts,
+                "mean_rejection_count": mean_rejection_counts,
+                "std_rejection_count": std_rejection_counts,
+                "endorsement_rate": endorsement_rates,
+                "endorsement_rate_se(%)": [se for se in endorsement_rate_ses],
+                "mean_rt": mean_rts,
+                "std_rt": std_rts,
+                "se_rt": se_rts,
+            }
+        )
+        word_stats_df.to_csv(
+            result_dir / "sret_group_word_level_stats.csv", index=False
+        )
+    # 积极消极分界线
+    fig.add_vline(
+        x=len(positive_indices) - 0.5,
+        line_width=3,
+        line_dash="dash",
+        line_color="gray",
+    )
+
+    fig.update_layout(
+        barmode="stack",
+        title=dict(
+            text=f"SRET组分析词级报告 - (显示前{display_limit}个词)",
+            font=dict(size=16, family="Arial Black"),
+            x=0.5,
+        ),
+        width=2000,
+        height=600 * 3,
+        showlegend=True,
+        template="plotly_white",
+        hovermode="x unified",
+    )
+    figs.append(fig)
+    return figs
+
+
 def create_single_group_visualizations(
     group_metrics: list[dict[str, float]],
+    all_results: list[dict] | None = None,
 ) -> list[go.Figure]:
     """单个组的组分析可视化"""
-
     all_metrics = group_metrics
     figs = []
 
+    # 原有的可视化图
     fig_1 = make_subplots(
         rows=2,
         cols=3,
@@ -1023,16 +1475,501 @@ def create_single_group_visualizations(
 
         figs.append(fig_3)
 
+    # 新增：词级可视化图
+    if all_results:
+        all_word_stats = []
+        for result in all_results:
+            if "word_results" in result and "word_stats" in result["word_results"]:
+                all_word_stats.append(result["word_results"]["word_stats"])
+
+        if all_word_stats:
+            word_fig = create_word_level_visualizations_group(all_word_stats)
+            if word_fig:
+                figs.extend(word_fig)
+
+    return figs
+
+
+def create_word_level_visualizations_multi_group(
+    control_word_stats: list[list[dict]],
+    experimental_word_stats: list[list[dict]],
+    result_dir: Path = None,
+) -> list[go.Figure]:
+    """创建多组分析的词级可视化 - 横向条形图"""
+    if not control_word_stats or not experimental_word_stats:
+        return []
+
+    figs = []
+
+    # 收集所有词的数据
+    def collect_group_data(word_stats_list, group_name):
+        word_data = {}
+        for subject_word_stats in word_stats_list:
+            for word_stat in subject_word_stats:
+                word = word_stat["stim_word"]
+                stim_type = word_stat["stim_type"]
+
+                if word not in word_data:
+                    word_data[word] = {
+                        "stim_type": stim_type,
+                        "endorsement_counts": [],
+                        "rejection_counts": [],
+                        "mean_rts": [],
+                    }
+
+                word_data[word]["endorsement_counts"].append(
+                    word_stat["endorsement_count"]
+                )
+                word_data[word]["rejection_counts"].append(word_stat["rejection_count"])
+
+                if word_stat.get("mean_rt") is not None:
+                    word_data[word]["mean_rts"].append(word_stat["mean_rt"])
+        return word_data
+
+    control_data = collect_group_data(control_word_stats, "control")
+    experimental_data = collect_group_data(experimental_word_stats, "experimental")
+
+    # 获取所有词的交集
+    all_words = sorted(set(control_data.keys()) & set(experimental_data.keys()))
+
+    if not all_words:
+        print("⚠️ 对照组和实验组没有共同的词，无法进行词级比较分析")
+        return []
+
+    # 准备数据
+    words = []
+    stim_types = []
+    control_endorsement_rates = []
+    control_endorsement_ses = []
+    experimental_endorsement_rates = []
+    experimental_endorsement_ses = []
+    control_mean_rts = []
+    control_std_rts = []
+    control_se_rts = []
+    experimental_mean_rts = []
+    experimental_std_rts = []
+    experimental_se_rts = []
+
+    for word in all_words:
+        # 对照组数据
+        ctl_endorsement_counts = control_data[word]["endorsement_counts"]
+        ctl_rejection_counts = control_data[word]["rejection_counts"]
+        ctl_total = np.sum(ctl_endorsement_counts) + np.sum(ctl_rejection_counts)
+        ctl_endorsement_rate = (
+            np.sum(ctl_endorsement_counts) / ctl_total if ctl_total > 0 else 0
+        )
+        ctl_n = len(ctl_endorsement_counts)
+        ctl_se = (
+            np.sqrt(ctl_endorsement_rate * (1 - ctl_endorsement_rate) / ctl_n)
+            if ctl_n > 0 and 0 < ctl_endorsement_rate < 1
+            else 0
+        )
+
+        # 实验组数据
+        exp_endorsement_counts = experimental_data[word]["endorsement_counts"]
+        exp_rejection_counts = experimental_data[word]["rejection_counts"]
+        exp_total = np.sum(exp_endorsement_counts) + np.sum(exp_rejection_counts)
+        exp_endorsement_rate = (
+            np.sum(exp_endorsement_counts) / exp_total if exp_total > 0 else 0
+        )
+        exp_n = len(exp_endorsement_counts)
+        exp_se = (
+            np.sqrt(exp_endorsement_rate * (1 - exp_endorsement_rate) / exp_n)
+            if exp_n > 0 and 0 < exp_endorsement_rate < 1
+            else 0
+        )
+
+        # 平均反应时 - 确保有有效数据
+        ctl_mean_rt = 0
+        ctl_std_rt = 0
+        ctl_se_rt = 0
+        if control_data[word]["mean_rts"] and not all(
+            np.isnan(rt) for rt in control_data[word]["mean_rts"]
+        ):
+            valid_rts = [
+                rt for rt in control_data[word]["mean_rts"] if not np.isnan(rt)
+            ]
+            if valid_rts:
+                ctl_mean_rt = np.mean(valid_rts)
+                ctl_std_rt = np.std(valid_rts, ddof=1) if len(valid_rts) > 1 else 0
+                ctl_se_rt = (
+                    ctl_std_rt / np.sqrt(len(valid_rts)) if len(valid_rts) > 0 else 0
+                )
+
+        exp_mean_rt = 0
+        exp_std_rt = 0
+        exp_se_rt = 0
+        if experimental_data[word]["mean_rts"] and not all(
+            np.isnan(rt) for rt in experimental_data[word]["mean_rts"]
+        ):
+            valid_rts = [
+                rt for rt in experimental_data[word]["mean_rts"] if not np.isnan(rt)
+            ]
+            if valid_rts:
+                exp_mean_rt = np.mean(valid_rts)
+                exp_std_rt = np.std(valid_rts, ddof=1) if len(valid_rts) > 1 else 0
+                exp_se_rt = (
+                    exp_std_rt / np.sqrt(len(valid_rts)) if len(valid_rts) > 0 else 0
+                )
+
+        words.append(word)
+        stim_types.append(control_data[word]["stim_type"])
+        control_endorsement_rates.append(ctl_endorsement_rate)
+        control_endorsement_ses.append(ctl_se * 100)  # 转换为百分比
+        experimental_endorsement_rates.append(exp_endorsement_rate)
+        experimental_endorsement_ses.append(exp_se * 100)  # 转换为百分比
+        control_mean_rts.append(ctl_mean_rt)
+        control_std_rts.append(ctl_std_rt)
+        control_se_rts.append(ctl_se_rt)
+        experimental_mean_rts.append(exp_mean_rt)
+        experimental_std_rts.append(exp_std_rt)
+        experimental_se_rts.append(exp_se_rt)
+
+    # 按词性排序
+    positive_indices = [i for i, t in enumerate(stim_types) if t == "positive"]
+    negative_indices = [i for i, t in enumerate(stim_types) if t == "negative"]
+
+    sorted_indices = positive_indices + negative_indices
+    words = [words[i] for i in sorted_indices]
+    stim_types = [stim_types[i] for i in sorted_indices]
+    control_endorsement_rates = [control_endorsement_rates[i] for i in sorted_indices]
+    control_endorsement_ses = [control_endorsement_ses[i] for i in sorted_indices]
+    experimental_endorsement_rates = [
+        experimental_endorsement_rates[i] for i in sorted_indices
+    ]
+    experimental_endorsement_ses = [
+        experimental_endorsement_ses[i] for i in sorted_indices
+    ]
+    control_mean_rts = [control_mean_rts[i] for i in sorted_indices]
+    control_std_rts = [control_std_rts[i] for i in sorted_indices]
+    control_se_rts = [control_se_rts[i] for i in sorted_indices]
+    experimental_mean_rts = [experimental_mean_rts[i] for i in sorted_indices]
+    experimental_std_rts = [experimental_std_rts[i] for i in sorted_indices]
+    experimental_se_rts = [experimental_se_rts[i] for i in sorted_indices]
+
+    # 只显示前30个词，避免图表过于拥挤
+    display_limit = min(80, len(words))
+    display_words = words[:display_limit]
+    display_stim_types = stim_types[:display_limit]
+    display_control_endorsement_rates = control_endorsement_rates[:display_limit]
+    display_control_endorsement_ses = control_endorsement_ses[:display_limit]
+    display_experimental_endorsement_rates = experimental_endorsement_rates[
+        :display_limit
+    ]
+    display_experimental_endorsement_ses = experimental_endorsement_ses[:display_limit]
+    display_control_mean_rts = control_mean_rts[:display_limit]
+    display_control_std_rts = control_std_rts[:display_limit]
+    display_control_se_rts = control_se_rts[:display_limit]
+    display_experimental_mean_rts = experimental_mean_rts[:display_limit]
+    display_experimental_std_rts = experimental_std_rts[:display_limit]
+    display_experimental_se_rts = experimental_se_rts[:display_limit]
+
+    # 1. 创建认同率对比图
+    fig = make_subplots(
+        rows=4,
+        cols=1,
+        subplot_titles=(
+            "组间认同率对比",
+            "组间反应时对比",
+            "组间认同率差异",
+            "组间反应时差异",
+        ),
+        specs=[
+            [{"type": "bar"}],
+            [{"type": "bar"}],
+            [{"type": "bar"}],
+            [{"type": "bar"}],
+        ],
+        vertical_spacing=0.1,
+    )
+
+    # 添加对照组数据
+    fig.add_trace(
+        go.Bar(
+            x=display_words,
+            y=[
+                rate * 100 for rate in display_control_endorsement_rates
+            ],  # 转换为百分比
+            name="对照组",
+            marker_color=[
+                "rgba(0, 128, 0, 0.7)" if t == "positive" else "rgba(255, 99, 71, 0.7)"
+                for t in display_stim_types
+            ],
+            text=[f"{rate:.1%}" for rate in display_control_endorsement_rates],
+            textposition="auto",
+            error_y=dict(
+                type="data",
+                array=display_control_endorsement_ses,
+                visible=True,
+                color="rgba(0,0,0,0.5)",
+            ),
+            hovertemplate="词: %{x}<br>词性: %{customdata}<br>对照组认同率: %{text}<br>标准误: %{error_y.array:.1f}%<br><extra></extra>",
+            customdata=display_stim_types,
+        ),
+        row=1,
+        col=1,
+    )
+
+    # 添加实验组数据
+    fig.add_trace(
+        go.Bar(
+            x=display_words,
+            y=[
+                rate * 100 for rate in display_experimental_endorsement_rates
+            ],  # 转换为百分比
+            name="实验组",
+            marker_color=[
+                "rgba(144, 238, 144, 0.7)"
+                if t == "positive"
+                else "rgba(255, 182, 193, 0.7)"
+                for t in display_stim_types
+            ],
+            text=[f"{rate:.1%}" for rate in display_experimental_endorsement_rates],
+            textposition="auto",
+            error_y=dict(
+                type="data",
+                array=display_experimental_endorsement_ses,
+                visible=True,
+                color="rgba(0,0,0,0.5)",
+            ),
+            hovertemplate="词: %{x}<br>词性: %{customdata}<br>实验组认同率: %{text}<br>标准误: %{error_y.array:.1f}%<br><extra></extra>",
+            customdata=display_stim_types,
+        ),
+        row=1,
+        col=1,
+    )
+
+    # 更新x轴标签角度
+    fig.update_xaxes(tickangle=45, row=1, col=1)
+
+    # 2. 创建反应时对比图 - 确保有有效数据
+    if any(rt > 0 for rt in display_control_mean_rts) or any(
+        rt > 0 for rt in display_experimental_mean_rts
+    ):
+        # 添加对照组数据
+        fig.add_trace(
+            go.Bar(
+                x=display_words,
+                y=display_control_mean_rts,
+                name="对照组",
+                marker_color=[
+                    "rgba(0, 128, 0, 0.7)"
+                    if t == "positive"
+                    else "rgba(255, 99, 71, 0.7)"
+                    for t in display_stim_types
+                ],
+                text=[f"{rt:.0f}ms" for rt in display_control_mean_rts],
+                textposition="auto",
+                error_y=dict(
+                    type="data",
+                    array=display_control_std_rts,
+                    visible=True,
+                    color="rgba(0,0,0,0.5)",
+                ),
+                hovertemplate="词: %{x}<br>词性: %{customdata}<br>对照组反应时: %{text}<br>标准差: %{error_y.array:.0f}ms<br><extra></extra>",
+                customdata=display_stim_types,
+            ),
+            row=2,
+            col=1,
+        )
+
+        # 添加实验组数据
+        fig.add_trace(
+            go.Bar(
+                x=display_words,
+                y=display_experimental_mean_rts,
+                name="实验组",
+                marker_color=[
+                    "rgba(144, 238, 144, 0.7)"
+                    if t == "positive"
+                    else "rgba(255, 182, 193, 0.7)"
+                    for t in display_stim_types
+                ],
+                text=[f"{rt:.0f}ms" for rt in display_experimental_mean_rts],
+                textposition="auto",
+                error_y=dict(
+                    type="data",
+                    array=display_experimental_std_rts,
+                    visible=True,
+                    color="rgba(0,0,0,0.5)",
+                ),
+                hovertemplate="词: %{x}<br>词性: %{customdata}<br>实验组反应时: %{text}<br>标准差: %{error_y.array:.0f}ms<br><extra></extra>",
+                customdata=display_stim_types,
+            ),
+            row=2,
+            col=1,
+        )
+
+        # 更新x轴标签角度
+        fig.update_xaxes(tickangle=45, row=2, col=1)
+
+    # 3. 创建认同率差异图
+
+    endorsement_rate_diffs = [
+        (exp - ctl) * 100
+        for exp, ctl in zip(
+            display_experimental_endorsement_rates, display_control_endorsement_rates
+        )
+    ]
+
+    # 计算差异的标准误（假设独立）
+    diff_ses = []
+    for i in range(len(display_words)):
+        se_ctl = display_control_endorsement_ses[i] / 100  # 转换回比例
+        se_exp = display_experimental_endorsement_ses[i] / 100  # 转换回比例
+        # 差异的标准误 = sqrt(se_ctl^2 + se_exp^2)
+        diff_se = np.sqrt(se_ctl**2 + se_exp**2) * 100  # 转换回百分比
+        diff_ses.append(diff_se)
+
+    fig.add_trace(
+        go.Bar(
+            x=display_words,
+            y=endorsement_rate_diffs,
+            name="认同率差异",
+            marker_color=[
+                "rgba(0, 0, 255, 0.7)" if diff > 0 else "rgba(255, 0, 0, 0.7)"
+                for diff in endorsement_rate_diffs
+            ],
+            error_y=dict(
+                type="data", array=diff_ses, visible=True, color="rgba(0,0,0,0.5)"
+            ),
+            hovertemplate="词: %{x}<br>词性: %{customdata}<br>认同率差异(实验-对照): %{text}%<br>标准误: %{error_y.array:.1f}%<br><extra></extra>",
+            customdata=display_stim_types,
+            text=[diff for diff in endorsement_rate_diffs],
+            textposition="none",
+        ),
+        row=3,
+        col=1,
+    )
+
+    # 添加零线
+    fig.add_hline(
+        y=0,
+        line_width=2,
+        line_dash="dash",
+        line_color="gray",
+        annotation_text="零差异线",
+        annotation_position="right",
+        row=3,
+        col=1,
+    )
+
+    # 更新x轴标签角度
+    fig.update_xaxes(tickangle=45, row=3, col=1)
+    # 4. 新增：反应时差异分析图
+    # 计算每词的反应时差异（实验组 - 对照组）
+    rt_diffs = [
+        exp - ctl
+        for exp, ctl in zip(display_experimental_mean_rts, display_control_mean_rts)
+    ]
+
+    # 计算差异的标准误（简化计算）
+    rt_diff_ses = []
+    for i in range(len(display_words)):
+        se_ctl = display_control_se_rts[i]
+        se_exp = display_experimental_se_rts[i]
+        diff_se = np.sqrt(se_ctl**2 + se_exp**2)
+        rt_diff_ses.append(diff_se)
+
+    fig.add_trace(
+        go.Bar(
+            x=display_words,
+            y=rt_diffs,
+            name="反应时差异",
+            marker_color=[
+                "rgba(0, 0, 255, 0.7)" if diff > 0 else "rgba(255, 0, 0, 0.7)"
+                for diff in rt_diffs
+            ],
+            error_y=dict(
+                type="data", array=rt_diff_ses, visible=True, color="rgba(0,0,0,0.5)"
+            ),
+            hovertemplate="词: %{x}<br>词性: %{customdata}<br>反应时差异(实验-对照): %{text:.0f}ms<br>标准误: %{error_y.array:.0f}ms<br><extra></extra>",
+            customdata=display_stim_types,
+            text=[diff for diff in rt_diffs],
+            textposition="none",
+        ),
+        row=4,
+        col=1,
+    )
+
+    # 添加零线
+    fig.add_hline(
+        y=0,
+        line_width=2,
+        line_dash="dash",
+        line_color="gray",
+        annotation_text="零差异线",
+        annotation_position="right",
+        row=4,
+        col=1,
+    )
+
+    # 更新x轴标签角度
+    fig.update_xaxes(tickangle=45, row=4, col=1)
+    if result_dir:
+        # 保存完整的词级数据到CSV
+        word_stats_df = pd.DataFrame(
+            {
+                "word": words,
+                "stim_type": stim_types,
+                "control_endorsement_rate": control_endorsement_rates,
+                "control_endorsement_se(%)": control_endorsement_ses,
+                "experimental_endorsement_rate": experimental_endorsement_rates,
+                "experimental_endorsement_se(%)": experimental_endorsement_ses,
+                "endorsement_rate_diff(%)": [
+                    exp * 100 - ctl * 100
+                    for exp, ctl in zip(
+                        experimental_endorsement_rates, control_endorsement_rates
+                    )
+                ],
+                "control_mean_rt": control_mean_rts,
+                "control_std_rt": control_std_rts,
+                "experimental_mean_rt": experimental_mean_rts,
+                "experimental_std_rt": experimental_std_rts,
+                "rt_diff": [
+                    exp - ctl
+                    for exp, ctl in zip(experimental_mean_rts, control_mean_rts)
+                ],
+            }
+        )
+        word_stats_df.to_csv(
+            result_dir / "sret_multi_group_word_level_stats.csv", index=False
+        )
+    # 积极消极分界线
+    fig.add_vline(
+        x=len(positive_indices) - 0.5,
+        line_width=2,
+        line_dash="dash",
+        line_color="gray",
+    )
+
+    fig.update_layout(
+        title=dict(
+            text=f"SRET多组分析词级报告 - (显示前{display_limit}个词)",
+            font=dict(size=16, family="Arial Black"),
+            x=0.5,
+        ),
+        height=600 * 4,
+        width=2000,
+        barmode="group",
+        template="plotly_white",
+        hovermode="x unified",
+    )
+
+    figs.append(fig)
     return figs
 
 
 def create_multi_group_visualizations(
     control_metrics: list[dict[str, float]],
     experimental_metrics: list[dict[str, float]],
+    control_results: list[dict] | None = None,
+    experimental_results: list[dict] | None = None,
 ) -> list[go.Figure]:
     """多组分析可视化 - 使用all_metrics中的所有指标"""
     figs = []
 
+    # 原有的可视化图
     # 收集所有可用的指标
     all_available_metrics = []
     for metric in all_metrics:
@@ -1214,6 +2151,26 @@ def create_multi_group_visualizations(
 
     # 将所有图添加到返回列表
     figs.extend([fig_bias, fig_rt, fig_endorsement, fig_intensity])
+
+    # 新增：词级可视化图
+    if control_results and experimental_results:
+        control_word_stats = []
+        experimental_word_stats = []
+
+        for result in control_results:
+            if "word_results" in result and "word_stats" in result["word_results"]:
+                control_word_stats.append(result["word_results"]["word_stats"])
+
+        for result in experimental_results:
+            if "word_results" in result and "word_stats" in result["word_results"]:
+                experimental_word_stats.append(result["word_results"]["word_stats"])
+
+        if control_word_stats and experimental_word_stats:
+            word_fig = create_word_level_visualizations_multi_group(
+                control_word_stats, experimental_word_stats
+            )
+            if word_fig:
+                figs.extend(word_fig)
 
     return figs
 
@@ -1453,7 +2410,7 @@ def run_group_sret_analysis(
         stats_test_df = pd.DataFrame(statistical_results).T
         stats_test_df.to_csv(result_dir / "group_statistical_tests.csv")
 
-    fig_spec = create_single_group_visualizations(group_metrics)
+    fig_spec = create_single_group_visualizations(group_metrics, all_results)
 
     fig_common = create_common_single_group_figures(
         group_metrics, statistical_results, key_metrics, metric_names
@@ -1570,7 +2527,9 @@ def run_groups_sret_analysis(
         comparison_df = pd.DataFrame(comparison_results).T
         comparison_df.to_csv(result_dir / "group_comparisons.csv")
 
-    fig_spec = create_multi_group_visualizations(control_metrics, experimental_metrics)
+    fig_spec = create_multi_group_visualizations(
+        control_metrics, experimental_metrics, control_results, experimental_results
+    )
 
     fig_common = create_common_comparison_figures(
         comparison_results, all_metrics, all_metric_names

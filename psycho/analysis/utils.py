@@ -1415,10 +1415,11 @@ def draw_ci_scatter(
         x=x,
         y=y_upper,
         mode="lines",
+        name=f"{name} ci",
         line=dict(width=0),
         fill="tonexty",
         fillcolor=fill_color,
-        showlegend=False,
+        showlegend=True,
         hoverinfo="skip",
     )
 

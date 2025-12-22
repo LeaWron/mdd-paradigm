@@ -12,8 +12,9 @@ stim_folder: prt
 phase_prompt:
   prompt: |
     正式实验的实验方式与预实验<c=#eb5555>相同</c>
+    但是不再有超时提醒,请集中注意力,尽快反应
 
-    仅有实验次数不同
+    且实验次数不同
 
     请按<c=#51d237>空格键</c>继续
   letterHeight: 0.08

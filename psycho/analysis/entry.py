@@ -8,9 +8,6 @@ from psycho.analysis.prt import run_prt_analysis
 from psycho.analysis.sret import run_sret_analysis
 from psycho.analysis.utils import DataUtils, parse_date_input
 
-# [ ] 根据需求进行分析
-# 单受试, 分组 等等
-
 
 def run_analysis(
     cfg: DictConfig, date: str = None, session_id: int = None, groups: list[str] = None

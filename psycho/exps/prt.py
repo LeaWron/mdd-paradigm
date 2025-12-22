@@ -341,6 +341,17 @@ def trial():
     #         font=PSYCHO_FONT,
     #     )
     #     feedback_wrong.draw()
+    if pre and rt is None:
+        feedback_wrong = visual.TextStim(
+            win,
+            text="超时!请尽快作出反应!",
+            height=0.1,
+            color="#eb5555",
+            colorSpace="rgb",
+            font=PSYCHO_FONT,
+        )
+        feedback_wrong.draw()
+    #
 
     win.flip()
     core.wait(timing["feedback"])

@@ -91,6 +91,7 @@ data_to_save = {
     "response": [],
     "rt": [],
     "intensity": [],
+    "intensity_rt": [],
     "endorse_count": [],
     # # 仅用于回忆任务
     # "recalled_words": [],
@@ -178,6 +179,7 @@ def rating_slider(resp: Literal["yes", "no"]):
     )
 
     mouse = event.Mouse(win=win)
+    rating_start_time = clock.getTime()
     # 选择中性的时候不打分
     while True:
         prompt.draw()
@@ -196,6 +198,10 @@ def rating_slider(resp: Literal["yes", "no"]):
         win.flip()
 
         if slider.rating is not None and mouse.isPressedIn(button_box):
+            # 计算反应时间
+            intensity_rt = clock.getTime() - rating_start_time
+            one_trial_data["intensity_rt"] = intensity_rt
+
             intensity = slider.getValue()
             one_trial_data["intensity"] = intensity
 
@@ -204,6 +210,7 @@ def rating_slider(resp: Literal["yes", "no"]):
             logger.info(f"percentage:{percentage:.2f}%, coresp label: {intensity:.2f}")
             send_marker(lsl_outlet, "RESPONSE_2", is_pre=pre)
             break
+
     win.setMouseVisible(visibility=False)
 
 

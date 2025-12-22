@@ -773,7 +773,7 @@ def save_csv_data(
     file_name_2 = None
     if participant_type is not None:
         file_name_2 = (
-            date_folder / participant_type.lower() / f"{file_name}"
+            base_path / participant_type.lower() / f"{file_name}"
         ).with_suffix(".csv")
         file_name_2.parent.mkdir(parents=True, exist_ok=True)
 

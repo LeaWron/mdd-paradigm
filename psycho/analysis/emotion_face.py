@@ -1154,6 +1154,12 @@ def create_single_group_visualizations(
     if not group_trials or len(group_trials) == 0:
         return figs
 
+    new_group_trials = []
+    for trials_df in group_trials:
+        new_group_trials.append(trials_df.drop("intensity_rt", strict=False))
+
+    group_trials, new_group_trials = new_group_trials, group_trials
+
     # 1. 合并所有被试的数据，计算组平均
     all_trials = pl.concat(group_trials)
 
@@ -1730,6 +1736,18 @@ def create_multi_group_visualizations(
     # 如果没有试次数据，直接返回
     if not control_trials or not experimental_trials:
         return figs
+    new_control_trials = []
+    for trials_df in control_trials:
+        new_control_trials.append(trials_df.drop("intensity_rt", strict=False))
+    control_trials, new_control_trials = new_control_trials, control_trials
+
+    new_experimental_trials = []
+    for trials_df in experimental_trials:
+        new_experimental_trials.append(trials_df.drop("intensity_rt", strict=False))
+    experimental_trials, new_experimental_trials = (
+        new_experimental_trials,
+        experimental_trials,
+    )
 
     # 1. 合并每组的数据，分别计算组平均
     control_all_trials = pl.concat(control_trials)

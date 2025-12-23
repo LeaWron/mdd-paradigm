@@ -553,6 +553,24 @@ def entry(exp: Experiment | None = None):
         while True:
             run_exp(exp.config.pre)
 
+            correct_rate = data_to_save["correct_rate"][-1]
+            if pre == 1 and correct_rate <= 0.75:
+                remind_text = f"预实验正确率为 <c=yellow>{correct_rate * 100:.2f}%</c>, 未超过 <c=#eb5555>75%</c> \n你需要重新进行预实验\n\n如果对实验有任何问题, 现在可以联系实验员\n\n若没有问题, 请按 <c=#51d237>空格键</c> 继续"
+                remind = visual.TextBox2(
+                    win,
+                    text=remind_text,
+                    color="white",
+                    letterHeight=0.08,
+                    size=(2, None),
+                    alignment="center",
+                    pos=(0, 0),
+                    font=PSYCHO_FONT,
+                )
+                remind.draw()
+                win.flip()
+                event.waitKeys(keyList=continue_keys)
+                continue
+
             commit_text = "预实验已完成\n你是否需要再次进行预实验以更熟悉任务?\n按 <c=#51d237>Y</c> 键再次进行预实验, 按 <c=#eb5555>N</c> 键进入正式实验\n"
             prompt = visual.TextBox2(
                 win,

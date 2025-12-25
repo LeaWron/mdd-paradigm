@@ -491,10 +491,18 @@ def calculate_key_metrics(
             "mean_lean_hit_rate": mean_lean_hit_rate,
             "mean_hit_rate_diff": mean_hit_rate_diff,
             "mean_rt_diff": mean_rt_diff,
-            "mean_lean_miss_after_rewarded_rich": mean_lean_miss_after_rewarded_rich,
-            "mean_lean_miss_after_nonrewarded_rich": mean_lean_miss_after_nonrewarded_rich,
-            "mean_rich_miss_after_rewarded_rich": mean_rich_miss_after_rewarded_rich,
-            "mean_rich_miss_after_rewarded_lean": mean_rich_miss_after_rewarded_lean,
+            "mean_lean_miss_after_rewarded_rich": mean_lean_miss_after_rewarded_rich
+            if not np.isnan(mean_lean_miss_after_rewarded_rich)
+            else 0.0,
+            "mean_lean_miss_after_nonrewarded_rich": mean_lean_miss_after_nonrewarded_rich
+            if not np.isnan(mean_lean_miss_after_nonrewarded_rich)
+            else 0.0,
+            "mean_rich_miss_after_rewarded_rich": mean_rich_miss_after_rewarded_rich
+            if not np.isnan(mean_rich_miss_after_rewarded_rich)
+            else 0.0,
+            "mean_rich_miss_after_rewarded_lean": mean_rich_miss_after_rewarded_lean
+            if not np.isnan(mean_rich_miss_after_rewarded_lean)
+            else 0.0,
         }
     )
 

@@ -533,7 +533,7 @@ def create_single_visualizations(
                         name="积极" if intensity == all_intensities[0] else "",
                         marker_color="#00cc96",
                         legendgroup="positive",
-                        showlegend=intensity == all_intensities[0],
+                        showlegend=(intensity == all_intensities[0]),
                         width=0.35,
                     ),
                     row=1,
@@ -557,7 +557,7 @@ def create_single_visualizations(
                         name="消极" if intensity == all_intensities[0] else "",
                         marker_color="#ef553b",
                         legendgroup="negative",
-                        showlegend=intensity == all_intensities[0],
+                        showlegend=(intensity == all_intensities[0]),
                         width=0.35,
                     ),
                     row=1,
@@ -1792,7 +1792,42 @@ def create_multi_group_visualizations(
         vertical_spacing=0.12,
         horizontal_spacing=0.1,
     )
-
+    fig = make_subplots(
+        rows=6,  # 增加行数以容纳总体图
+        cols=3,
+        subplot_titles=(
+            # 第一行：积极情绪相关
+            "各标签强度对应选择强度（积极）",
+            "各标签强度对应反应时（积极）",
+            "模糊等级对应选择强度（积极）",
+            # 第二行：消极情绪相关
+            "各标签强度对应选择强度（消极）",
+            "各标签强度对应反应时（消极）",
+            "模糊等级对应选择强度（消极）",
+            # 第三行：反应时和中性判定
+            "模糊等级对应反应时（积极）",
+            "模糊等级对应反应时（消极）",
+            # 第四行：强度一致性分析
+            "中性判定强度（组间对比）",
+            "强度一致性分析",
+            # 第五行：新增总体图3-4
+            "各标签强度对应选择强度（总体）",  # 新增总体图1
+            "各标签强度对应反应时（总体）",  # 新增总体图2
+            # 第六行：新增总体图5-6
+            "模糊等级对应选择强度（总体）",
+            "模糊等级对应反应时（总体）",
+        ),
+        specs=[
+            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],  # 第一行
+            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],  # 第二行
+            [{"type": "bar"}, {"type": "bar"}, None],  # 第三行
+            [{"type": "scatter"}, {"type": "scatter"}, None],  # 第四行
+            [{"type": "bar"}, {"type": "bar"}, None],  # 第五行
+            [{"type": "bar"}, {"type": "bar"}, None],  # 第六行
+        ],
+        vertical_spacing=0.08,
+        horizontal_spacing=0.1,
+    )
     # 颜色定义
     control_color = "#1f77b4"  # 蓝色
     experimental_color = "#ff7f0e"  # 橙色
@@ -2914,10 +2949,564 @@ def create_multi_group_visualizations(
         fig.update_xaxes(
             title_text="标签强度（积极为正，消极为负，中性为0）", row=4, col=2
         )
+    # 图11: 各标签强度对应选择强度（总体）- 两组对比
+    if (
+        "intensity_by_label_emotion" in control_full_metrics
+        and "intensity_by_label_emotion" in experimental_full_metrics
+    ):
+        control_intensity_data = control_full_metrics[
+            "intensity_by_label_emotion"
+        ].to_pandas()
+        experimental_intensity_data = experimental_full_metrics[
+            "intensity_by_label_emotion"
+        ].to_pandas()
 
-    # 调整布局
+        # 合并积极和消极数据（不分情绪类型）
+        control_all_data = control_intensity_data.copy()
+        experimental_all_data = experimental_intensity_data.copy()
+
+        # 获取所有强度级别
+        control_intensities = control_intensity_data["label_intensity_signed"].unique()
+        experimental_intensities = experimental_intensity_data[
+            "label_intensity_signed"
+        ].unique()
+        all_intensities = sorted(
+            set(np.concatenate([control_intensities, experimental_intensities]))
+        )
+
+        # 计算每个强度级别的总体平均值
+        control_overall_means = []
+        control_overall_stds = []
+        experimental_overall_means = []
+        experimental_overall_stds = []
+
+        for intensity in all_intensities:
+            # 对照组总体平均值（积极和消极合并）
+            control_intensity_rows = control_all_data[
+                control_all_data["label_intensity_signed"] == intensity
+            ]
+            if len(control_intensity_rows) > 0:
+                # 加权平均：根据试次数加权
+                total_trials = control_intensity_rows["n_trials"].sum()
+                if total_trials > 0:
+                    weighted_mean = (
+                        control_intensity_rows["mean_intensity"]
+                        * control_intensity_rows["n_trials"]
+                    ).sum() / total_trials
+                    # 计算合并标准差
+                    weighted_var = (
+                        (control_intensity_rows["std_intensity"] ** 2)
+                        * (control_intensity_rows["n_trials"] - 1)
+                    ).sum()
+                    weighted_var = weighted_var / (
+                        total_trials - len(control_intensity_rows)
+                    )
+                    weighted_std = np.sqrt(weighted_var)
+                else:
+                    weighted_mean = control_intensity_rows["mean_intensity"].mean()
+                    weighted_std = control_intensity_rows["std_intensity"].mean()
+            else:
+                weighted_mean = np.nan
+                weighted_std = np.nan
+
+            control_overall_means.append(weighted_mean)
+            control_overall_stds.append(weighted_std)
+
+            # 实验组总体平均值（积极和消极合并）
+            experimental_intensity_rows = experimental_all_data[
+                experimental_all_data["label_intensity_signed"] == intensity
+            ]
+            if len(experimental_intensity_rows) > 0:
+                total_trials = experimental_intensity_rows["n_trials"].sum()
+                if total_trials > 0:
+                    weighted_mean = (
+                        experimental_intensity_rows["mean_intensity"]
+                        * experimental_intensity_rows["n_trials"]
+                    ).sum() / total_trials
+                    # 计算合并标准差
+                    weighted_var = (
+                        (experimental_intensity_rows["std_intensity"] ** 2)
+                        * (experimental_intensity_rows["n_trials"] - 1)
+                    ).sum()
+                    weighted_var = weighted_var / (
+                        total_trials - len(experimental_intensity_rows)
+                    )
+                    weighted_std = np.sqrt(weighted_var)
+                else:
+                    weighted_mean = experimental_intensity_rows["mean_intensity"].mean()
+                    weighted_std = experimental_intensity_rows["std_intensity"].mean()
+            else:
+                weighted_mean = np.nan
+                weighted_std = np.nan
+
+            experimental_overall_means.append(weighted_mean)
+            experimental_overall_stds.append(weighted_std)
+
+        # 为每个强度级别创建条形
+        for i, intensity in enumerate(all_intensities):
+            # 对照组总体数据
+            if not np.isnan(control_overall_means[i]):
+                fig.add_trace(
+                    go.Bar(
+                        x=[i - 0.2],
+                        y=[control_overall_means[i]],
+                        error_y=dict(
+                            type="data",
+                            array=[control_overall_stds[i]],
+                            visible=True,
+                        ),
+                        name=f"{control_name}总体"
+                        if intensity == all_intensities[0]
+                        else "",
+                        marker_color=control_color,
+                        marker=dict(opacity=0.6),
+                        legendgroup=f"{control_name}-overall",
+                        showlegend=bool(intensity == all_intensities[0]),
+                        width=0.4,
+                    ),
+                    row=5,
+                    col=1,
+                )
+
+            # 实验组总体数据
+            if not np.isnan(experimental_overall_means[i]):
+                fig.add_trace(
+                    go.Bar(
+                        x=[i + 0.2],
+                        y=[experimental_overall_means[i]],
+                        error_y=dict(
+                            type="data",
+                            array=[experimental_overall_stds[i]],
+                            visible=True,
+                        ),
+                        name=f"{experimental_name}总体"
+                        if intensity == all_intensities[0]
+                        else "",
+                        marker_color=experimental_color,
+                        marker=dict(opacity=0.6),
+                        legendgroup=f"{experimental_name}-overall",
+                        showlegend=bool(intensity == all_intensities[0]),
+                        width=0.4,
+                    ),
+                    row=5,
+                    col=1,
+                )
+
+        # 设置x轴刻度
+        fig.update_xaxes(
+            tickmode="array",
+            tickvals=list(range(len(all_intensities))),
+            ticktext=[str(i) for i in all_intensities],
+            row=5,
+            col=1,
+        )
+        fig.update_yaxes(title_text="选择强度", range=[0, 10], row=5, col=1)
+        fig.update_xaxes(title_text="标签强度", row=5, col=1)
+
+    # 图12: 各标签强度对应反应时（总体）- 两组对比
+    if (
+        "rt_by_label_emotion" in control_full_metrics
+        and "rt_by_label_emotion" in experimental_full_metrics
+    ):
+        control_rt_data = control_full_metrics["rt_by_label_emotion"].to_pandas()
+        experimental_rt_data = experimental_full_metrics[
+            "rt_by_label_emotion"
+        ].to_pandas()
+
+        # 合并积极和消极数据（不分情绪类型）
+        control_all_rt = control_rt_data.copy()
+        experimental_all_rt = experimental_rt_data.copy()
+
+        # 获取所有强度级别
+        control_intensities = control_rt_data["label_intensity_signed"].unique()
+        experimental_intensities = experimental_rt_data[
+            "label_intensity_signed"
+        ].unique()
+        all_intensities = sorted(
+            set(np.concatenate([control_intensities, experimental_intensities]))
+        )
+
+        # 计算每个强度级别的总体平均值
+        control_rt_means = []
+        control_rt_stds = []
+        experimental_rt_means = []
+        experimental_rt_stds = []
+
+        for intensity in all_intensities:
+            # 对照组总体反应时平均值
+            control_rt_rows = control_all_rt[
+                control_all_rt["label_intensity_signed"] == intensity
+            ]
+            if len(control_rt_rows) > 0:
+                total_trials = control_rt_rows["n_trials"].sum()
+                if total_trials > 0:
+                    weighted_mean = (
+                        control_rt_rows["mean_rt"] * control_rt_rows["n_trials"]
+                    ).sum() / total_trials
+                    # 计算合并标准差
+                    weighted_var = (
+                        (control_rt_rows["std_rt"] ** 2)
+                        * (control_rt_rows["n_trials"] - 1)
+                    ).sum()
+                    weighted_var = weighted_var / (total_trials - len(control_rt_rows))
+                    weighted_std = np.sqrt(weighted_var)
+                else:
+                    weighted_mean = control_rt_rows["mean_rt"].mean()
+                    weighted_std = control_rt_rows["std_rt"].mean()
+            else:
+                weighted_mean = np.nan
+                weighted_std = np.nan
+
+            control_rt_means.append(weighted_mean)
+            control_rt_stds.append(weighted_std)
+
+            # 实验组总体反应时平均值
+            experimental_rt_rows = experimental_all_rt[
+                experimental_all_rt["label_intensity_signed"] == intensity
+            ]
+            if len(experimental_rt_rows) > 0:
+                total_trials = experimental_rt_rows["n_trials"].sum()
+                if total_trials > 0:
+                    weighted_mean = (
+                        experimental_rt_rows["mean_rt"]
+                        * experimental_rt_rows["n_trials"]
+                    ).sum() / total_trials
+                    # 计算合并标准差
+                    weighted_var = (
+                        (experimental_rt_rows["std_rt"] ** 2)
+                        * (experimental_rt_rows["n_trials"] - 1)
+                    ).sum()
+                    weighted_var = weighted_var / (
+                        total_trials - len(experimental_rt_rows)
+                    )
+                    weighted_std = np.sqrt(weighted_var)
+                else:
+                    weighted_mean = experimental_rt_rows["mean_rt"].mean()
+                    weighted_std = experimental_rt_rows["std_rt"].mean()
+            else:
+                weighted_mean = np.nan
+                weighted_std = np.nan
+
+            experimental_rt_means.append(weighted_mean)
+            experimental_rt_stds.append(weighted_std)
+
+        # 为每个强度级别创建条形
+        for i, intensity in enumerate(all_intensities):
+            # 对照组总体反应时数据
+            if not np.isnan(control_rt_means[i]):
+                fig.add_trace(
+                    go.Bar(
+                        x=[i - 0.2],
+                        y=[control_rt_means[i]],
+                        error_y=dict(
+                            type="data",
+                            array=[control_rt_stds[i]],
+                            visible=True,
+                        ),
+                        name=f"{control_name}总体",
+                        marker_color=control_color,
+                        marker=dict(opacity=0.6),
+                        legendgroup=f"{control_name}-overall",
+                        showlegend=False,
+                        width=0.4,
+                    ),
+                    row=5,
+                    col=2,
+                )
+
+            # 实验组总体反应时数据
+            if not np.isnan(experimental_rt_means[i]):
+                fig.add_trace(
+                    go.Bar(
+                        x=[i + 0.2],
+                        y=[experimental_rt_means[i]],
+                        error_y=dict(
+                            type="data",
+                            array=[experimental_rt_stds[i]],
+                            visible=True,
+                        ),
+                        name=f"{experimental_name}总体",
+                        marker_color=experimental_color,
+                        marker=dict(opacity=0.6),
+                        legendgroup=f"{experimental_name}-overall",
+                        showlegend=False,
+                        width=0.4,
+                    ),
+                    row=5,
+                    col=2,
+                )
+
+        # 设置x轴刻度
+        fig.update_xaxes(
+            tickmode="array",
+            tickvals=list(range(len(all_intensities))),
+            ticktext=[str(i) for i in all_intensities],
+            row=5,
+            col=2,
+        )
+        fig.update_yaxes(title_text="反应时(秒)", row=5, col=2)
+        fig.update_xaxes(title_text="标签强度", row=5, col=2)
+
+    # 图13: 模糊等级对应选择强度（总体）- 两组对比
+    if (
+        "intensity_by_level_emotion" in control_full_metrics
+        and "intensity_by_level_emotion" in experimental_full_metrics
+    ):
+        control_intensity_data = control_full_metrics[
+            "intensity_by_level_emotion"
+        ].to_pandas()
+        experimental_intensity_data = experimental_full_metrics[
+            "intensity_by_level_emotion"
+        ].to_pandas()
+
+        # 合并积极和消极数据
+        control_all_data = control_intensity_data.copy()
+        experimental_all_data = experimental_intensity_data.copy()
+
+        # 定义等级顺序
+        level_order = ["blur", "mid", "clear"]
+
+        # 计算每个模糊等级的总体平均值
+        for i, level in enumerate(level_order):
+            # 对照组该等级的数据
+            control_level_rows = control_all_data[
+                control_all_data["intensity_level"] == level
+            ]
+            if len(control_level_rows) > 0:
+                total_trials = control_level_rows["n_trials"].sum()
+                if total_trials > 0:
+                    weighted_mean = (
+                        control_level_rows["mean_intensity"]
+                        * control_level_rows["n_trials"]
+                    ).sum() / total_trials
+                    # 计算合并标准差
+                    weighted_var = (
+                        (control_level_rows["std_intensity"] ** 2)
+                        * (control_level_rows["n_trials"] - 1)
+                    ).sum()
+                    weighted_var = weighted_var / (
+                        total_trials - len(control_level_rows)
+                    )
+                    weighted_std = np.sqrt(weighted_var)
+                else:
+                    weighted_mean = control_level_rows["mean_intensity"].mean()
+                    weighted_std = control_level_rows["std_intensity"].mean()
+            else:
+                weighted_mean = np.nan
+                weighted_std = np.nan
+
+            # 实验组该等级的数据
+            experimental_level_rows = experimental_all_data[
+                experimental_all_data["intensity_level"] == level
+            ]
+            if len(experimental_level_rows) > 0:
+                total_trials = experimental_level_rows["n_trials"].sum()
+                if total_trials > 0:
+                    weighted_mean_exp = (
+                        experimental_level_rows["mean_intensity"]
+                        * experimental_level_rows["n_trials"]
+                    ).sum() / total_trials
+                    # 计算合并标准差
+                    weighted_var_exp = (
+                        (experimental_level_rows["std_intensity"] ** 2)
+                        * (experimental_level_rows["n_trials"] - 1)
+                    ).sum()
+                    weighted_var_exp = weighted_var_exp / (
+                        total_trials - len(experimental_level_rows)
+                    )
+                    weighted_std_exp = np.sqrt(weighted_var_exp)
+                else:
+                    weighted_mean_exp = experimental_level_rows["mean_intensity"].mean()
+                    weighted_std_exp = experimental_level_rows["std_intensity"].mean()
+            else:
+                weighted_mean_exp = np.nan
+                weighted_std_exp = np.nan
+
+            # 绘制对照组条形
+            if not np.isnan(weighted_mean):
+                fig.add_trace(
+                    go.Bar(
+                        x=[i - 0.2],
+                        y=[weighted_mean],
+                        error_y=dict(
+                            type="data",
+                            array=[weighted_std],
+                            visible=True,
+                        ),
+                        name=f"{control_name}总体",
+                        marker_color=control_color,
+                        marker=dict(opacity=0.6),
+                        legendgroup=f"{control_name}-overall",
+                        showlegend=False,
+                        width=0.4,
+                    ),
+                    row=6,
+                    col=1,
+                )
+
+            # 绘制实验组条形
+            if not np.isnan(weighted_mean_exp):
+                fig.add_trace(
+                    go.Bar(
+                        x=[i + 0.2],
+                        y=[weighted_mean_exp],
+                        error_y=dict(
+                            type="data",
+                            array=[weighted_std_exp],
+                            visible=True,
+                        ),
+                        name=f"{experimental_name}总体",
+                        marker_color=experimental_color,
+                        marker=dict(opacity=0.6),
+                        legendgroup=f"{experimental_name}-overall",
+                        showlegend=False,
+                        width=0.4,
+                    ),
+                    row=6,
+                    col=1,
+                )
+
+        # 设置x轴刻度
+        fig.update_xaxes(
+            tickmode="array",
+            tickvals=list(range(3)),
+            ticktext=["模糊", "中等", "清晰"],
+            row=6,
+            col=1,
+        )
+        fig.update_yaxes(title_text="选择强度", range=[0, 10], row=6, col=1)
+        fig.update_xaxes(title_text="模糊等级", row=6, col=1)
+
+    # 图14: 模糊等级对应反应时（总体）- 两组对比
+    if (
+        "rt_by_level_emotion" in control_full_metrics
+        and "rt_by_level_emotion" in experimental_full_metrics
+    ):
+        control_rt_data = control_full_metrics["rt_by_level_emotion"].to_pandas()
+        experimental_rt_data = experimental_full_metrics[
+            "rt_by_level_emotion"
+        ].to_pandas()
+
+        # 合并积极和消极数据
+        control_all_rt = control_rt_data.copy()
+        experimental_all_rt = experimental_rt_data.copy()
+
+        # 定义等级顺序
+        level_order = ["blur", "mid", "clear"]
+
+        # 计算每个模糊等级的总体反应时平均值
+        for i, level in enumerate(level_order):
+            # 对照组该等级的反应时数据
+            control_level_rows = control_all_rt[
+                control_all_rt["intensity_level"] == level
+            ]
+            if len(control_level_rows) > 0:
+                total_trials = control_level_rows["n_trials"].sum()
+                if total_trials > 0:
+                    weighted_mean = (
+                        control_level_rows["mean_rt"] * control_level_rows["n_trials"]
+                    ).sum() / total_trials
+                    # 计算合并标准差
+                    weighted_var = (
+                        (control_level_rows["std_rt"] ** 2)
+                        * (control_level_rows["n_trials"] - 1)
+                    ).sum()
+                    weighted_var = weighted_var / (
+                        total_trials - len(control_level_rows)
+                    )
+                    weighted_std = np.sqrt(weighted_var)
+                else:
+                    weighted_mean = control_level_rows["mean_rt"].mean()
+                    weighted_std = control_level_rows["std_rt"].mean()
+            else:
+                weighted_mean = np.nan
+                weighted_std = np.nan
+
+            # 实验组该等级的反应时数据
+            experimental_level_rows = experimental_all_rt[
+                experimental_all_rt["intensity_level"] == level
+            ]
+            if len(experimental_level_rows) > 0:
+                total_trials = experimental_level_rows["n_trials"].sum()
+                if total_trials > 0:
+                    weighted_mean_exp = (
+                        experimental_level_rows["mean_rt"]
+                        * experimental_level_rows["n_trials"]
+                    ).sum() / total_trials
+                    # 计算合并标准差
+                    weighted_var_exp = (
+                        (experimental_level_rows["std_rt"] ** 2)
+                        * (experimental_level_rows["n_trials"] - 1)
+                    ).sum()
+                    weighted_var_exp = weighted_var_exp / (
+                        total_trials - len(experimental_level_rows)
+                    )
+                    weighted_std_exp = np.sqrt(weighted_var_exp)
+                else:
+                    weighted_mean_exp = experimental_level_rows["mean_rt"].mean()
+                    weighted_std_exp = experimental_level_rows["std_rt"].mean()
+            else:
+                weighted_mean_exp = np.nan
+                weighted_std_exp = np.nan
+
+            # 绘制对照组条形
+            if not np.isnan(weighted_mean):
+                fig.add_trace(
+                    go.Bar(
+                        x=[i - 0.2],
+                        y=[weighted_mean],
+                        error_y=dict(
+                            type="data",
+                            array=[weighted_std],
+                            visible=True,
+                        ),
+                        name=f"{control_name}总体",
+                        marker_color=control_color,
+                        marker=dict(opacity=0.6),
+                        legendgroup=f"{control_name}-overall",
+                        showlegend=False,
+                        width=0.4,
+                    ),
+                    row=6,
+                    col=2,
+                )
+
+            # 绘制实验组条形
+            if not np.isnan(weighted_mean_exp):
+                fig.add_trace(
+                    go.Bar(
+                        x=[i + 0.2],
+                        y=[weighted_mean_exp],
+                        error_y=dict(
+                            type="data",
+                            array=[weighted_std_exp],
+                            visible=True,
+                        ),
+                        name=f"{experimental_name}总体",
+                        marker_color=experimental_color,
+                        marker=dict(opacity=0.6),
+                        legendgroup=f"{experimental_name}-overall",
+                        showlegend=False,
+                        width=0.4,
+                    ),
+                    row=6,
+                    col=2,
+                )
+
+        # 设置x轴刻度
+        fig.update_xaxes(
+            tickmode="array",
+            tickvals=list(range(3)),
+            ticktext=["模糊", "中等", "清晰"],
+            row=6,
+            col=2,
+        )
+        fig.update_yaxes(title_text="反应时(秒)", row=6, col=2)
+        fig.update_xaxes(title_text="模糊等级", row=6, col=2)
+
+    # 调整布局高度以适应新增的行
     fig.update_layout(
-        height=400 * 4,
+        height=400 * 6,  # 增加高度以适应6行
         width=1800,
         title=dict(
             text=f"面部情绪识别{control_name} vs {experimental_name}组间对比分析",

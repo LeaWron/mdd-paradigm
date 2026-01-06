@@ -1976,40 +1976,84 @@ def create_multi_group_visualizations(
         if metric in control_metrics[0] and metric in experimental_metrics[0]:
             all_available_metrics.append(metric)
 
-    # 创建多个图表
+    # 1. 积极偏向对比图 - 1行2列
     fig_bias = make_subplots(
-        rows=1, cols=1, subplot_titles=("积极偏向对比",), specs=[[{"type": "bar"}]]
+        rows=1,
+        cols=2,
+        subplot_titles=("积极偏向对比", "积极偏向分布"),
+        specs=[[{"type": "bar"}, {"type": "box"}]],
+        vertical_spacing=0.15,
+        horizontal_spacing=0.1,
     )
 
+    # 2. 反应时指标对比图 - 6行2列
     fig_rt = make_subplots(
+        rows=6,
+        cols=2,
+        subplot_titles=(
+            "积极词RT对比",
+            "消极词RT对比",
+            "积极词RT分布",
+            "消极词RT分布",
+            "认同RT对比",
+            "不认同RT对比",
+            "认同RT分布",
+            "不认同RT分布",
+            "消极-积极RT差对比",
+            "认同-不认同RT差对比",
+            "消极-积极RT差分布",
+            "认同-不认同RT差分布",
+        ),
+        specs=[
+            [{"type": "bar"}, {"type": "bar"}],  # 第1行：积极和消极RT柱状图
+            [{"type": "box"}, {"type": "box"}],  # 第2行：积极和消极RT箱形图
+            [{"type": "bar"}, {"type": "bar"}],  # 第3行：认同和不认同RT柱状图
+            [{"type": "box"}, {"type": "box"}],  # 第4行：认同和不认同RT箱形图
+            [{"type": "bar"}, {"type": "bar"}],  # 第5行：差值的柱状图
+            [{"type": "box"}, {"type": "box"}],  # 第6行：差值的箱形图
+        ],
+        vertical_spacing=0.08,
+        horizontal_spacing=0.1,
+    )
+
+    # 3. 认可率指标对比图 - 2行3列
+    fig_endorsement = make_subplots(
         rows=2,
         cols=3,
         subplot_titles=(
-            "消极-积极RT差",
-            "认同-不认同RT差",
-            "积极词RT",
-            "消极词RT",
-            "认同RT",
-            "不认同RT",
+            "积极认可率对比",
+            "消极认可率对比",
+            "总认可率对比",
+            "积极认可率分布",
+            "消极认可率分布",
+            "总认可率分布",
         ),
         specs=[
-            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],
-            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],
+            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],  # 第1行：柱状图
+            [{"type": "box"}, {"type": "box"}, {"type": "box"}],  # 第2行：箱形图
         ],
+        vertical_spacing=0.12,
+        horizontal_spacing=0.1,
     )
 
-    fig_endorsement = make_subplots(
-        rows=1,
-        cols=3,
-        subplot_titles=("积极认可率", "消极认可率", "总认可率"),
-        specs=[[{"type": "bar"}, {"type": "bar"}, {"type": "bar"}]],
-    )
-
+    # 4. 强度指标对比图 - 2行3列
     fig_intensity = make_subplots(
-        rows=1,
+        rows=2,
         cols=3,
-        subplot_titles=("积极词符合程度", "消极词符合程度", "消极-积极符合程度差"),
-        specs=[[{"type": "bar"}, {"type": "bar"}, {"type": "bar"}]],
+        subplot_titles=(
+            "积极词符合程度对比",
+            "消极词符合程度对比",
+            "消极-积极符合程度差对比",
+            "积极词符合程度分布",
+            "消极词符合程度分布",
+            "消极-积极符合程度差分布",
+        ),
+        specs=[
+            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],  # 第1行：柱状图
+            [{"type": "box"}, {"type": "box"}, {"type": "box"}],  # 第2行：箱形图
+        ],
+        vertical_spacing=0.12,
+        horizontal_spacing=0.1,
     )
 
     # 辅助函数：添加柱状图对比
@@ -2044,108 +2088,351 @@ def create_multi_group_visualizations(
                     ),
                     text=[f"{control_mean:.3f}", f"{experimental_mean:.3f}"],
                     textposition="auto",
+                    showlegend=True if row == 1 and col == 1 else False,
                 ),
                 row=row,
                 col=col,
             )
 
-    # 添加积极偏向对比
+    # 辅助函数：添加箱形图对比
+    def add_box_comparison(
+        fig, metric_name, display_name, row, col, control_metrics, experimental_metrics
+    ):
+        control_values = [m[metric_name] for m in control_metrics if metric_name in m]
+        experimental_values = [
+            m[metric_name] for m in experimental_metrics if metric_name in m
+        ]
+
+        if control_values and experimental_values:
+            # 添加对照组箱形图
+            fig.add_trace(
+                go.Box(
+                    y=control_values,
+                    name="对照组",
+                    marker_color="green",
+                    boxpoints="all",
+                    jitter=0.3,
+                    pointpos=-1.8,
+                    boxmean="sd",  # 添加box_mean="sd"参数
+                    showlegend=True if row == 1 and col == 1 else False,
+                ),
+                row=row,
+                col=col,
+            )
+
+            # 添加实验组箱形图
+            fig.add_trace(
+                go.Box(
+                    y=experimental_values,
+                    name="实验组",
+                    marker_color="red",
+                    boxpoints="all",
+                    jitter=0.3,
+                    pointpos=-1.8,
+                    boxmean="sd",  # 添加box_mean="sd"参数
+                    showlegend=True if row == 1 and col == 1 else False,
+                ),
+                row=row,
+                col=col,
+            )
+
+    # 添加积极偏向对比和分布
     add_bar_comparison(
         fig_bias,
         "positive_bias",
         "积极偏向",
         1,
-        1,
+        1,  # 柱状图位置
         control_metrics,
         experimental_metrics,
     )
 
-    # 添加反应时指标对比
-    rt_metrics_list = [
-        ("rt_negative_minus_positive", "消极-积极RT差", 1, 1),
-        ("rt_endorsed_minus_not", "认同-不认同RT差", 1, 2),
-        ("positive_rt", "积极词RT", 1, 3),
-        ("negative_rt", "消极词RT", 2, 1),
-        ("yes_rt", "认同RT", 2, 2),
-        ("no_rt", "不认同RT", 2, 3),
-    ]
+    add_box_comparison(
+        fig_bias,
+        "positive_bias",
+        "积极偏向",
+        1,
+        2,  # 箱形图位置
+        control_metrics,
+        experimental_metrics,
+    )
 
-    for metric, display_name, row, col in rt_metrics_list:
-        add_bar_comparison(
-            fig_rt,
-            metric,
-            display_name,
-            row,
-            col,
-            control_metrics,
-            experimental_metrics,
-        )
+    # 添加反应时指标对比和分布
+    # 第一组：积极词RT和消极词RT
+    add_bar_comparison(
+        fig_rt,
+        "positive_rt",
+        "积极词RT",
+        1,
+        1,  # 柱状图位置（第1行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
 
-    # 添加认可率指标对比
-    endorsement_metrics_list = [
-        ("positive_endorsement_rate", "积极认可率", 1, 1),
-        ("negative_endorsement_rate", "消极认可率", 1, 2),
-        ("endorsement_rate", "总认可率", 1, 3),
-    ]
+    add_bar_comparison(
+        fig_rt,
+        "negative_rt",
+        "消极词RT",
+        1,
+        2,  # 柱状图位置（第1行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
 
-    for metric, display_name, row, col in endorsement_metrics_list:
-        add_bar_comparison(
-            fig_endorsement,
-            metric,
-            display_name,
-            row,
-            col,
-            control_metrics,
-            experimental_metrics,
-        )
+    add_box_comparison(
+        fig_rt,
+        "positive_rt",
+        "积极词RT",
+        2,
+        1,  # 箱形图位置（第2行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
 
-    # 添加强度指标对比
-    intensity_metrics_list = [
-        ("positive_intensity", "积极词符合程度", 1, 1),
-        ("negative_intensity", "消极词符合程度", 1, 2),
-        ("intensity_negative_minus_positive", "消极-积极符合程度差", 1, 3),
-    ]
+    add_box_comparison(
+        fig_rt,
+        "negative_rt",
+        "消极词RT",
+        2,
+        2,  # 箱形图位置（第2行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
 
-    for metric, display_name, row, col in intensity_metrics_list:
-        add_bar_comparison(
-            fig_intensity,
-            metric,
-            display_name,
-            row,
-            col,
-            control_metrics,
-            experimental_metrics,
-        )
+    # 第二组：认同RT和不认同RT
+    add_bar_comparison(
+        fig_rt,
+        "yes_rt",
+        "认同RT",
+        3,
+        1,  # 柱状图位置（第3行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_bar_comparison(
+        fig_rt,
+        "no_rt",
+        "不认同RT",
+        3,
+        2,  # 柱状图位置（第3行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_box_comparison(
+        fig_rt,
+        "yes_rt",
+        "认同RT",
+        4,
+        1,  # 箱形图位置（第4行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_box_comparison(
+        fig_rt,
+        "no_rt",
+        "不认同RT",
+        4,
+        2,  # 箱形图位置（第4行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    # 第三组：差值
+    add_bar_comparison(
+        fig_rt,
+        "rt_negative_minus_positive",
+        "消极-积极RT差",
+        5,
+        1,  # 柱状图位置（第5行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_bar_comparison(
+        fig_rt,
+        "rt_endorsed_minus_not",
+        "认同-不认同RT差",
+        5,
+        2,  # 柱状图位置（第5行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_box_comparison(
+        fig_rt,
+        "rt_negative_minus_positive",
+        "消极-积极RT差",
+        6,
+        1,  # 箱形图位置（第6行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_box_comparison(
+        fig_rt,
+        "rt_endorsed_minus_not",
+        "认同-不认同RT差",
+        6,
+        2,  # 箱形图位置（第6行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    # 添加认可率指标对比和分布
+    # 第1行：柱状图
+    add_bar_comparison(
+        fig_endorsement,
+        "positive_endorsement_rate",
+        "积极认可率",
+        1,
+        1,  # 柱状图位置（第1行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_bar_comparison(
+        fig_endorsement,
+        "negative_endorsement_rate",
+        "消极认可率",
+        1,
+        2,  # 柱状图位置（第1行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_bar_comparison(
+        fig_endorsement,
+        "endorsement_rate",
+        "总认可率",
+        1,
+        3,  # 柱状图位置（第1行第3列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    # 第2行：箱形图
+    add_box_comparison(
+        fig_endorsement,
+        "positive_endorsement_rate",
+        "积极认可率",
+        2,
+        1,  # 箱形图位置（第2行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_box_comparison(
+        fig_endorsement,
+        "negative_endorsement_rate",
+        "消极认可率",
+        2,
+        2,  # 箱形图位置（第2行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_box_comparison(
+        fig_endorsement,
+        "endorsement_rate",
+        "总认可率",
+        2,
+        3,  # 箱形图位置（第2行第3列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    # 添加强度指标对比和分布
+    # 第1行：柱状图
+    add_bar_comparison(
+        fig_intensity,
+        "positive_intensity",
+        "积极词符合程度",
+        1,
+        1,  # 柱状图位置（第1行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_bar_comparison(
+        fig_intensity,
+        "negative_intensity",
+        "消极词符合程度",
+        1,
+        2,  # 柱状图位置（第1行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_bar_comparison(
+        fig_intensity,
+        "intensity_negative_minus_positive",
+        "消极-积极符合程度差",
+        1,
+        3,  # 柱状图位置（第1行第3列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    # 第2行：箱形图
+    add_box_comparison(
+        fig_intensity,
+        "positive_intensity",
+        "积极词符合程度",
+        2,
+        1,  # 箱形图位置（第2行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_box_comparison(
+        fig_intensity,
+        "negative_intensity",
+        "消极词符合程度",
+        2,
+        2,  # 箱形图位置（第2行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_box_comparison(
+        fig_intensity,
+        "intensity_negative_minus_positive",
+        "消极-积极符合程度差",
+        2,
+        3,  # 箱形图位置（第2行第3列）
+        control_metrics,
+        experimental_metrics,
+    )
 
     # 更新所有图的布局
     fig_bias.update_layout(
-        height=400,
-        title=dict(text="积极偏向对比", font=dict(size=16)),
-        showlegend=False,
+        height=500,
+        title=dict(text="积极偏向对比与分布", font=dict(size=16)),
+        showlegend=True,
         template="plotly_white",
     )
 
     fig_rt.update_layout(
-        height=400 * 2,
-        width=1600,
-        title=dict(text="反应时指标对比", font=dict(size=16)),
-        showlegend=False,
+        height=1800,
+        title=dict(text="反应时指标对比与分布", font=dict(size=16)),
+        showlegend=True,
         template="plotly_white",
     )
 
     fig_endorsement.update_layout(
-        height=400,
-        width=1600,
-        title=dict(text="认可率指标对比", font=dict(size=16)),
-        showlegend=False,
+        height=800,
+        title=dict(text="认可率指标对比与分布", font=dict(size=16)),
+        showlegend=True,
         template="plotly_white",
     )
 
     fig_intensity.update_layout(
-        height=400,
-        width=1600,
-        title=dict(text="符合程度指标对比", font=dict(size=16)),
-        showlegend=False,
+        height=800,
+        title=dict(text="符合程度指标对比与分布", font=dict(size=16)),
+        showlegend=True,
         template="plotly_white",
     )
 

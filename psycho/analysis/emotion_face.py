@@ -111,10 +111,10 @@ all_metric_names = [
 ]
 
 
-def find_emotion_face_files(data_dir: Path) -> list[Path]:
+def find_emotion_face_files(data_dir: Path, valid_id: list[int] = None) -> list[Path]:
     """查找指定目录下的面部情绪识别实验结果文件"""
     EXP_TYPE = "face_recognition"
-    return find_exp_files(data_dir, EXP_TYPE)
+    return find_exp_files(data_dir, EXP_TYPE, valid_id)
 
 
 def load_and_preprocess_data(df: pl.DataFrame) -> pl.DataFrame:
@@ -159,9 +159,9 @@ def load_and_preprocess_data(df: pl.DataFrame) -> pl.DataFrame:
         def get_intensity_level(label_intensity):
             if label_intensity is None:
                 return None
-            if 0 <= label_intensity <= 2:
+            if 1 <= label_intensity <= 3:
                 return "blur"
-            elif 3 <= label_intensity <= 6:
+            elif 4 <= label_intensity <= 6:
                 return "mid"
             elif 7 <= label_intensity <= 9:
                 return "clear"
@@ -4000,15 +4000,22 @@ def run_emotion_face_analysis(cfg: DictConfig = None, data_utils: DataUtils = No
             data_root = Path(cfg.output_dir)
             if len(groups) == 1:
                 # 单个组分析
-                files = find_emotion_face_files(data_root / groups[0])
-                result_dir = result_root / f"emotion_face_{groups[0]}_results"
+                group = groups[0]
+                files = find_emotion_face_files(
+                    data_root / group, data_utils.valid_id[group]
+                )
+                result_dir = result_root / f"emotion_face_{group}_results"
                 result_dir.mkdir(parents=True, exist_ok=True)
 
                 run_group_emotion_analysis(files, result_dir)
             else:
                 # 多个组分析
-                control_files = find_emotion_face_files(data_root / groups[0])
-                experimental_files = find_emotion_face_files(data_root / groups[1])
+                control_files = find_emotion_face_files(
+                    data_root / groups[0], data_utils.valid_id[groups[0]]
+                )
+                experimental_files = find_emotion_face_files(
+                    data_root / groups[1], data_utils.valid_id[groups[1]]
+                )
                 result_dir = (
                     result_root
                     / f"emotion_face_{groups[0]}_{groups[1]}_comparison_results"

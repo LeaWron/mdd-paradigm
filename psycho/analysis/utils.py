@@ -17,6 +17,7 @@ from scipy import stats
 class DataUtils:
     date: str = datetime.now().strftime("%Y-%m-%d")
     session_id: int = None
+    valid_id: dict[str, list[int]] = None
     groups: list[str] = None
 
 
@@ -243,9 +244,15 @@ def parse_date_input(date_str: str = None) -> str:
     raise ValueError(f"无法解析日期: {date_str}")
 
 
-def find_exp_files(data_dir: Path, experiment_type: str):
+def find_exp_files(
+    data_dir: Path, experiment_type: str, valid_id: list[int] = None
+) -> list[Path]:
     """查找指定目录下的指定实验的行为学结果"""
     files = list(data_dir.glob(f"*{experiment_type}.csv"))
+    # 过滤出有效ID的文件
+    if valid_id is not None:
+        files = [f for f in files if int(f.stem.split("-")[0]) in valid_id]
+
     if not files:
         raise FileNotFoundError(
             f"在目录 {data_dir} 下未找到 {experiment_type} 实验的结果文件"

@@ -109,10 +109,10 @@ word_metric_names = [
 ]
 
 
-def find_sret_files(data_dir: Path) -> list[Path]:
+def find_sret_files(data_dir: Path, valid_id: list[int] = None) -> list[Path]:
     """查找指定目录下的SRET实验结果文件"""
     EXP_TYPE = "sret"
-    return find_exp_files(data_dir, EXP_TYPE)
+    return find_exp_files(data_dir, EXP_TYPE, valid_id)
 
 
 def load_and_preprocess_data(df: pl.DataFrame) -> pl.DataFrame:
@@ -409,10 +409,6 @@ def create_word_level_visualizations_single(
     stim_types = [w["stim_type"] for w in sorted_words]
     endorsement_rates = [w["endorsement_rate"] for w in sorted_words]
     mean_rts = [w.get("mean_rt", 0) for w in sorted_words]
-    mean_intensities = [w.get("mean_intensity", 0) for w in sorted_words]
-
-    # 检查是否有符合程度数据
-    has_intensity_data = any(intensity > 0 for intensity in mean_intensities)
 
     # 创建子图 - 如果有效据则4行，否则3行
     subplot_titles = [
@@ -421,18 +417,8 @@ def create_word_level_visualizations_single(
         "词性分布统计",
     ]
 
-    if has_intensity_data:
-        subplot_titles.append("每个词的平均符合程度")
-        rows = 4
-        subplot_specs = [
-            [{"type": "bar"}],
-            [{"type": "bar"}],
-            [{"type": "bar"}],
-            [{"type": "bar"}],
-        ]
-    else:
-        rows = 3
-        subplot_specs = [[{"type": "bar"}], [{"type": "bar"}], [{"type": "bar"}]]
+    rows = 3
+    subplot_specs = [[{"type": "bar"}], [{"type": "bar"}], [{"type": "bar"}]]
 
     fig = make_subplots(
         rows=rows,
@@ -509,21 +495,6 @@ def create_word_level_visualizations_single(
         row=3,
         col=1,
     )
-
-    # 图4：每个词的平均符合程度（如果有数据）
-    if has_intensity_data:
-        fig.add_trace(
-            go.Bar(
-                x=words,
-                y=mean_intensities,
-                name="平均符合程度",
-                marker_color=colors,
-                text=[f"{intensity:.2f}" for intensity in mean_intensities],
-                textposition="auto",
-            ),
-            row=4,
-            col=1,
-        )
 
     # 更新布局
     fig.update_layout(
@@ -3325,7 +3296,9 @@ def run_sret_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
 
             if len(groups) == 1:
                 # 单个组分析
-                files = find_sret_files(data_root / groups[0])
+                files = find_sret_files(
+                    data_root / groups[0], data_utils.valid_id[groups[0]]
+                )
                 result_dir = result_root / f"sret_{groups[0]}_results"
                 result_dir.mkdir(parents=True, exist_ok=True)
 
@@ -3335,8 +3308,12 @@ def run_sret_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
                 )
             else:
                 # 多个组分析
-                control_files = find_sret_files(data_root / groups[0])
-                experimental_files = find_sret_files(data_root / groups[1])
+                control_files = find_sret_files(
+                    data_root / groups[0], data_utils.valid_id[groups[0]]
+                )
+                experimental_files = find_sret_files(
+                    data_root / groups[1], data_utils.valid_id[groups[1]]
+                )
                 result_dir = (
                     result_root / f"sret_{groups[0]}_{groups[1]}_comparison_results"
                 )

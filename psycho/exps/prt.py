@@ -554,7 +554,7 @@ def entry(exp: Experiment | None = None):
             run_exp(exp.config.pre)
 
             correct_rate = data_to_save["correct_rate"][-1]
-            if pre == 1 and correct_rate <= 0.75:
+            if pre == 1 and correct_rate < 0.75:
                 remind_text = f"预实验正确率为 <c=yellow>{correct_rate * 100:.2f}%</c>, 未超过 <c=#eb5555>75%</c> \n你需要重新进行预实验\n\n如果对实验有任何问题, 现在可以联系实验员\n\n若没有问题, 请按 <c=#51d237>空格键</c> 继续"
                 remind = visual.TextBox2(
                     win,

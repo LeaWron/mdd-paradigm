@@ -146,7 +146,7 @@ def post_block():
     # resting
     text_front = "" if pre else "该区块结束\n"
     for i in range(timing["rest"], -1, -1):
-        text = f"{text_front}你有 <c=yellow>{i}</c> 秒休息时间\n你可以按<c=#51d237>空格键</c>继续"
+        text = f"{text_front}你有 <c=yellow>{i}</c> 秒休息时间"
         text_stim = visual.TextBox2(
             win,
             text=text,
@@ -158,9 +158,6 @@ def post_block():
         )
         text_stim.draw()
         win.flip()
-
-        if event.waitKeys(1, keyList=continue_keys):
-            break
 
 
 def pre_trial():

@@ -323,19 +323,20 @@ class Session:
                     ),
                 )
 
-                end_msg = visual.TextBox2(
-                    self.win,
-                    text="该实验结束\n当你休息好后,按<c=#51d237>空格键</c>继续",
-                    color="white",
-                    letterHeight=0.1,
-                    size=(2, None),
-                    alignment="center",
-                    font=PSYCHO_FONT,
-                )
-                end_msg.draw()
-                self.win.flip()
+                for i in range(self.after_rest_duration, -1, -1):
+                    msg = visual.TextBox2(
+                        self.win,
+                        color="white",
+                        text=f"该实验结束\n你有 <c=yellow>{i}</c> 秒休息时间\n当你休息好后,按<c=#51d237>空格键</c>继续",
+                        letterHeight=0.1,
+                        size=(2, None),
+                        font=PSYCHO_FONT,
+                        alignment="center",
+                    )
+                    msg.draw()
+                    self.win.flip()
+
                 event.waitKeys(keyList=self.continue_keys)
-                core.wait(0.3)
                 self.win.flip()
 
         finally:

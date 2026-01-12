@@ -203,7 +203,7 @@ def post_block():
         msg = visual.TextBox2(
             win,
             color="white",
-            text=f"{text_front}你目前已有 <c=yellow>{total_point}</c> 分\n你有 <c=yellow>{i}</c> 秒休息时间\n按<c=#51d237>空格键</c>继续",
+            text=f"{text_front}你目前已有 <c=yellow>{total_point}</c> 分\n你有 <c=yellow>{i}</c> 秒休息时间",
             letterHeight=0.08,
             size=(1.2, None),
             font=PSYCHO_FONT,
@@ -211,8 +211,6 @@ def post_block():
         )
         msg.draw()
         win.flip()
-        if event.waitKeys(1, keyList=continue_keys):
-            break
 
 
 def pre_trial():

@@ -158,6 +158,7 @@ def post_block():
         )
         text_stim.draw()
         win.flip()
+        core.wait(1)
 
 
 def pre_trial():

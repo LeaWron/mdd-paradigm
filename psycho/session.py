@@ -335,6 +335,7 @@ class Session:
                     )
                     msg.draw()
                     self.win.flip()
+                    core.wait(1)
 
                 event.waitKeys(keyList=self.continue_keys)
                 self.win.flip()

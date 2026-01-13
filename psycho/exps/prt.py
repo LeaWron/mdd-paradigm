@@ -211,6 +211,7 @@ def post_block():
         )
         msg.draw()
         win.flip()
+        core.wait(1)
 
 
 def pre_trial():

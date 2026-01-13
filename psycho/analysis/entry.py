@@ -12,7 +12,9 @@ from psycho.analysis.utils import DataUtils, parse_date_input
 def run_analysis(
     cfg: DictConfig, date: str = None, session_id: int = None, groups: list[str] = None
 ):
-    data_utils = DataUtils(session_id=session_id, date=date, groups=groups)
+    data_utils = DataUtils(
+        session_id=session_id, date=date, groups=groups, valid_id=cfg.session.valid_id
+    )
     # 运行情感分析
     run_emotion_face_analysis(cfg, data_utils)
     # 运行PRT分析

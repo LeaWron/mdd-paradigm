@@ -109,10 +109,10 @@ word_metric_names = [
 ]
 
 
-def find_sret_files(data_dir: Path) -> list[Path]:
+def find_sret_files(data_dir: Path, valid_id: list[int] = None) -> list[Path]:
     """查找指定目录下的SRET实验结果文件"""
     EXP_TYPE = "sret"
-    return find_exp_files(data_dir, EXP_TYPE)
+    return find_exp_files(data_dir, EXP_TYPE, valid_id)
 
 
 def load_and_preprocess_data(df: pl.DataFrame) -> pl.DataFrame:
@@ -410,15 +410,21 @@ def create_word_level_visualizations_single(
     endorsement_rates = [w["endorsement_rate"] for w in sorted_words]
     mean_rts = [w.get("mean_rt", 0) for w in sorted_words]
 
-    # 创建子图
+    # 创建子图 - 如果有效据则4行，否则3行
+    subplot_titles = [
+        "每个词的平均反应时",
+        "每个词的认同率",
+        "词性分布统计",
+    ]
+
+    rows = 3
+    subplot_specs = [[{"type": "bar"}], [{"type": "bar"}], [{"type": "bar"}]]
+
     fig = make_subplots(
-        rows=3,
+        rows=rows,
         cols=1,
-        subplot_titles=(
-            "每个词的平均反应时",
-            "每个词的认同率",
-            "词性分布统计",
-        ),
+        subplot_titles=tuple(subplot_titles),
+        specs=subplot_specs,
         vertical_spacing=0.15,
         horizontal_spacing=0.15,
     )
@@ -495,7 +501,7 @@ def create_word_level_visualizations_single(
         title=dict(
             text="SRET词级分析报告", font=dict(size=20, family="Arial Black"), x=0.5
         ),
-        height=400 * 3,
+        height=400 * rows,
         width=1400,
         showlegend=True,
         template="plotly_white",
@@ -503,9 +509,8 @@ def create_word_level_visualizations_single(
     )
 
     # 更新x轴标签角度
-    fig.update_xaxes(tickangle=90, row=1, col=1)
-    fig.update_xaxes(tickangle=90, row=2, col=1)
-    fig.update_xaxes(tickangle=90, row=3, col=1)
+    for i in range(1, rows + 1):
+        fig.update_xaxes(tickangle=90, row=i, col=1)
 
     if result_dir:
         fig.write_html(str(result_dir / "sret_word_level_analysis.html"))
@@ -896,6 +901,7 @@ def create_word_level_visualizations_group(
                     "endorsement_counts": [],
                     "rejection_counts": [],
                     "mean_rts": [],
+                    "mean_intensities": [],  # 新增：符合程度数据
                 }
 
             word_data[word]["endorsement_counts"].append(word_stat["endorsement_count"])
@@ -903,6 +909,10 @@ def create_word_level_visualizations_group(
 
             if word_stat.get("mean_rt") is not None:
                 word_data[word]["mean_rts"].append(word_stat["mean_rt"])
+
+            # 收集符合程度数据
+            if word_stat.get("mean_intensity") is not None:
+                word_data[word]["mean_intensities"].append(word_stat["mean_intensity"])
 
     # 计算每个词的组统计
     words = []
@@ -915,6 +925,9 @@ def create_word_level_visualizations_group(
     mean_rts = []
     std_rts = []
     se_rts = []  # 标准误
+    mean_intensities = []  # 平均符合程度
+    std_intensities = []  # 符合程度标准差
+    se_intensities = []  # 符合程度标准误
 
     for word, data in word_data.items():
         words.append(word)
@@ -963,6 +976,39 @@ def create_word_level_visualizations_group(
             std_rts.append(0)
             se_rts.append(0)
 
+        # 平均符合程度 - 确保有有效数据
+        if data["mean_intensities"] and not all(
+            np.isnan(intensity) for intensity in data["mean_intensities"]
+        ):
+            valid_intensities = [
+                intensity
+                for intensity in data["mean_intensities"]
+                if not np.isnan(intensity)
+            ]
+            if valid_intensities:
+                mean_intensity = np.mean(valid_intensities)
+                std_intensity = (
+                    np.std(valid_intensities, ddof=1)
+                    if len(valid_intensities) > 1
+                    else 0
+                )
+                se_intensity = (
+                    std_intensity / np.sqrt(len(valid_intensities))
+                    if len(valid_intensities) > 0
+                    else 0
+                )
+                mean_intensities.append(mean_intensity)
+                std_intensities.append(std_intensity)
+                se_intensities.append(se_intensity)
+            else:
+                mean_intensities.append(0)
+                std_intensities.append(0)
+                se_intensities.append(0)
+        else:
+            mean_intensities.append(0)
+            std_intensities.append(0)
+            se_intensities.append(0)
+
     # 按词性排序
     positive_indices = [i for i, t in enumerate(stim_types) if t == "positive"]
     negative_indices = [i for i, t in enumerate(stim_types) if t == "negative"]
@@ -978,20 +1024,41 @@ def create_word_level_visualizations_group(
     mean_rts = [mean_rts[i] for i in sorted_indices]
     std_rts = [std_rts[i] for i in sorted_indices]
     se_rts = [se_rts[i] for i in sorted_indices]
+    mean_intensities = [mean_intensities[i] for i in sorted_indices]
+    std_intensities = [std_intensities[i] for i in sorted_indices]
+    se_intensities = [se_intensities[i] for i in sorted_indices]
+
+    # 检查是否有符合程度数据
+    has_intensity_data = any(intensity > 0 for intensity in mean_intensities)
 
     # 1. 创建选择次数图
+    subplot_titles = [
+        "选择次数",
+        "反应时间对比",
+        "认同率",
+    ]
+
+    if has_intensity_data:
+        subplot_titles.append("符合程度对比")
+        rows = 4
+        subplot_specs = [
+            [{"type": "bar"}],
+            [{"type": "bar"}],
+            [{"type": "bar"}],
+            [{"type": "bar"}],
+        ]
+    else:
+        rows = 3
+        subplot_specs = [[{"type": "bar"}], [{"type": "bar"}], [{"type": "bar"}]]
+
     fig = make_subplots(
-        rows=3,
+        rows=rows,
         cols=1,
-        subplot_titles=(
-            "选择次数",
-            "反应时间对比",
-            "认同率",
-        ),
-        specs=[[{"type": "bar"}], [{"type": "bar"}], [{"type": "bar"}]],
+        subplot_titles=tuple(subplot_titles),
+        specs=subplot_specs,
     )
 
-    # 只显示前30个词，避免图表过于拥挤
+    # 只显示前80个词，避免图表过于拥挤
     display_limit = min(80, len(words))
     display_words = words[:display_limit]
     display_stim_types = stim_types[:display_limit]
@@ -999,6 +1066,12 @@ def create_word_level_visualizations_group(
     display_std_endorsed = std_endorsement_counts[:display_limit]
     display_mean_rejected = mean_rejection_counts[:display_limit]
     display_std_rejected = std_rejection_counts[:display_limit]
+    display_mean_rts = mean_rts[:display_limit]
+    display_std_rts = std_rts[:display_limit]
+    display_se_rts = se_rts[:display_limit]
+    display_mean_intensities = mean_intensities[:display_limit]
+    display_std_intensities = std_intensities[:display_limit]
+    display_se_intensities = se_intensities[:display_limit]
 
     # 积极词和消极词分开显示
     for i, (
@@ -1052,11 +1125,6 @@ def create_word_level_visualizations_group(
 
     # 2. 创建反应时图 - 确保有有效数据
     if any(rt > 0 for rt in mean_rts):
-        # 只显示前30个词
-        display_mean_rts = mean_rts[:display_limit]
-        display_std_rts = std_rts[:display_limit]
-        display_se_rts = se_rts[:display_limit]
-
         for i, (word, stim_type, mean_rt, std_rt, se_rt) in enumerate(
             zip(
                 display_words,
@@ -1094,8 +1162,6 @@ def create_word_level_visualizations_group(
                 fig.update_xaxes(tickangle=45, row=2, col=1)
 
     # 3. 创建认同率图 - 计算认同率的标准误
-
-    # 计算认同率的标准误
     endorsement_rate_ses = []
     for i, (rate, mean_endorsed, mean_rejected) in enumerate(
         zip(endorsement_rates, mean_endorsement_counts, mean_rejection_counts)
@@ -1108,7 +1174,6 @@ def create_word_level_visualizations_group(
             se = 0
         endorsement_rate_ses.append(se)
 
-    # 只显示前30个词
     display_endorsement_rates = endorsement_rates[:display_limit]
     display_endorsement_rate_ses = endorsement_rate_ses[:display_limit]
 
@@ -1144,6 +1209,50 @@ def create_word_level_visualizations_group(
     # 更新x轴标签角度
     fig.update_xaxes(tickangle=45, row=3, col=1)
 
+    # 4. 创建符合程度图（如果有数据）
+    if has_intensity_data:
+        for i, (
+            word,
+            stim_type,
+            mean_intensity,
+            std_intensity,
+            se_intensity,
+        ) in enumerate(
+            zip(
+                display_words,
+                display_stim_types,
+                display_mean_intensities,
+                display_std_intensities,
+                display_se_intensities,
+            )
+        ):
+            if mean_intensity > 0:  # 只显示有有效数据的词
+                fig.add_trace(
+                    go.Bar(
+                        x=[word],
+                        y=[mean_intensity],
+                        name=word,
+                        marker_color="lightblue"
+                        if stim_type == "positive"
+                        else "lightcoral",
+                        text=[f"{mean_intensity:.2f}±{std_intensity:.2f}"],
+                        textposition="auto",
+                        showlegend=False,
+                        error_y=dict(
+                            type="data",
+                            array=[std_intensity],
+                            visible=True,
+                            color="rgba(0,0,0,0.5)",
+                        ),
+                        hovertemplate=f"词: {word}<br>词性: {stim_type}<br>平均符合程度: {mean_intensity:.2f}<br>标准差: {std_intensity:.2f}<br>标准误: {se_intensity:.2f}<br><extra></extra>",
+                    ),
+                    row=4,
+                    col=1,
+                )
+
+        # 更新x轴标签角度
+        fig.update_xaxes(tickangle=45, row=4, col=1)
+
     if result_dir:
         # 保存完整的词级数据到CSV
         word_stats_df = pd.DataFrame(
@@ -1159,11 +1268,15 @@ def create_word_level_visualizations_group(
                 "mean_rt": mean_rts,
                 "std_rt": std_rts,
                 "se_rt": se_rts,
+                "mean_intensity": mean_intensities,
+                "std_intensity": std_intensities,
+                "se_intensity": se_intensities,
             }
         )
         word_stats_df.to_csv(
             result_dir / "sret_group_word_level_stats.csv", index=False
         )
+
     # 积极消极分界线
     fig.add_vline(
         x=len(positive_indices) - 0.5,
@@ -1180,7 +1293,7 @@ def create_word_level_visualizations_group(
             x=0.5,
         ),
         width=2000,
-        height=600 * 3,
+        height=600 * rows,
         showlegend=True,
         template="plotly_white",
         hovermode="x unified",
@@ -1515,6 +1628,7 @@ def create_word_level_visualizations_multi_group(
                         "endorsement_counts": [],
                         "rejection_counts": [],
                         "mean_rts": [],
+                        "mean_intensities": [],  # 新增：符合程度数据
                     }
 
                 word_data[word]["endorsement_counts"].append(
@@ -1524,6 +1638,12 @@ def create_word_level_visualizations_multi_group(
 
                 if word_stat.get("mean_rt") is not None:
                     word_data[word]["mean_rts"].append(word_stat["mean_rt"])
+
+                # 收集符合程度数据
+                if word_stat.get("mean_intensity") is not None:
+                    word_data[word]["mean_intensities"].append(
+                        word_stat["mean_intensity"]
+                    )
         return word_data
 
     control_data = collect_group_data(control_word_stats, "control")
@@ -1549,6 +1669,12 @@ def create_word_level_visualizations_multi_group(
     experimental_mean_rts = []
     experimental_std_rts = []
     experimental_se_rts = []
+    control_mean_intensities = []  # 对照组平均符合程度
+    control_std_intensities = []  # 对照组符合程度标准差
+    control_se_intensities = []  # 对照组符合程度标准误
+    experimental_mean_intensities = []  # 实验组平均符合程度
+    experimental_std_intensities = []  # 实验组符合程度标准差
+    experimental_se_intensities = []  # 实验组符合程度标准误
 
     for word in all_words:
         # 对照组数据
@@ -1612,6 +1738,56 @@ def create_word_level_visualizations_multi_group(
                     exp_std_rt / np.sqrt(len(valid_rts)) if len(valid_rts) > 0 else 0
                 )
 
+        # 平均符合程度 - 确保有有效数据
+        ctl_mean_intensity = 0
+        ctl_std_intensity = 0
+        ctl_se_intensity = 0
+        if control_data[word]["mean_intensities"] and not all(
+            np.isnan(intensity) for intensity in control_data[word]["mean_intensities"]
+        ):
+            valid_intensities = [
+                intensity
+                for intensity in control_data[word]["mean_intensities"]
+                if not np.isnan(intensity)
+            ]
+            if valid_intensities:
+                ctl_mean_intensity = np.mean(valid_intensities)
+                ctl_std_intensity = (
+                    np.std(valid_intensities, ddof=1)
+                    if len(valid_intensities) > 1
+                    else 0
+                )
+                ctl_se_intensity = (
+                    ctl_std_intensity / np.sqrt(len(valid_intensities))
+                    if len(valid_intensities) > 0
+                    else 0
+                )
+
+        exp_mean_intensity = 0
+        exp_std_intensity = 0
+        exp_se_intensity = 0
+        if experimental_data[word]["mean_intensities"] and not all(
+            np.isnan(intensity)
+            for intensity in experimental_data[word]["mean_intensities"]
+        ):
+            valid_intensities = [
+                intensity
+                for intensity in experimental_data[word]["mean_intensities"]
+                if not np.isnan(intensity)
+            ]
+            if valid_intensities:
+                exp_mean_intensity = np.mean(valid_intensities)
+                exp_std_intensity = (
+                    np.std(valid_intensities, ddof=1)
+                    if len(valid_intensities) > 1
+                    else 0
+                )
+                exp_se_intensity = (
+                    exp_std_intensity / np.sqrt(len(valid_intensities))
+                    if len(valid_intensities) > 0
+                    else 0
+                )
+
         words.append(word)
         stim_types.append(control_data[word]["stim_type"])
         control_endorsement_rates.append(ctl_endorsement_rate)
@@ -1624,6 +1800,12 @@ def create_word_level_visualizations_multi_group(
         experimental_mean_rts.append(exp_mean_rt)
         experimental_std_rts.append(exp_std_rt)
         experimental_se_rts.append(exp_se_rt)
+        control_mean_intensities.append(ctl_mean_intensity)
+        control_std_intensities.append(ctl_std_intensity)
+        control_se_intensities.append(ctl_se_intensity)
+        experimental_mean_intensities.append(exp_mean_intensity)
+        experimental_std_intensities.append(exp_std_intensity)
+        experimental_se_intensities.append(exp_se_intensity)
 
     # 按词性排序
     positive_indices = [i for i, t in enumerate(stim_types) if t == "positive"]
@@ -1646,8 +1828,25 @@ def create_word_level_visualizations_multi_group(
     experimental_mean_rts = [experimental_mean_rts[i] for i in sorted_indices]
     experimental_std_rts = [experimental_std_rts[i] for i in sorted_indices]
     experimental_se_rts = [experimental_se_rts[i] for i in sorted_indices]
+    control_mean_intensities = [control_mean_intensities[i] for i in sorted_indices]
+    control_std_intensities = [control_std_intensities[i] for i in sorted_indices]
+    control_se_intensities = [control_se_intensities[i] for i in sorted_indices]
+    experimental_mean_intensities = [
+        experimental_mean_intensities[i] for i in sorted_indices
+    ]
+    experimental_std_intensities = [
+        experimental_std_intensities[i] for i in sorted_indices
+    ]
+    experimental_se_intensities = [
+        experimental_se_intensities[i] for i in sorted_indices
+    ]
 
-    # 只显示前30个词，避免图表过于拥挤
+    # 检查是否有符合程度数据
+    has_intensity_data = any(
+        intensity > 0 for intensity in control_mean_intensities
+    ) or any(intensity > 0 for intensity in experimental_mean_intensities)
+
+    # 只显示前80个词，避免图表过于拥挤
     display_limit = min(80, len(words))
     display_words = words[:display_limit]
     display_stim_types = stim_types[:display_limit]
@@ -1663,26 +1862,53 @@ def create_word_level_visualizations_multi_group(
     display_experimental_mean_rts = experimental_mean_rts[:display_limit]
     display_experimental_std_rts = experimental_std_rts[:display_limit]
     display_experimental_se_rts = experimental_se_rts[:display_limit]
+    display_control_mean_intensities = control_mean_intensities[:display_limit]
+    display_control_std_intensities = control_std_intensities[:display_limit]
+    display_control_se_intensities = control_se_intensities[:display_limit]
+    display_experimental_mean_intensities = experimental_mean_intensities[
+        :display_limit
+    ]
+    display_experimental_std_intensities = experimental_std_intensities[:display_limit]
+    display_experimental_se_intensities = experimental_se_intensities[:display_limit]
 
-    # 1. 创建认同率对比图
+    # 确定子图数量
+    subplot_titles = [
+        "组间认同率对比",
+        "组间反应时对比",
+        "组间认同率差异",
+        "组间反应时差异",
+    ]
+
+    if has_intensity_data:
+        subplot_titles.extend(["组间符合程度对比", "组间符合程度差异"])
+        rows = 6
+        subplot_specs = [
+            [{"type": "bar"}],
+            [{"type": "bar"}],
+            [{"type": "bar"}],
+            [{"type": "bar"}],
+            [{"type": "bar"}],
+            [{"type": "bar"}],
+        ]
+    else:
+        rows = 4
+        subplot_specs = [
+            [{"type": "bar"}],
+            [{"type": "bar"}],
+            [{"type": "bar"}],
+            [{"type": "bar"}],
+        ]
+
+    # 创建图
     fig = make_subplots(
-        rows=4,
+        rows=rows,
         cols=1,
-        subplot_titles=(
-            "组间认同率对比",
-            "组间反应时对比",
-            "组间认同率差异",
-            "组间反应时差异",
-        ),
-        specs=[
-            [{"type": "bar"}],
-            [{"type": "bar"}],
-            [{"type": "bar"}],
-            [{"type": "bar"}],
-        ],
+        subplot_titles=tuple(subplot_titles),
+        specs=subplot_specs,
         vertical_spacing=0.1,
     )
 
+    # 1. 创建认同率对比图
     # 添加对照组数据
     fig.add_trace(
         go.Bar(
@@ -1804,7 +2030,6 @@ def create_word_level_visualizations_multi_group(
         fig.update_xaxes(tickangle=45, row=2, col=1)
 
     # 3. 创建认同率差异图
-
     endorsement_rate_diffs = [
         (exp - ctl) * 100
         for exp, ctl in zip(
@@ -1835,7 +2060,7 @@ def create_word_level_visualizations_multi_group(
             ),
             hovertemplate="词: %{x}<br>词性: %{customdata}<br>认同率差异(实验-对照): %{text}%<br>标准误: %{error_y.array:.1f}%<br><extra></extra>",
             customdata=display_stim_types,
-            text=[diff for diff in endorsement_rate_diffs],
+            text=[f"{diff:.1f}" for diff in endorsement_rate_diffs],
             textposition="none",
         ),
         row=3,
@@ -1856,6 +2081,7 @@ def create_word_level_visualizations_multi_group(
 
     # 更新x轴标签角度
     fig.update_xaxes(tickangle=45, row=3, col=1)
+
     # 4. 新增：反应时差异分析图
     # 计算每词的反应时差异（实验组 - 对照组）
     rt_diffs = [
@@ -1885,7 +2111,7 @@ def create_word_level_visualizations_multi_group(
             ),
             hovertemplate="词: %{x}<br>词性: %{customdata}<br>反应时差异(实验-对照): %{text:.0f}ms<br>标准误: %{error_y.array:.0f}ms<br><extra></extra>",
             customdata=display_stim_types,
-            text=[diff for diff in rt_diffs],
+            text=[f"{diff:.0f}" for diff in rt_diffs],
             textposition="none",
         ),
         row=4,
@@ -1906,6 +2132,127 @@ def create_word_level_visualizations_multi_group(
 
     # 更新x轴标签角度
     fig.update_xaxes(tickangle=45, row=4, col=1)
+
+    # 5. 新增：符合程度对比图（如果有数据）
+    if has_intensity_data:
+        # 添加对照组数据
+        fig.add_trace(
+            go.Bar(
+                x=display_words,
+                y=display_control_mean_intensities,
+                name="对照组",
+                marker_color=[
+                    "rgba(0, 128, 0, 0.7)"
+                    if t == "positive"
+                    else "rgba(255, 99, 71, 0.7)"
+                    for t in display_stim_types
+                ],
+                text=[
+                    f"{intensity:.2f}" for intensity in display_control_mean_intensities
+                ],
+                textposition="auto",
+                error_y=dict(
+                    type="data",
+                    array=display_control_std_intensities,
+                    visible=True,
+                    color="rgba(0,0,0,0.5)",
+                ),
+                hovertemplate="词: %{x}<br>词性: %{customdata}<br>对照组符合程度: %{text}<br>标准差: %{error_y.array:.2f}<br><extra></extra>",
+                customdata=display_stim_types,
+            ),
+            row=5,
+            col=1,
+        )
+
+        # 添加实验组数据
+        fig.add_trace(
+            go.Bar(
+                x=display_words,
+                y=display_experimental_mean_intensities,
+                name="实验组",
+                marker_color=[
+                    "rgba(144, 238, 144, 0.7)"
+                    if t == "positive"
+                    else "rgba(255, 182, 193, 0.7)"
+                    for t in display_stim_types
+                ],
+                text=[
+                    f"{intensity:.2f}"
+                    for intensity in display_experimental_mean_intensities
+                ],
+                textposition="auto",
+                error_y=dict(
+                    type="data",
+                    array=display_experimental_std_intensities,
+                    visible=True,
+                    color="rgba(0,0,0,0.5)",
+                ),
+                hovertemplate="词: %{x}<br>词性: %{customdata}<br>实验组符合程度: %{text}<br>标准差: %{error_y.array:.2f}<br><extra></extra>",
+                customdata=display_stim_types,
+            ),
+            row=5,
+            col=1,
+        )
+
+        # 更新x轴标签角度
+        fig.update_xaxes(tickangle=45, row=5, col=1)
+
+        # 6. 新增：符合程度差异分析图
+        # 计算每词的符合程度差异（实验组 - 对照组）
+        intensity_diffs = [
+            exp - ctl
+            for exp, ctl in zip(
+                display_experimental_mean_intensities, display_control_mean_intensities
+            )
+        ]
+
+        # 计算差异的标准误
+        intensity_diff_ses = []
+        for i in range(len(display_words)):
+            se_ctl = display_control_se_intensities[i]
+            se_exp = display_experimental_se_intensities[i]
+            diff_se = np.sqrt(se_ctl**2 + se_exp**2)
+            intensity_diff_ses.append(diff_se)
+
+        fig.add_trace(
+            go.Bar(
+                x=display_words,
+                y=intensity_diffs,
+                name="符合程度差异",
+                marker_color=[
+                    "rgba(0, 0, 255, 0.7)" if diff > 0 else "rgba(255, 0, 0, 0.7)"
+                    for diff in intensity_diffs
+                ],
+                error_y=dict(
+                    type="data",
+                    array=intensity_diff_ses,
+                    visible=True,
+                    color="rgba(0,0,0,0.5)",
+                ),
+                hovertemplate="词: %{x}<br>词性: %{customdata}<br>符合程度差异(实验-对照): %{text:.2f}<br>标准误: %{error_y.array:.2f}<br><extra></extra>",
+                customdata=display_stim_types,
+                text=[f"{diff:.2f}" for diff in intensity_diffs],
+                textposition="none",
+            ),
+            row=6,
+            col=1,
+        )
+
+        # 添加零线
+        fig.add_hline(
+            y=0,
+            line_width=2,
+            line_dash="dash",
+            line_color="gray",
+            annotation_text="零差异线",
+            annotation_position="right",
+            row=6,
+            col=1,
+        )
+
+        # 更新x轴标签角度
+        fig.update_xaxes(tickangle=45, row=6, col=1)
+
     if result_dir:
         # 保存完整的词级数据到CSV
         word_stats_df = pd.DataFrame(
@@ -1930,11 +2277,22 @@ def create_word_level_visualizations_multi_group(
                     exp - ctl
                     for exp, ctl in zip(experimental_mean_rts, control_mean_rts)
                 ],
+                "control_mean_intensity": control_mean_intensities,
+                "control_std_intensity": control_std_intensities,
+                "experimental_mean_intensity": experimental_mean_intensities,
+                "experimental_std_intensity": experimental_std_intensities,
+                "intensity_diff": [
+                    exp - ctl
+                    for exp, ctl in zip(
+                        experimental_mean_intensities, control_mean_intensities
+                    )
+                ],
             }
         )
         word_stats_df.to_csv(
             result_dir / "sret_multi_group_word_level_stats.csv", index=False
         )
+
     # 积极消极分界线
     fig.add_vline(
         x=len(positive_indices) - 0.5,
@@ -1949,7 +2307,7 @@ def create_word_level_visualizations_multi_group(
             font=dict(size=16, family="Arial Black"),
             x=0.5,
         ),
-        height=600 * 4,
+        height=600 * rows,
         width=2000,
         barmode="group",
         template="plotly_white",
@@ -1976,40 +2334,84 @@ def create_multi_group_visualizations(
         if metric in control_metrics[0] and metric in experimental_metrics[0]:
             all_available_metrics.append(metric)
 
-    # 创建多个图表
+    # 1. 积极偏向对比图 - 1行2列
     fig_bias = make_subplots(
-        rows=1, cols=1, subplot_titles=("积极偏向对比",), specs=[[{"type": "bar"}]]
+        rows=1,
+        cols=2,
+        subplot_titles=("积极偏向对比", "积极偏向分布"),
+        specs=[[{"type": "bar"}, {"type": "box"}]],
+        vertical_spacing=0.15,
+        horizontal_spacing=0.1,
     )
 
+    # 2. 反应时指标对比图 - 6行2列
     fig_rt = make_subplots(
+        rows=6,
+        cols=2,
+        subplot_titles=(
+            "积极词RT对比",
+            "消极词RT对比",
+            "积极词RT分布",
+            "消极词RT分布",
+            "认同RT对比",
+            "不认同RT对比",
+            "认同RT分布",
+            "不认同RT分布",
+            "消极-积极RT差对比",
+            "认同-不认同RT差对比",
+            "消极-积极RT差分布",
+            "认同-不认同RT差分布",
+        ),
+        specs=[
+            [{"type": "bar"}, {"type": "bar"}],  # 第1行：积极和消极RT柱状图
+            [{"type": "box"}, {"type": "box"}],  # 第2行：积极和消极RT箱形图
+            [{"type": "bar"}, {"type": "bar"}],  # 第3行：认同和不认同RT柱状图
+            [{"type": "box"}, {"type": "box"}],  # 第4行：认同和不认同RT箱形图
+            [{"type": "bar"}, {"type": "bar"}],  # 第5行：差值的柱状图
+            [{"type": "box"}, {"type": "box"}],  # 第6行：差值的箱形图
+        ],
+        vertical_spacing=0.08,
+        horizontal_spacing=0.1,
+    )
+
+    # 3. 认可率指标对比图 - 2行3列
+    fig_endorsement = make_subplots(
         rows=2,
         cols=3,
         subplot_titles=(
-            "消极-积极RT差",
-            "认同-不认同RT差",
-            "积极词RT",
-            "消极词RT",
-            "认同RT",
-            "不认同RT",
+            "积极认可率对比",
+            "消极认可率对比",
+            "总认可率对比",
+            "积极认可率分布",
+            "消极认可率分布",
+            "总认可率分布",
         ),
         specs=[
-            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],
-            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],
+            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],  # 第1行：柱状图
+            [{"type": "box"}, {"type": "box"}, {"type": "box"}],  # 第2行：箱形图
         ],
+        vertical_spacing=0.12,
+        horizontal_spacing=0.1,
     )
 
-    fig_endorsement = make_subplots(
-        rows=1,
-        cols=3,
-        subplot_titles=("积极认可率", "消极认可率", "总认可率"),
-        specs=[[{"type": "bar"}, {"type": "bar"}, {"type": "bar"}]],
-    )
-
+    # 4. 强度指标对比图 - 2行3列
     fig_intensity = make_subplots(
-        rows=1,
+        rows=2,
         cols=3,
-        subplot_titles=("积极词符合程度", "消极词符合程度", "消极-积极符合程度差"),
-        specs=[[{"type": "bar"}, {"type": "bar"}, {"type": "bar"}]],
+        subplot_titles=(
+            "积极词符合程度对比",
+            "消极词符合程度对比",
+            "消极-积极符合程度差对比",
+            "积极词符合程度分布",
+            "消极词符合程度分布",
+            "消极-积极符合程度差分布",
+        ),
+        specs=[
+            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],  # 第1行：柱状图
+            [{"type": "box"}, {"type": "box"}, {"type": "box"}],  # 第2行：箱形图
+        ],
+        vertical_spacing=0.12,
+        horizontal_spacing=0.1,
     )
 
     # 辅助函数：添加柱状图对比
@@ -2044,108 +2446,351 @@ def create_multi_group_visualizations(
                     ),
                     text=[f"{control_mean:.3f}", f"{experimental_mean:.3f}"],
                     textposition="auto",
+                    showlegend=True if row == 1 and col == 1 else False,
                 ),
                 row=row,
                 col=col,
             )
 
-    # 添加积极偏向对比
+    # 辅助函数：添加箱形图对比
+    def add_box_comparison(
+        fig, metric_name, display_name, row, col, control_metrics, experimental_metrics
+    ):
+        control_values = [m[metric_name] for m in control_metrics if metric_name in m]
+        experimental_values = [
+            m[metric_name] for m in experimental_metrics if metric_name in m
+        ]
+
+        if control_values and experimental_values:
+            # 添加对照组箱形图
+            fig.add_trace(
+                go.Box(
+                    y=control_values,
+                    name="对照组",
+                    marker_color="green",
+                    boxpoints="all",
+                    jitter=0.3,
+                    pointpos=-1.8,
+                    boxmean="sd",  # 添加box_mean="sd"参数
+                    showlegend=True if row == 1 and col == 1 else False,
+                ),
+                row=row,
+                col=col,
+            )
+
+            # 添加实验组箱形图
+            fig.add_trace(
+                go.Box(
+                    y=experimental_values,
+                    name="实验组",
+                    marker_color="red",
+                    boxpoints="all",
+                    jitter=0.3,
+                    pointpos=-1.8,
+                    boxmean="sd",  # 添加box_mean="sd"参数
+                    showlegend=True if row == 1 and col == 1 else False,
+                ),
+                row=row,
+                col=col,
+            )
+
+    # 添加积极偏向对比和分布
     add_bar_comparison(
         fig_bias,
         "positive_bias",
         "积极偏向",
         1,
-        1,
+        1,  # 柱状图位置
         control_metrics,
         experimental_metrics,
     )
 
-    # 添加反应时指标对比
-    rt_metrics_list = [
-        ("rt_negative_minus_positive", "消极-积极RT差", 1, 1),
-        ("rt_endorsed_minus_not", "认同-不认同RT差", 1, 2),
-        ("positive_rt", "积极词RT", 1, 3),
-        ("negative_rt", "消极词RT", 2, 1),
-        ("yes_rt", "认同RT", 2, 2),
-        ("no_rt", "不认同RT", 2, 3),
-    ]
+    add_box_comparison(
+        fig_bias,
+        "positive_bias",
+        "积极偏向",
+        1,
+        2,  # 箱形图位置
+        control_metrics,
+        experimental_metrics,
+    )
 
-    for metric, display_name, row, col in rt_metrics_list:
-        add_bar_comparison(
-            fig_rt,
-            metric,
-            display_name,
-            row,
-            col,
-            control_metrics,
-            experimental_metrics,
-        )
+    # 添加反应时指标对比和分布
+    # 第一组：积极词RT和消极词RT
+    add_bar_comparison(
+        fig_rt,
+        "positive_rt",
+        "积极词RT",
+        1,
+        1,  # 柱状图位置（第1行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
 
-    # 添加认可率指标对比
-    endorsement_metrics_list = [
-        ("positive_endorsement_rate", "积极认可率", 1, 1),
-        ("negative_endorsement_rate", "消极认可率", 1, 2),
-        ("endorsement_rate", "总认可率", 1, 3),
-    ]
+    add_bar_comparison(
+        fig_rt,
+        "negative_rt",
+        "消极词RT",
+        1,
+        2,  # 柱状图位置（第1行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
 
-    for metric, display_name, row, col in endorsement_metrics_list:
-        add_bar_comparison(
-            fig_endorsement,
-            metric,
-            display_name,
-            row,
-            col,
-            control_metrics,
-            experimental_metrics,
-        )
+    add_box_comparison(
+        fig_rt,
+        "positive_rt",
+        "积极词RT",
+        2,
+        1,  # 箱形图位置（第2行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
 
-    # 添加强度指标对比
-    intensity_metrics_list = [
-        ("positive_intensity", "积极词符合程度", 1, 1),
-        ("negative_intensity", "消极词符合程度", 1, 2),
-        ("intensity_negative_minus_positive", "消极-积极符合程度差", 1, 3),
-    ]
+    add_box_comparison(
+        fig_rt,
+        "negative_rt",
+        "消极词RT",
+        2,
+        2,  # 箱形图位置（第2行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
 
-    for metric, display_name, row, col in intensity_metrics_list:
-        add_bar_comparison(
-            fig_intensity,
-            metric,
-            display_name,
-            row,
-            col,
-            control_metrics,
-            experimental_metrics,
-        )
+    # 第二组：认同RT和不认同RT
+    add_bar_comparison(
+        fig_rt,
+        "yes_rt",
+        "认同RT",
+        3,
+        1,  # 柱状图位置（第3行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_bar_comparison(
+        fig_rt,
+        "no_rt",
+        "不认同RT",
+        3,
+        2,  # 柱状图位置（第3行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_box_comparison(
+        fig_rt,
+        "yes_rt",
+        "认同RT",
+        4,
+        1,  # 箱形图位置（第4行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_box_comparison(
+        fig_rt,
+        "no_rt",
+        "不认同RT",
+        4,
+        2,  # 箱形图位置（第4行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    # 第三组：差值
+    add_bar_comparison(
+        fig_rt,
+        "rt_negative_minus_positive",
+        "消极-积极RT差",
+        5,
+        1,  # 柱状图位置（第5行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_bar_comparison(
+        fig_rt,
+        "rt_endorsed_minus_not",
+        "认同-不认同RT差",
+        5,
+        2,  # 柱状图位置（第5行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_box_comparison(
+        fig_rt,
+        "rt_negative_minus_positive",
+        "消极-积极RT差",
+        6,
+        1,  # 箱形图位置（第6行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_box_comparison(
+        fig_rt,
+        "rt_endorsed_minus_not",
+        "认同-不认同RT差",
+        6,
+        2,  # 箱形图位置（第6行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    # 添加认可率指标对比和分布
+    # 第1行：柱状图
+    add_bar_comparison(
+        fig_endorsement,
+        "positive_endorsement_rate",
+        "积极认可率",
+        1,
+        1,  # 柱状图位置（第1行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_bar_comparison(
+        fig_endorsement,
+        "negative_endorsement_rate",
+        "消极认可率",
+        1,
+        2,  # 柱状图位置（第1行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_bar_comparison(
+        fig_endorsement,
+        "endorsement_rate",
+        "总认可率",
+        1,
+        3,  # 柱状图位置（第1行第3列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    # 第2行：箱形图
+    add_box_comparison(
+        fig_endorsement,
+        "positive_endorsement_rate",
+        "积极认可率",
+        2,
+        1,  # 箱形图位置（第2行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_box_comparison(
+        fig_endorsement,
+        "negative_endorsement_rate",
+        "消极认可率",
+        2,
+        2,  # 箱形图位置（第2行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_box_comparison(
+        fig_endorsement,
+        "endorsement_rate",
+        "总认可率",
+        2,
+        3,  # 箱形图位置（第2行第3列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    # 添加强度指标对比和分布
+    # 第1行：柱状图
+    add_bar_comparison(
+        fig_intensity,
+        "positive_intensity",
+        "积极词符合程度",
+        1,
+        1,  # 柱状图位置（第1行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_bar_comparison(
+        fig_intensity,
+        "negative_intensity",
+        "消极词符合程度",
+        1,
+        2,  # 柱状图位置（第1行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_bar_comparison(
+        fig_intensity,
+        "intensity_negative_minus_positive",
+        "消极-积极符合程度差",
+        1,
+        3,  # 柱状图位置（第1行第3列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    # 第2行：箱形图
+    add_box_comparison(
+        fig_intensity,
+        "positive_intensity",
+        "积极词符合程度",
+        2,
+        1,  # 箱形图位置（第2行第1列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_box_comparison(
+        fig_intensity,
+        "negative_intensity",
+        "消极词符合程度",
+        2,
+        2,  # 箱形图位置（第2行第2列）
+        control_metrics,
+        experimental_metrics,
+    )
+
+    add_box_comparison(
+        fig_intensity,
+        "intensity_negative_minus_positive",
+        "消极-积极符合程度差",
+        2,
+        3,  # 箱形图位置（第2行第3列）
+        control_metrics,
+        experimental_metrics,
+    )
 
     # 更新所有图的布局
     fig_bias.update_layout(
-        height=400,
-        title=dict(text="积极偏向对比", font=dict(size=16)),
-        showlegend=False,
+        height=500,
+        title=dict(text="积极偏向对比与分布", font=dict(size=16)),
+        showlegend=True,
         template="plotly_white",
     )
 
     fig_rt.update_layout(
-        height=400 * 2,
-        width=1600,
-        title=dict(text="反应时指标对比", font=dict(size=16)),
-        showlegend=False,
+        height=1800,
+        title=dict(text="反应时指标对比与分布", font=dict(size=16)),
+        showlegend=True,
         template="plotly_white",
     )
 
     fig_endorsement.update_layout(
-        height=400,
-        width=1600,
-        title=dict(text="认可率指标对比", font=dict(size=16)),
-        showlegend=False,
+        height=800,
+        title=dict(text="认可率指标对比与分布", font=dict(size=16)),
+        showlegend=True,
         template="plotly_white",
     )
 
     fig_intensity.update_layout(
-        height=400,
-        width=1600,
-        title=dict(text="符合程度指标对比", font=dict(size=16)),
-        showlegend=False,
+        height=800,
+        title=dict(text="符合程度指标对比与分布", font=dict(size=16)),
+        showlegend=True,
         template="plotly_white",
     )
 
@@ -2651,7 +3296,9 @@ def run_sret_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
 
             if len(groups) == 1:
                 # 单个组分析
-                files = find_sret_files(data_root / groups[0])
+                files = find_sret_files(
+                    data_root / groups[0], data_utils.valid_id[groups[0]]
+                )
                 result_dir = result_root / f"sret_{groups[0]}_results"
                 result_dir.mkdir(parents=True, exist_ok=True)
 
@@ -2661,8 +3308,12 @@ def run_sret_analysis(cfg: DictConfig = None, data_utils: DataUtils = None):
                 )
             else:
                 # 多个组分析
-                control_files = find_sret_files(data_root / groups[0])
-                experimental_files = find_sret_files(data_root / groups[1])
+                control_files = find_sret_files(
+                    data_root / groups[0], data_utils.valid_id[groups[0]]
+                )
+                experimental_files = find_sret_files(
+                    data_root / groups[1], data_utils.valid_id[groups[1]]
+                )
                 result_dir = (
                     result_root / f"sret_{groups[0]}_{groups[1]}_comparison_results"
                 )

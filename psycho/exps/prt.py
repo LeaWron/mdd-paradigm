@@ -29,6 +29,7 @@ timing = {
     "feedback": 0.5,
     "rest": 5,
     "show": 5,
+    "offset": 0.1,
 }
 
 response_keys = ["s", "l"]
@@ -200,10 +201,15 @@ def post_block():
     text_front = "" if pre else "该区块结束\n"
     rest_time = timing["rest"]
     for i in range(rest_time, -1, -1):
+        text = (
+            f"{text_front}你目前已有 <c=yellow>{total_point}</c> 分\n你有 <c=yellow>{i}</c> 秒休息时间\n",
+        )
+        if pre:
+            text += "可以按<c=#51d237>空格键</c>跳过休息"
         msg = visual.TextBox2(
             win,
+            text=text,
             color="white",
-            text=f"{text_front}你目前已有 <c=yellow>{total_point}</c> 分\n你有 <c=yellow>{i}</c> 秒休息时间",
             letterHeight=0.08,
             size=(1.2, None),
             font=PSYCHO_FONT,
@@ -211,7 +217,12 @@ def post_block():
         )
         msg.draw()
         win.flip()
-        core.wait(1)
+        if pre:
+            key = event.waitKeys(1, continue_keys)
+            if key:
+                break
+        else:
+            core.wait(1)
 
 
 def pre_trial():
@@ -554,6 +565,30 @@ def entry(exp: Experiment | None = None):
 
             correct_rate = data_to_save["correct_rate"][-1]
             if pre == 1 and correct_rate < 0.75:
+                if pre > 3:
+                    ask_text = "请稍作休息, 等待主试反馈"
+                    ask = visual.TextBox2(
+                        win,
+                        text=ask_text,
+                        color="white",
+                        letterHeight=0.08,
+                        size=(2, None),
+                        alignment="center",
+                        pos=(0, 0),
+                        font=PSYCHO_FONT,
+                    )
+                    ask.draw()
+                    win.flip()
+                    # "j" 代表继续, "k" 代表跳过, "l" 表示减小难度
+                    resp_key = event.waitKeys(keyList=["j", "k", "l"])
+                    if resp_key:
+                        match resp_key[0][0]:
+                            case "k":
+                                break
+                            case "l":
+                                global timing
+                                timing["stim"] += timing["offset"]
+
                 remind_text = f"预实验正确率为 <c=yellow>{correct_rate * 100:.2f}%</c>, 未超过 <c=#eb5555>75%</c> \n你需要重新进行预实验\n\n如果对实验有任何问题, 现在可以联系实验员\n\n若没有问题, 请按 <c=#51d237>空格键</c> 继续"
                 remind = visual.TextBox2(
                     win,

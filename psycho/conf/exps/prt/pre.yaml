@@ -39,6 +39,7 @@ timing:
   feedback: 0.5
   rest: 30
   show: 5
+  offset: 0.1
 
 fov: 8
 monitor_distance: 60

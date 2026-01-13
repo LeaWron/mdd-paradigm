@@ -327,7 +327,7 @@ class Session:
                     msg = visual.TextBox2(
                         self.win,
                         color="white",
-                        text=f"该实验结束\n你有 <c=yellow>{i}</c> 秒休息时间\n当你休息好后,按<c=#51d237>空格键</c>继续",
+                        text=f"该实验结束\n你有 <c=yellow>{i}</c> 秒休息时间\n",
                         letterHeight=0.1,
                         size=(2, None),
                         font=PSYCHO_FONT,
@@ -335,8 +335,20 @@ class Session:
                     )
                     msg.draw()
                     self.win.flip()
-                    core.wait(1)
-
+                    keys = event.waitKeys(1, keyList=["g"])
+                    if keys and "g" in keys[0]:
+                        break
+                msg = visual.TextBox2(
+                    self.win,
+                    color="white",
+                    text="你可以继续休息\n当你准备好后, 按<c=#51d237>空格键</c>继续",
+                    letterHeight=0.1,
+                    size=(2, None),
+                    font=PSYCHO_FONT,
+                    alignment="center",
+                )
+                msg.draw()
+                self.win.flip()
                 event.waitKeys(keyList=self.continue_keys)
                 self.win.flip()
 

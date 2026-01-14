@@ -201,9 +201,7 @@ def post_block():
     text_front = "" if pre else "该区块结束\n"
     rest_time = timing["rest"]
     for i in range(rest_time, -1, -1):
-        text = (
-            f"{text_front}你目前已有 <c=yellow>{total_point}</c> 分\n你有 <c=yellow>{i}</c> 秒休息时间\n",
-        )
+        text = f"{text_front}你目前已有 <c=yellow>{total_point}</c> 分\n你有 <c=yellow>{i}</c> 秒休息时间\n"
         if pre:
             text += "可以按<c=#51d237>空格键</c>跳过休息"
         msg = visual.TextBox2(

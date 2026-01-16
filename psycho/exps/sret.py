@@ -26,6 +26,8 @@ stim_sequence = {}
 
 continue_keys = ["space"]
 
+marker_prefix = "SRET"
+
 timing = {
     "encoding": {
         "stim": 0.5,
@@ -208,7 +210,7 @@ def rating_slider(resp: Literal["yes", "no"]):
             percentage = intensity * 10
 
             logger.info(f"percentage:{percentage:.2f}%, coresp label: {intensity:.2f}")
-            send_marker(lsl_outlet, "RESPONSE_2", is_pre=pre)
+            send_marker(lsl_outlet, f"{marker_prefix}_RESPONSE_2", is_pre=pre)
             break
 
     win.setMouseVisible(visibility=False)
@@ -227,7 +229,7 @@ def init_encoding_phase():
 
 
 def run_encoding_phase():
-    send_marker(lsl_outlet, "ENCODING_PHASE_START", is_pre=pre)
+    send_marker(lsl_outlet, f"{marker_prefix}_ENCODING_PHASE_START", is_pre=pre)
     one_trial_data["phase"] = phase_names["encoding"]
     one_trial_data["phase_start_time"] = clock.getTime()
 
@@ -272,7 +274,7 @@ def run_encoding_phase():
         prompt_stim.draw()
         win.flip()
 
-        send_marker(lsl_outlet, "ENCODING_STIM_ONSET", is_pre=pre)
+        send_marker(lsl_outlet, f"{marker_prefix}_ENCODING_STIM_ONSET", is_pre=pre)
         onset_time = clock.getTime()
 
         keys = event.waitKeys(
@@ -293,9 +295,9 @@ def run_encoding_phase():
                 endorse_count += 1
             logger.info(f"Encoding Trial {idx + 1}: {trial} -> {resp}, rt: {rt:.4f}")
             rating_slider(resp)
-            send_marker(lsl_outlet, "RESPONSE", is_pre=pre)
+            send_marker(lsl_outlet, f"{marker_prefix}_RESPONSE", is_pre=pre)
         else:
-            send_marker(lsl_outlet, "NO_RESPONSE", is_pre=pre)
+            send_marker(lsl_outlet, f"{marker_prefix}_NO_RESPONSE", is_pre=pre)
         one_trial_data["response"] = resp
 
         one_trial_data["trial_end_time"] = clock.getTime()
@@ -305,7 +307,7 @@ def run_encoding_phase():
             break
     one_trial_data["endorse_count"] = endorse_count
     one_trial_data["phase_end_time"] = clock.getTime()
-    send_marker(lsl_outlet, "ENCODING_PHASE_END", is_pre=pre)
+    send_marker(lsl_outlet, f"{marker_prefix}_ENCODING_PHASE_END", is_pre=pre)
 
     update_trial(one_trial_data, one_block_data)
     update_block(one_block_data, data_to_save)
@@ -389,13 +391,16 @@ def run_exp(cfg: DictConfig | None):
 
 
 def entry(exp: Experiment | None = None):
-    global win, clock, lsl_outlet, logger, pre, test
+    global win, clock, lsl_outlet, logger, pre, test, marker_prefix
 
     win = exp.win or visual.Window(pos=(0, 0), fullscr=True, color="grey", units="norm")
     clock = exp.clock or core.Clock()
     logger = exp.logger or setup_default_logger()
     lsl_outlet = exp.lsl_outlet or init_lsl("SRETMarker")
     test = exp.test
+
+    marker_prefix = exp.config.full.marker_prefix
+
     # 是否需要预实验
     if exp.config is not None and "pre" in exp.config:
         pre = 1
@@ -436,11 +441,12 @@ def entry(exp: Experiment | None = None):
 
     logger.info("实验开始")
     one_trial_data["exp_start_time"] = clock.getTime()
-    send_marker(lsl_outlet, "EXPERIMENT_START", is_pre=pre)
+    send_marker(lsl_outlet, f"{marker_prefix}_EXPERIMENT_START", is_pre=pre)
+    logger.info("实验开始")
 
     run_exp(exp.config.full if exp.config else None)
 
-    send_marker(lsl_outlet, "EXPERIMENT_END", is_pre=pre)
+    send_marker(lsl_outlet, f"{marker_prefix}_EXPERIMENT_END", is_pre=pre)
     one_trial_data["exp_end_time"] = clock.getTime()
     logger.info("实验结束")
 

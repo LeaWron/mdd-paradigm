@@ -2,6 +2,7 @@ n_blocks: 1
 n_trials_per_block: 20
 
 stim_folder: prt
+marker_prefix: PRT
 
 phase_prompt:
   title: 概率奖励任务

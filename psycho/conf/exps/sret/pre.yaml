@@ -1,6 +1,8 @@
 defaults:
   - /exps/sret/stims@stims
 
+marker_prefix: SRET
+
 timing:
   encoding:
     stim: 0.5

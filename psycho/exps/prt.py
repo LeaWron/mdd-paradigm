@@ -20,6 +20,7 @@ from psycho.utils import (
 n_blocks = 3
 n_trials_per_block = 20
 
+marker_prefix = "PRT"
 timing = {
     "fixation": 0.5,
     "empty": 0.5,
@@ -246,7 +247,7 @@ def trial():
         )
         empty_face_stim.draw()
         win.flip()
-        send_marker(lsl_outlet, "TRIAL_START", is_pre=pre)
+        send_marker(lsl_outlet, f"{marker_prefix}_TRIAL_START", is_pre=pre)
         core.wait(timing["empty"])
 
         if stim_sequence is not None:
@@ -292,12 +293,12 @@ def trial():
         one_trial_data["choice"] = choice
         one_trial_data["rt"] = rt
 
-        send_marker(lsl_outlet, "RESPONSE", is_pre=pre)
+        send_marker(lsl_outlet, f"{marker_prefix}_RESPONSE", is_pre=pre)
         logger.info(
             f"Block {block_index + 1}, trial {trial_index + 1}: Correct face: {long_or_short}, Response: {choice}, rt: {rt:.4f}"
         )
     else:
-        send_marker(lsl_outlet, "NO_RESPONSE", is_pre=pre)
+        send_marker(lsl_outlet, f"{marker_prefix}_NO_RESPONSE", is_pre=pre)
         logger.info("No response")
 
     reward = give_reward(choice, long_or_short)
@@ -639,12 +640,12 @@ def entry(exp: Experiment | None = None):
     # 记录实验开始时间
     one_trial_data["exp_start_time"] = clock.getTime()
 
-    send_marker(lsl_outlet, "EXPERIMENT_START", is_pre=pre)
+    send_marker(lsl_outlet, f"{marker_prefix}_EXPERIMENT_START", is_pre=pre)
     logger.info("实验开始")
 
     run_exp(exp.config.full if exp.config is not None else None)
 
-    send_marker(lsl_outlet, "EXPERIMENT_END", is_pre=pre)
+    send_marker(lsl_outlet, f"{marker_prefix}_EXPERIMENT_END", is_pre=pre)
     logger.info("实验结束")
     # 记录实验结束时间
     one_trial_data["exp_end_time"] = clock.getTime()

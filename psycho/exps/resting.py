@@ -9,6 +9,8 @@ from psycho.utils import init_lsl, parse_stim_path, send_marker, setup_default_l
 
 # === 参数设置 ===
 n_blocks = 2
+
+marker_prefix = "RESTING"
 phase = ["eye_close", "eye_open"]
 timing = {
     "max_wait": 1 * 1,  # 等待时间，单位秒
@@ -58,7 +60,9 @@ def pre_block():
 
 
 def block():
-    send_marker(lsl_outlet, block_cfg[phase[block_index]]["marker"])
+    send_marker(
+        lsl_outlet, f"{marker_prefix}_{block_cfg[phase[block_index]]['marker']}"
+    )
     stim = visual.TextBox2(
         win,
         text="+",
@@ -131,22 +135,23 @@ def run_exp(cfg: DictConfig | None):
 
 
 def entry(exp: Experiment | None = None):
-    global win, lsl_outlet, clock, logger, test
+    global win, lsl_outlet, clock, logger, test, marker_prefix
     win = exp.win or visual.Window(fullscr=True, color="grey", units="norm")
     clock = exp.clock or core.Clock()
     logger = exp.logger if exp.logger is not None else setup_default_logger()
 
     lsl_outlet = exp.lsl_outlet or init_lsl("RestingStateMarker")
     test = exp.test
+    marker_prefix = exp.config.full.marker_prefix
     # 预实验
     if exp.config is not None and "pre" in exp.config:
         run_exp(exp.config.pre)
 
     # 正式实验
-    send_marker(lsl_outlet, "EXPERIMENT_START")
+    send_marker(lsl_outlet, f"{marker_prefix}_EXPERIMENT_START")
     logger.info("实验开始")
     run_exp(None if exp.config is None else exp.config.full)
-    send_marker(lsl_outlet, "EXPERIMENT_END")
+    send_marker(lsl_outlet, f"{marker_prefix}_EXPERIMENT_END")
     logger.info("实验结束")
 
 

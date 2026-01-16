@@ -23,6 +23,7 @@ n_blocks = 2
 n_trials_per_block = 15
 continue_keys = ["space"]
 
+marker_prefix = "EMF"
 timing = {
     "fixation": 0.5,
     "stim": 1.0,
@@ -201,7 +202,7 @@ def trial():
     win.flip()
     send_marker(
         lsl_outlet,
-        "TRIAL_START",
+        f"{marker_prefix}_TRIAL_START",
         is_pre=pre,
     )
 
@@ -246,13 +247,13 @@ def trial():
         one_trial_data["choice"] = resp_emotion
         one_trial_data["rt"] = rt
 
-        send_marker(lsl_outlet, "RESPONSE_1", is_pre=pre)
+        send_marker(lsl_outlet, f"{marker_prefix}_RESPONSE", is_pre=pre)
 
         logger.info(
             f"Block {block_index + 1}, trial {trial_index + 1}: correct_emotion: {one_trial_data['stim']}, resp_emotion: {resp_emotion}, rt: {rt:.4f}"
         )
     else:
-        send_marker(lsl_outlet, "NORESPONSE", is_pre=pre)
+        send_marker(lsl_outlet, f"{marker_prefix}_NORESPONSE", is_pre=pre)
 
         logger.info("NO RESPONSE")
         visual.TextStim(
@@ -322,7 +323,7 @@ def trial():
             logger.info(
                 f"true_intensity: {one_trial_data['label_intensity']:.2f}, selected_intensity: {intensity:.2f}"
             )
-            send_marker(lsl_outlet, "RESPONSE_2", is_pre=pre)
+            send_marker(lsl_outlet, f"{marker_prefix}_RESPONSE_2", is_pre=pre)
             break
 
     # 选择了中性情绪, 则强度为0
@@ -332,7 +333,7 @@ def trial():
         logger.info(
             f"neutral, while true intensity is {one_trial_data['label_intensity']:.2f}"
         )
-        send_marker(lsl_outlet, "RESPONSE_3", is_pre=pre)
+        send_marker(lsl_outlet, f"{marker_prefix}_RESPONSE_3", is_pre=pre)
 
 
 def post_trial():
@@ -571,12 +572,12 @@ def entry(exp: Experiment | None = None):
         logger.info("calibration done")
 
     one_trial_data["exp_start_time"] = clock.getTime()
-    send_marker(lsl_outlet, "EXPERIMENT_START", is_pre=pre)
+    send_marker(lsl_outlet, f"{marker_prefix}_EXPERIMENT_START", is_pre=pre)
     logger.info("实验开始")
 
     run_exp(exp.config.full if exp.config is not None else None)
 
-    send_marker(lsl_outlet, "EXPERIMENT_END", is_pre=pre)
+    send_marker(lsl_outlet, f"{marker_prefix}_EXPERIMENT_END", is_pre=pre)
     logger.info("实验结束")
     one_trial_data["exp_end_time"] = clock.getTime()
 

@@ -109,6 +109,7 @@ def pre_block():
     text_stim.draw()
     win.flip()
     event.waitKeys(keyList=continue_keys)
+    send_marker(lsl_outlet, f"{marker_prefix}_BLOCK_{block_index}_START", is_pre=pre)
 
 
 def block():
@@ -136,6 +137,8 @@ def block():
 
 def post_block():
     global correct_count
+    send_marker(lsl_outlet, f"{marker_prefix}_BLOCK_{block_index}_END", is_pre=pre)
+
     correct_rate = 1.0 * correct_count / n_trials_per_block
     correct_count = 0
 
@@ -186,10 +189,11 @@ def trial():
         return stim_item, kind_label
 
     stim_path: str = stim_sequence[block_index][trial_index]["stim_path"]
+    intensity_label = stim_sequence[block_index][trial_index]["label"]
     stim_item, kind_label = get_stim_kind(stim_path)
 
     one_trial_data["stim"] = kind_label
-    one_trial_data["label_intensity"] = stim_sequence[block_index][trial_index]["label"]
+    one_trial_data["label_intensity"] = intensity_label
 
     stim_height, aspect_ratio = adapt_image_stim_size(win, stim_item, 1)
 
@@ -202,7 +206,7 @@ def trial():
     win.flip()
     send_marker(
         lsl_outlet,
-        f"{marker_prefix}_TRIAL_START",
+        f"{marker_prefix}_TRIAL_START_{kind_label}_{intensity_label}",
         is_pre=pre,
     )
 
@@ -247,7 +251,7 @@ def trial():
         one_trial_data["choice"] = resp_emotion
         one_trial_data["rt"] = rt
 
-        send_marker(lsl_outlet, f"{marker_prefix}_RESPONSE", is_pre=pre)
+        send_marker(lsl_outlet, f"{marker_prefix}_RESPONSE_{resp_emotion}", is_pre=pre)
 
         logger.info(
             f"Block {block_index + 1}, trial {trial_index + 1}: correct_emotion: {one_trial_data['stim']}, resp_emotion: {resp_emotion}, rt: {rt:.4f}"
@@ -323,7 +327,11 @@ def trial():
             logger.info(
                 f"true_intensity: {one_trial_data['label_intensity']:.2f}, selected_intensity: {intensity:.2f}"
             )
-            send_marker(lsl_outlet, f"{marker_prefix}_RESPONSE_2", is_pre=pre)
+            send_marker(
+                lsl_outlet,
+                f"{marker_prefix}_RESPONSE_RATING_{intensity:.2f}",
+                is_pre=pre,
+            )
             break
 
     # 选择了中性情绪, 则强度为0
@@ -333,7 +341,11 @@ def trial():
         logger.info(
             f"neutral, while true intensity is {one_trial_data['label_intensity']:.2f}"
         )
-        send_marker(lsl_outlet, f"{marker_prefix}_RESPONSE_3", is_pre=pre)
+        send_marker(
+            lsl_outlet,
+            f"{marker_prefix}_RESPONSE_RATING_NEUTRAL",
+            is_pre=pre,
+        )
 
 
 def post_trial():

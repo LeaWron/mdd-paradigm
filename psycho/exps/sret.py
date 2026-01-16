@@ -210,7 +210,11 @@ def rating_slider(resp: Literal["yes", "no"]):
             percentage = intensity * 10
 
             logger.info(f"percentage:{percentage:.2f}%, coresp label: {intensity:.2f}")
-            send_marker(lsl_outlet, f"{marker_prefix}_RESPONSE_2", is_pre=pre)
+            send_marker(
+                lsl_outlet,
+                f"{marker_prefix}_RESPONSE_RATING_{intensity:.2f}",
+                is_pre=pre,
+            )
             break
 
     win.setMouseVisible(visibility=False)
@@ -274,7 +278,9 @@ def run_encoding_phase():
         prompt_stim.draw()
         win.flip()
 
-        send_marker(lsl_outlet, f"{marker_prefix}_ENCODING_STIM_ONSET", is_pre=pre)
+        send_marker(
+            lsl_outlet, f"{marker_prefix}_ENCODING_STIM_ONSET_{trial}", is_pre=pre
+        )
         onset_time = clock.getTime()
 
         keys = event.waitKeys(
@@ -295,9 +301,11 @@ def run_encoding_phase():
                 endorse_count += 1
             logger.info(f"Encoding Trial {idx + 1}: {trial} -> {resp}, rt: {rt:.4f}")
             rating_slider(resp)
-            send_marker(lsl_outlet, f"{marker_prefix}_RESPONSE", is_pre=pre)
+            send_marker(
+                lsl_outlet, f"{marker_prefix}_RESPONSE_{resp.upper()}", is_pre=pre
+            )
         else:
-            send_marker(lsl_outlet, f"{marker_prefix}_NO_RESPONSE", is_pre=pre)
+            send_marker(lsl_outlet, f"{marker_prefix}_NORESPONSE", is_pre=pre)
         one_trial_data["response"] = resp
 
         one_trial_data["trial_end_time"] = clock.getTime()

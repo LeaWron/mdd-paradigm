@@ -61,7 +61,7 @@ def pre_block():
 
 def block():
     send_marker(
-        lsl_outlet, f"{marker_prefix}_{block_cfg[phase[block_index]]['marker']}"
+        lsl_outlet, f"{marker_prefix}_{block_cfg[phase[block_index]]['marker']}_START"
     )
     stim = visual.TextBox2(
         win,
@@ -75,6 +75,9 @@ def block():
     stim.draw()
     win.flip()
     core.wait(timing["rest"])
+    send_marker(
+        lsl_outlet, f"{marker_prefix}_{block_cfg[phase[block_index]]['marker']}_END"
+    )
     sound_prompt = sound.Sound(notification, secs=1)
     sound_prompt.play()
     core.wait(1)

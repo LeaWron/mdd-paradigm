@@ -157,6 +157,7 @@ def pre_block():
     msg.draw()
     win.flip()
     event.waitKeys(5, keyList=continue_keys)
+    send_marker(lsl_outlet, f"{marker_prefix}_BLOCK_{block_index}_START", is_pre=pre)
 
 
 def block():
@@ -188,6 +189,8 @@ def block():
 
 
 def post_block():
+    send_marker(lsl_outlet, f"{marker_prefix}_BLOCK_{block_index}_END", is_pre=pre)
+
     global correct_count
     logger.info(f"Block {block_index + 1} end, total point: {total_point}")
     one_trial_data["total_point"] = total_point
@@ -238,18 +241,6 @@ def trial():
     global total_point, correct_count
 
     def show_stim():
-        empty_face_stim = visual.ImageStim(
-            win,
-            image=empty_face,
-            pos=(0, 0),
-            size=fov,
-            units="deg",
-        )
-        empty_face_stim.draw()
-        win.flip()
-        send_marker(lsl_outlet, f"{marker_prefix}_TRIAL_START", is_pre=pre)
-        core.wait(timing["empty"])
-
         if stim_sequence is not None:
             high_or_low = stim_sequence[block_index][trial_index]
             if high_or_low == "high":
@@ -262,6 +253,18 @@ def trial():
             cur_stim = long_mouth
         else:
             cur_stim = short_mouth
+        empty_face_stim = visual.ImageStim(
+            win,
+            image=empty_face,
+            pos=(0, 0),
+            size=fov,
+            units="deg",
+        )
+        empty_face_stim.draw()
+        win.flip()
+        send_marker(lsl_outlet, f"{marker_prefix}_TRIAL_START_{cur_side}", is_pre=pre)
+        core.wait(timing["empty"])
+
         mouth_stim = visual.ImageStim(
             win,
             image=cur_stim,
@@ -293,12 +296,12 @@ def trial():
         one_trial_data["choice"] = choice
         one_trial_data["rt"] = rt
 
-        send_marker(lsl_outlet, f"{marker_prefix}_RESPONSE", is_pre=pre)
+        send_marker(lsl_outlet, f"{marker_prefix}_RESPONSE_{choice}", is_pre=pre)
         logger.info(
             f"Block {block_index + 1}, trial {trial_index + 1}: Correct face: {long_or_short}, Response: {choice}, rt: {rt:.4f}"
         )
     else:
-        send_marker(lsl_outlet, f"{marker_prefix}_NO_RESPONSE", is_pre=pre)
+        send_marker(lsl_outlet, f"{marker_prefix}_NORESPONSE", is_pre=pre)
         logger.info("No response")
 
     reward = give_reward(choice, long_or_short)
@@ -640,7 +643,7 @@ def entry(exp: Experiment | None = None):
     # 记录实验开始时间
     one_trial_data["exp_start_time"] = clock.getTime()
 
-    send_marker(lsl_outlet, f"{marker_prefix}_EXPERIMENT_START", is_pre=pre)
+    send_marker(lsl_outlet, f"{marker_prefix}_EXPERIMENT_START_{high_side}", is_pre=pre)
     logger.info("实验开始")
 
     run_exp(exp.config.full if exp.config is not None else None)

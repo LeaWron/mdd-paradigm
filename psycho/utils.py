@@ -703,8 +703,7 @@ def generate_trial_sequence(
     stim_weights: list = None,
     seed: int = None,
 ):
-    from collections import Counter, defaultdict
-    from pprint import pprint
+    from collections import defaultdict
 
     def check_seq(seq: list, max_seq_same: int, all_occur: bool) -> bool:
         current_count = 0

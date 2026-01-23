@@ -136,7 +136,6 @@ def test_block_interaction():
 @pytest.mark.skip(reason="暂时不测试这个函数")
 def test_get_isi():
     import random
-    import time
 
     while input() != "y":
         isi = random.uniform(500, 1000)

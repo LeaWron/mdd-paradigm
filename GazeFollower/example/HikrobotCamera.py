@@ -16,7 +16,6 @@ sys.path.append(
 )  # Adds GazeFollower-main/ to path
 import cv2  # 必须加，用于颜色转换 + resize（与 WebCamCamera 完全一致）
 from gazefollower.camera import Camera
-from gazefollower.logger import Log
 
 # 海康 SDK 动态导入
 HAS_MV_CAMERA = os.getenv("MVCAM_COMMON_RUNENV") is not None

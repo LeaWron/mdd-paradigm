@@ -9,6 +9,7 @@ import polars as pl
 from omegaconf import DictConfig
 from plotly.subplots import make_subplots
 from scipy import stats
+from scipy.stats import t
 
 from psycho.analysis.utils import (
     DataUtils,
@@ -1088,6 +1089,45 @@ def analyze_prt_data(
     return results
 
 
+def calculate_confidence_interval(values, confidence=0.95):
+    """
+    计算95%置信区间
+
+    参数:
+    - values: 数据数组
+    - confidence: 置信水平，默认为0.95
+
+    返回:
+    - mean: 均值
+    - ci_lower: 置信区间下限
+    - ci_upper: 置信区间上限
+    - ci_half_width: 置信区间半宽
+    - se: 标准误
+    - sd: 标准差
+    """
+    if len(values) < 2:
+        return np.mean(values), 0, 0, 0, 0, 0
+
+    mean = np.mean(values)
+    sd = np.std(values, ddof=1)
+    n = len(values)
+
+    # 计算标准误
+    se = sd / np.sqrt(n)
+
+    # 计算t分布的临界值
+    t_critical = t.ppf((1 + confidence) / 2, n - 1)
+
+    # 计算置信区间半宽
+    ci_half_width = t_critical * se
+
+    # 计算置信区间
+    ci_lower = mean - ci_half_width
+    ci_upper = mean + ci_half_width
+
+    return mean, ci_lower, ci_upper, ci_half_width, se, sd
+
+
 def create_single_group_visualizations(
     group_metrics: list[dict[str, float]],
 ) -> list[go.Figure]:
@@ -1337,43 +1377,60 @@ def create_multi_group_visualizations(
     # 为每个block创建单独的柱子
     x_positions = np.arange(len(log_b_metrics))
 
-    # 准备数据
-    control_means = [np.mean(control_values[metric]) for metric in log_b_metrics]
-    control_stds = [np.std(control_values[metric], ddof=1) for metric in log_b_metrics]
-    experimental_means = [
-        np.mean(experimental_values[metric]) for metric in log_b_metrics
-    ]
-    experimental_stds = [
-        np.std(experimental_values[metric], ddof=1) for metric in log_b_metrics
-    ]
+    # 准备数据 - 计算均值和95%置信区间
+    control_means = []
+    control_cis = []  # 95%置信区间半宽
+    control_ses = []  # 标准误
+    for metric in log_b_metrics:
+        mean, _, _, ci_half_width, se, _ = calculate_confidence_interval(
+            control_values[metric]
+        )
+        control_means.append(mean)
+        control_cis.append(ci_half_width)
+        control_ses.append(se)
 
-    # 添加对照组trace
+    experimental_means = []
+    experimental_cis = []  # 95%置信区间半宽
+    experimental_ses = []  # 标准误
+    for metric in log_b_metrics:
+        mean, _, _, ci_half_width, se, _ = calculate_confidence_interval(
+            experimental_values[metric]
+        )
+        experimental_means.append(mean)
+        experimental_cis.append(ci_half_width)
+        experimental_ses.append(se)
+
+    # 添加对照组trace - 使用95%置信区间
     fig.add_trace(
         go.Bar(
             x=x_positions - 0.2,
             y=control_means,
             name="对照组",
             marker_color="green",
-            error_y=dict(type="data", array=control_stds, visible=True),
+            error_y=dict(type="data", array=control_cis, visible=True),
             width=0.4,
             text=[f"{val:.3f}" for val in control_means],
             textposition="outside",
+            customdata=np.column_stack([control_ses, control_cis]),
+            hovertemplate="<b>对照组</b><br>Block %{x}<br>均值: %{y:.3f}<br>标准误: %{customdata[0]:.3f}<br>95%% CI半宽: %{customdata[1]:.3f}<extra></extra>",
         ),
         row=1,
         col=1,
     )
 
-    # 添加实验组trace
+    # 添加实验组trace - 使用95%置信区间
     fig.add_trace(
         go.Bar(
             x=x_positions + 0.2,
             y=experimental_means,
             name="实验组",
             marker_color="red",
-            error_y=dict(type="data", array=experimental_stds, visible=True),
+            error_y=dict(type="data", array=experimental_cis, visible=True),
             width=0.4,
             text=[f"{val:.3f}" for val in experimental_means],
             textposition="outside",
+            customdata=np.column_stack([experimental_ses, experimental_cis]),
+            hovertemplate="<b>实验组</b><br>Block %{x}<br>均值: %{y:.3f}<br>标准误: %{customdata[0]:.3f}<br>95%% CI半宽: %{customdata[1]:.3f}<extra></extra>",
         ),
         row=1,
         col=1,
@@ -1386,10 +1443,12 @@ def create_multi_group_visualizations(
 
     # 2. Rich命中率对比
     rich_hit_metric = "mean_rich_hit_rate"
-    control_mean = np.mean(control_values[rich_hit_metric])
-    control_std = np.std(control_values[rich_hit_metric], ddof=1)
-    experimental_mean = np.mean(experimental_values[rich_hit_metric])
-    experimental_std = np.std(experimental_values[rich_hit_metric], ddof=1)
+    control_mean, _, _, control_ci_half_width, control_se, _ = (
+        calculate_confidence_interval(control_values[rich_hit_metric])
+    )
+    experimental_mean, _, _, experimental_ci_half_width, experimental_se, _ = (
+        calculate_confidence_interval(experimental_values[rich_hit_metric])
+    )
 
     # 添加对照组
     fig.add_trace(
@@ -1399,11 +1458,13 @@ def create_multi_group_visualizations(
             name="对照组",
             legendgroup="control",
             marker_color="green",
-            error_y=dict(type="data", array=[control_std], visible=True),
+            error_y=dict(type="data", array=[control_ci_half_width], visible=True),
             width=0.4,
             text=[f"{control_mean:.3f}"],
             textposition="outside",
             showlegend=False,
+            customdata=[[control_se, control_ci_half_width]],
+            hovertemplate="<b>对照组</b><br>Rich命中率<br>均值: %{y:.3f}<br>标准误: %{customdata[0]:.3f}<br>95%% CI半宽: %{customdata[1]:.3f}<extra></extra>",
         ),
         row=1,
         col=2,
@@ -1417,11 +1478,13 @@ def create_multi_group_visualizations(
             name="实验组",
             legendgroup="experimental",
             marker_color="red",
-            error_y=dict(type="data", array=[experimental_std], visible=True),
+            error_y=dict(type="data", array=[experimental_ci_half_width], visible=True),
             width=0.4,
             text=[f"{experimental_mean:.3f}"],
             textposition="outside",
             showlegend=False,
+            customdata=[[experimental_se, experimental_ci_half_width]],
+            hovertemplate="<b>实验组</b><br>Rich命中率<br>均值: %{y:.3f}<br>标准误: %{customdata[0]:.3f}<br>95%% CI半宽: %{customdata[1]:.3f}<extra></extra>",
         ),
         row=1,
         col=2,
@@ -1429,10 +1492,12 @@ def create_multi_group_visualizations(
 
     # 3. Lean命中率对比
     lean_hit_metric = "mean_lean_hit_rate"
-    control_mean = np.mean(control_values[lean_hit_metric])
-    control_std = np.std(control_values[lean_hit_metric], ddof=1)
-    experimental_mean = np.mean(experimental_values[lean_hit_metric])
-    experimental_std = np.std(experimental_values[lean_hit_metric], ddof=1)
+    control_mean, _, _, control_ci_half_width, control_se, _ = (
+        calculate_confidence_interval(control_values[lean_hit_metric])
+    )
+    experimental_mean, _, _, experimental_ci_half_width, experimental_se, _ = (
+        calculate_confidence_interval(experimental_values[lean_hit_metric])
+    )
 
     # 添加对照组
     fig.add_trace(
@@ -1442,11 +1507,13 @@ def create_multi_group_visualizations(
             name="对照组",
             legendgroup="control",
             marker_color="green",
-            error_y=dict(type="data", array=[control_std], visible=True),
+            error_y=dict(type="data", array=[control_ci_half_width], visible=True),
             width=0.4,
             text=[f"{control_mean:.3f}"],
             textposition="outside",
             showlegend=False,
+            customdata=[[control_se, control_ci_half_width]],
+            hovertemplate="<b>对照组</b><br>Lean命中率<br>均值: %{y:.3f}<br>标准误: %{customdata[0]:.3f}<br>95%% CI半宽: %{customdata[1]:.3f}<extra></extra>",
         ),
         row=1,
         col=3,
@@ -1460,11 +1527,13 @@ def create_multi_group_visualizations(
             name="实验组",
             legendgroup="experimental",
             marker_color="red",
-            error_y=dict(type="data", array=[experimental_std], visible=True),
+            error_y=dict(type="data", array=[experimental_ci_half_width], visible=True),
             width=0.4,
             text=[f"{experimental_mean:.3f}"],
             textposition="outside",
             showlegend=False,
+            customdata=[[experimental_se, experimental_ci_half_width]],
+            hovertemplate="<b>实验组</b><br>Lean命中率<br>均值: %{y:.3f}<br>标准误: %{customdata[0]:.3f}<br>95%% CI半宽: %{customdata[1]:.3f}<extra></extra>",
         ),
         row=1,
         col=3,
@@ -1479,18 +1548,30 @@ def create_multi_group_visualizations(
     ]
     probs_names = ["前富奖励贫", "前富不奖贫", "前富奖励富", "前贫奖励富"]
 
-    # 准备数据
+    # 准备数据 - 计算95%置信区间
     x_positions_probs = np.arange(len(probs_metrics))
-    control_means_probs = [np.mean(control_values[metric]) for metric in probs_metrics]
-    control_stds_probs = [
-        np.std(control_values[metric], ddof=1) for metric in probs_metrics
-    ]
-    experimental_means_probs = [
-        np.mean(experimental_values[metric]) for metric in probs_metrics
-    ]
-    experimental_stds_probs = [
-        np.std(experimental_values[metric], ddof=1) for metric in probs_metrics
-    ]
+
+    control_means_probs = []
+    control_cis_probs = []  # 95%置信区间半宽
+    control_ses_probs = []  # 标准误
+    for metric in probs_metrics:
+        mean, _, _, ci_half_width, se, _ = calculate_confidence_interval(
+            control_values[metric]
+        )
+        control_means_probs.append(mean)
+        control_cis_probs.append(ci_half_width)
+        control_ses_probs.append(se)
+
+    experimental_means_probs = []
+    experimental_cis_probs = []  # 95%置信区间半宽
+    experimental_ses_probs = []  # 标准误
+    for metric in probs_metrics:
+        mean, _, _, ci_half_width, se, _ = calculate_confidence_interval(
+            experimental_values[metric]
+        )
+        experimental_means_probs.append(mean)
+        experimental_cis_probs.append(ci_half_width)
+        experimental_ses_probs.append(se)
 
     # 添加对照组
     fig.add_trace(
@@ -1500,11 +1581,13 @@ def create_multi_group_visualizations(
             name="对照组",
             legendgroup="control",
             marker_color="green",
-            error_y=dict(type="data", array=control_stds_probs, visible=True),
+            error_y=dict(type="data", array=control_cis_probs, visible=True),
             width=0.4,
             text=[f"{val:.3f}" for val in control_means_probs],
             textposition="outside",
             showlegend=False,
+            customdata=np.column_stack([control_ses_probs, control_cis_probs]),
+            hovertemplate="<b>对照组</b><br>%{x}<br>均值: %{y:.3f}<br>标准误: %{customdata[0]:.3f}<br>95%% CI半宽: %{customdata[1]:.3f}<extra></extra>",
         ),
         row=1,
         col=4,
@@ -1518,11 +1601,15 @@ def create_multi_group_visualizations(
             name="实验组",
             legendgroup="experimental",
             marker_color="red",
-            error_y=dict(type="data", array=experimental_stds_probs, visible=True),
+            error_y=dict(type="data", array=experimental_cis_probs, visible=True),
             width=0.4,
             text=[f"{val:.3f}" for val in experimental_means_probs],
             textposition="outside",
             showlegend=False,
+            customdata=np.column_stack(
+                [experimental_ses_probs, experimental_cis_probs]
+            ),
+            hovertemplate="<b>实验组</b><br>%{x}<br>均值: %{y:.3f}<br>标准误: %{customdata[0]:.3f}<br>95%% CI半宽: %{customdata[1]:.3f}<extra></extra>",
         ),
         row=1,
         col=4,
@@ -1533,10 +1620,12 @@ def create_multi_group_visualizations(
 
     # 5. 反应时差异对比
     rt_diff_metric = "mean_rt_diff"
-    control_mean = np.mean(control_values[rt_diff_metric])
-    control_std = np.std(control_values[rt_diff_metric], ddof=1)
-    experimental_mean = np.mean(experimental_values[rt_diff_metric])
-    experimental_std = np.std(experimental_values[rt_diff_metric], ddof=1)
+    control_mean, _, _, control_ci_half_width, control_se, _ = (
+        calculate_confidence_interval(control_values[rt_diff_metric])
+    )
+    experimental_mean, _, _, experimental_ci_half_width, experimental_se, _ = (
+        calculate_confidence_interval(experimental_values[rt_diff_metric])
+    )
 
     # 添加对照组
     fig.add_trace(
@@ -1546,11 +1635,13 @@ def create_multi_group_visualizations(
             name="对照组",
             legendgroup="control",
             marker_color="green",
-            error_y=dict(type="data", array=[control_std], visible=True),
+            error_y=dict(type="data", array=[control_ci_half_width], visible=True),
             width=0.4,
             text=[f"{control_mean:.3f}"],
             textposition="outside",
             showlegend=False,
+            customdata=[[control_se, control_ci_half_width]],
+            hovertemplate="<b>对照组</b><br>反应时差异<br>均值: %{y:.3f}<br>标准误: %{customdata[0]:.3f}<br>95%% CI半宽: %{customdata[1]:.3f}<extra></extra>",
         ),
         row=2,
         col=1,
@@ -1564,11 +1655,13 @@ def create_multi_group_visualizations(
             name="实验组",
             legendgroup="experimental",
             marker_color="red",
-            error_y=dict(type="data", array=[experimental_std], visible=True),
+            error_y=dict(type="data", array=[experimental_ci_half_width], visible=True),
             width=0.4,
             text=[f"{experimental_mean:.3f}"],
             textposition="outside",
             showlegend=False,
+            customdata=[[experimental_se, experimental_ci_half_width]],
+            hovertemplate="<b>实验组</b><br>反应时差异<br>均值: %{y:.3f}<br>标准误: %{customdata[0]:.3f}<br>95%% CI半宽: %{customdata[1]:.3f}<extra></extra>",
         ),
         row=2,
         col=1,
@@ -1845,9 +1938,18 @@ def run_group_prt_analysis(
                 test_type="one_sample",  # 与参考值比较是单样本检验
             )
 
+        # 计算95%置信区间
+        mean, ci_lower, ci_upper, ci_half_width, se, _ = calculate_confidence_interval(
+            group_values
+        )
+
         statistical_results[metric] = {
-            "group_mean": float(np.mean(group_values)),
-            "group_std": float(np.std(group_values, ddof=1)),
+            "group_mean": float(mean),
+            "group_std": float(std_group),
+            "group_se": float(se),
+            "group_ci_lower": float(ci_lower),
+            "group_ci_upper": float(ci_upper),
+            "group_ci_half_width": float(ci_half_width),
             "group_n": len(group_values),
             "reference_value": float(ref_value),
             "t_statistic": float(t_stat),
@@ -1873,11 +1975,34 @@ def run_group_prt_analysis(
     # all_metrics_df.insert(0, "subject_id", [r["subject_id"] for r in all_results])
     all_metrics_df.to_csv(result_dir / "group_all_metrics.csv", index=False)
 
+    # 计算均值和标准差
     group_mean_metrics = all_metrics_df.mean(numeric_only=True).to_dict()
     group_std_metrics = all_metrics_df.std(numeric_only=True).to_dict()
 
+    # 计算标准误和95%置信区间
+    group_se_metrics = {}
+    group_ci_lower_metrics = {}
+    group_ci_upper_metrics = {}
+    for metric in key_metrics:
+        if metric in all_metrics_df.columns:
+            values = all_metrics_df[metric].dropna().values
+            if len(values) > 1:
+                mean, ci_lower, ci_upper, ci_half_width, se, _ = (
+                    calculate_confidence_interval(values)
+                )
+                group_se_metrics[metric] = se
+                group_ci_lower_metrics[metric] = ci_lower
+                group_ci_upper_metrics[metric] = ci_upper
+
     stats_df = pd.DataFrame(
-        [group_mean_metrics, group_std_metrics], index=["mean", "std"]
+        [
+            group_mean_metrics,
+            group_std_metrics,
+            group_se_metrics,
+            group_ci_lower_metrics,
+            group_ci_upper_metrics,
+        ],
+        index=["mean", "std", "se", "ci_lower", "ci_upper"],
     ).T
     stats_df.to_csv(result_dir / "group_statistics.csv")
 
@@ -1927,6 +2052,9 @@ def run_group_prt_analysis(
         "statistical_results": statistical_results,
         "group_mean": group_mean_metrics,
         "group_std": group_std_metrics,
+        "group_se": group_se_metrics,
+        "group_ci_lower": group_ci_lower_metrics,
+        "group_ci_upper": group_ci_upper_metrics,
     }
 
 

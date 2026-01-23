@@ -1135,6 +1135,8 @@ def create_word_level_visualizations_group(
             )
         ):
             if mean_rt > 0:  # 只显示有有效数据的词
+                # 计算95%置信区间 (1.96 * 标准误)
+                ci_95 = 1.96 * se_rt if se_rt > 0 else 0
                 fig.add_trace(
                     go.Bar(
                         x=[word],
@@ -1143,16 +1145,16 @@ def create_word_level_visualizations_group(
                         marker_color="lightblue"
                         if stim_type == "positive"
                         else "lightcoral",
-                        text=[f"{mean_rt:.0f}±{std_rt:.0f}ms"],
+                        text=[f"{mean_rt:.0f}±{ci_95:.0f}ms"],
                         textposition="auto",
                         showlegend=False,
                         error_y=dict(
                             type="data",
-                            array=[std_rt],
+                            array=[ci_95],  # 使用95%置信区间而不是标准差
                             visible=True,
                             color="rgba(0,0,0,0.5)",
                         ),
-                        hovertemplate=f"词: {word}<br>词性: {stim_type}<br>平均反应时: {mean_rt:.0f}ms<br>标准差: {std_rt:.0f}ms<br>标准误: {se_rt:.0f}ms<br><extra></extra>",
+                        hovertemplate=f"词: {word}<br>词性: {stim_type}<br>平均反应时: {mean_rt:.0f}ms<br>95%置信区间: ±{ci_95:.0f}ms<br>标准误: {se_rt:.0f}ms<br><extra></extra>",
                     ),
                     row=2,
                     col=1,
@@ -1268,9 +1270,11 @@ def create_word_level_visualizations_group(
                 "mean_rt": mean_rts,
                 "std_rt": std_rts,
                 "se_rt": se_rts,
+                "ci_95_rt": [1.96 * se for se in se_rts],
                 "mean_intensity": mean_intensities,
                 "std_intensity": std_intensities,
                 "se_intensity": se_intensities,
+                "ci_95_intensity": [1.96 * se for se in se_intensities],
             }
         )
         word_stats_df.to_csv(
@@ -1661,20 +1665,26 @@ def create_word_level_visualizations_multi_group(
     stim_types = []
     control_endorsement_rates = []
     control_endorsement_ses = []
+    control_endorsement_cis = []
     experimental_endorsement_rates = []
     experimental_endorsement_ses = []
+    experimental_endorsement_cis = []
     control_mean_rts = []
     control_std_rts = []
     control_se_rts = []
+    control_ci_rts = []
     experimental_mean_rts = []
     experimental_std_rts = []
     experimental_se_rts = []
+    experimental_ci_rts = []
     control_mean_intensities = []  # 对照组平均符合程度
     control_std_intensities = []  # 对照组符合程度标准差
     control_se_intensities = []  # 对照组符合程度标准误
+    control_ci_intensities = []  # 对照组符合程度95%置信区间
     experimental_mean_intensities = []  # 实验组平均符合程度
     experimental_std_intensities = []  # 实验组符合程度标准差
     experimental_se_intensities = []  # 实验组符合程度标准误
+    experimental_ci_intensities = []  # 实验组符合程度95%置信区间
 
     for word in all_words:
         # 对照组数据
@@ -1686,10 +1696,11 @@ def create_word_level_visualizations_multi_group(
         )
         ctl_n = len(ctl_endorsement_counts)
         ctl_se = (
-            np.sqrt(ctl_endorsement_rate * (1 - ctl_endorsement_rate) / ctl_n)
+            np.sqrt(ctl_endorsement_rate * (1 - ctl_endorsement_rate) / ctl_n) * 100
             if ctl_n > 0 and 0 < ctl_endorsement_rate < 1
             else 0
         )
+        ctl_ci = 1.96 * ctl_se if ctl_se > 0 else 0
 
         # 实验组数据
         exp_endorsement_counts = experimental_data[word]["endorsement_counts"]
@@ -1700,15 +1711,17 @@ def create_word_level_visualizations_multi_group(
         )
         exp_n = len(exp_endorsement_counts)
         exp_se = (
-            np.sqrt(exp_endorsement_rate * (1 - exp_endorsement_rate) / exp_n)
+            np.sqrt(exp_endorsement_rate * (1 - exp_endorsement_rate) / exp_n) * 100
             if exp_n > 0 and 0 < exp_endorsement_rate < 1
             else 0
         )
+        exp_ci = 1.96 * exp_se if exp_se > 0 else 0
 
         # 平均反应时 - 确保有有效数据
         ctl_mean_rt = 0
         ctl_std_rt = 0
         ctl_se_rt = 0
+        ctl_ci_rt = 0
         if control_data[word]["mean_rts"] and not all(
             np.isnan(rt) for rt in control_data[word]["mean_rts"]
         ):
@@ -1721,10 +1734,12 @@ def create_word_level_visualizations_multi_group(
                 ctl_se_rt = (
                     ctl_std_rt / np.sqrt(len(valid_rts)) if len(valid_rts) > 0 else 0
                 )
+                ctl_ci_rt = 1.96 * ctl_se_rt
 
         exp_mean_rt = 0
         exp_std_rt = 0
         exp_se_rt = 0
+        exp_ci_rt = 0
         if experimental_data[word]["mean_rts"] and not all(
             np.isnan(rt) for rt in experimental_data[word]["mean_rts"]
         ):
@@ -1737,11 +1752,13 @@ def create_word_level_visualizations_multi_group(
                 exp_se_rt = (
                     exp_std_rt / np.sqrt(len(valid_rts)) if len(valid_rts) > 0 else 0
                 )
+                exp_ci_rt = 1.96 * exp_se_rt
 
         # 平均符合程度 - 确保有有效数据
         ctl_mean_intensity = 0
         ctl_std_intensity = 0
         ctl_se_intensity = 0
+        ctl_ci_intensity = 0
         if control_data[word]["mean_intensities"] and not all(
             np.isnan(intensity) for intensity in control_data[word]["mean_intensities"]
         ):
@@ -1762,10 +1779,12 @@ def create_word_level_visualizations_multi_group(
                     if len(valid_intensities) > 0
                     else 0
                 )
+                ctl_ci_intensity = 1.96 * ctl_se_intensity
 
         exp_mean_intensity = 0
         exp_std_intensity = 0
         exp_se_intensity = 0
+        exp_ci_intensity = 0
         if experimental_data[word]["mean_intensities"] and not all(
             np.isnan(intensity)
             for intensity in experimental_data[word]["mean_intensities"]
@@ -1787,25 +1806,32 @@ def create_word_level_visualizations_multi_group(
                     if len(valid_intensities) > 0
                     else 0
                 )
+                exp_ci_intensity = 1.96 * exp_se_intensity
 
         words.append(word)
         stim_types.append(control_data[word]["stim_type"])
         control_endorsement_rates.append(ctl_endorsement_rate)
-        control_endorsement_ses.append(ctl_se * 100)  # 转换为百分比
+        control_endorsement_ses.append(ctl_se)
+        control_endorsement_cis.append(ctl_ci)
         experimental_endorsement_rates.append(exp_endorsement_rate)
-        experimental_endorsement_ses.append(exp_se * 100)  # 转换为百分比
+        experimental_endorsement_ses.append(exp_se)
+        experimental_endorsement_cis.append(exp_ci)
         control_mean_rts.append(ctl_mean_rt)
         control_std_rts.append(ctl_std_rt)
         control_se_rts.append(ctl_se_rt)
+        control_ci_rts.append(ctl_ci_rt)
         experimental_mean_rts.append(exp_mean_rt)
         experimental_std_rts.append(exp_std_rt)
         experimental_se_rts.append(exp_se_rt)
+        experimental_ci_rts.append(exp_ci_rt)
         control_mean_intensities.append(ctl_mean_intensity)
         control_std_intensities.append(ctl_std_intensity)
         control_se_intensities.append(ctl_se_intensity)
+        control_ci_intensities.append(ctl_ci_intensity)
         experimental_mean_intensities.append(exp_mean_intensity)
         experimental_std_intensities.append(exp_std_intensity)
         experimental_se_intensities.append(exp_se_intensity)
+        experimental_ci_intensities.append(exp_ci_intensity)
 
     # 按词性排序
     positive_indices = [i for i, t in enumerate(stim_types) if t == "positive"]
@@ -1816,21 +1842,28 @@ def create_word_level_visualizations_multi_group(
     stim_types = [stim_types[i] for i in sorted_indices]
     control_endorsement_rates = [control_endorsement_rates[i] for i in sorted_indices]
     control_endorsement_ses = [control_endorsement_ses[i] for i in sorted_indices]
+    control_endorsement_cis = [control_endorsement_cis[i] for i in sorted_indices]
     experimental_endorsement_rates = [
         experimental_endorsement_rates[i] for i in sorted_indices
     ]
     experimental_endorsement_ses = [
         experimental_endorsement_ses[i] for i in sorted_indices
     ]
+    experimental_endorsement_cis = [
+        experimental_endorsement_cis[i] for i in sorted_indices
+    ]
     control_mean_rts = [control_mean_rts[i] for i in sorted_indices]
     control_std_rts = [control_std_rts[i] for i in sorted_indices]
     control_se_rts = [control_se_rts[i] for i in sorted_indices]
+    control_ci_rts = [control_ci_rts[i] for i in sorted_indices]
     experimental_mean_rts = [experimental_mean_rts[i] for i in sorted_indices]
     experimental_std_rts = [experimental_std_rts[i] for i in sorted_indices]
     experimental_se_rts = [experimental_se_rts[i] for i in sorted_indices]
+    experimental_ci_rts = [experimental_ci_rts[i] for i in sorted_indices]
     control_mean_intensities = [control_mean_intensities[i] for i in sorted_indices]
     control_std_intensities = [control_std_intensities[i] for i in sorted_indices]
     control_se_intensities = [control_se_intensities[i] for i in sorted_indices]
+    control_ci_intensities = [control_ci_intensities[i] for i in sorted_indices]
     experimental_mean_intensities = [
         experimental_mean_intensities[i] for i in sorted_indices
     ]
@@ -1839,6 +1872,9 @@ def create_word_level_visualizations_multi_group(
     ]
     experimental_se_intensities = [
         experimental_se_intensities[i] for i in sorted_indices
+    ]
+    experimental_ci_intensities = [
+        experimental_ci_intensities[i] for i in sorted_indices
     ]
 
     # 检查是否有符合程度数据
@@ -1852,24 +1888,30 @@ def create_word_level_visualizations_multi_group(
     display_stim_types = stim_types[:display_limit]
     display_control_endorsement_rates = control_endorsement_rates[:display_limit]
     display_control_endorsement_ses = control_endorsement_ses[:display_limit]
+    display_control_endorsement_cis = control_endorsement_cis[:display_limit]
     display_experimental_endorsement_rates = experimental_endorsement_rates[
         :display_limit
     ]
     display_experimental_endorsement_ses = experimental_endorsement_ses[:display_limit]
+    display_experimental_endorsement_cis = experimental_endorsement_cis[:display_limit]
     display_control_mean_rts = control_mean_rts[:display_limit]
     display_control_std_rts = control_std_rts[:display_limit]
     display_control_se_rts = control_se_rts[:display_limit]
+    display_control_ci_rts = control_ci_rts[:display_limit]
     display_experimental_mean_rts = experimental_mean_rts[:display_limit]
     display_experimental_std_rts = experimental_std_rts[:display_limit]
     display_experimental_se_rts = experimental_se_rts[:display_limit]
+    display_experimental_ci_rts = experimental_ci_rts[:display_limit]
     display_control_mean_intensities = control_mean_intensities[:display_limit]
     display_control_std_intensities = control_std_intensities[:display_limit]
     display_control_se_intensities = control_se_intensities[:display_limit]
+    display_control_ci_intensities = control_ci_intensities[:display_limit]
     display_experimental_mean_intensities = experimental_mean_intensities[
         :display_limit
     ]
     display_experimental_std_intensities = experimental_std_intensities[:display_limit]
     display_experimental_se_intensities = experimental_se_intensities[:display_limit]
+    display_experimental_ci_intensities = experimental_ci_intensities[:display_limit]
 
     # 确定子图数量
     subplot_titles = [
@@ -1913,9 +1955,7 @@ def create_word_level_visualizations_multi_group(
     fig.add_trace(
         go.Bar(
             x=display_words,
-            y=[
-                rate * 100 for rate in display_control_endorsement_rates
-            ],  # 转换为百分比
+            y=[rate * 100 for rate in display_control_endorsement_rates],
             name="对照组",
             marker_color=[
                 "rgba(0, 128, 0, 0.7)" if t == "positive" else "rgba(255, 99, 71, 0.7)"
@@ -1940,9 +1980,7 @@ def create_word_level_visualizations_multi_group(
     fig.add_trace(
         go.Bar(
             x=display_words,
-            y=[
-                rate * 100 for rate in display_experimental_endorsement_rates
-            ],  # 转换为百分比
+            y=[rate * 100 for rate in display_experimental_endorsement_rates],
             name="实验组",
             marker_color=[
                 "rgba(144, 238, 144, 0.7)"
@@ -1988,11 +2026,11 @@ def create_word_level_visualizations_multi_group(
                 textposition="auto",
                 error_y=dict(
                     type="data",
-                    array=display_control_std_rts,
+                    array=display_control_ci_rts,  # 使用95%置信区间而不是标准差
                     visible=True,
                     color="rgba(0,0,0,0.5)",
                 ),
-                hovertemplate="词: %{x}<br>词性: %{customdata}<br>对照组反应时: %{text}<br>标准差: %{error_y.array:.0f}ms<br><extra></extra>",
+                hovertemplate="词: %{x}<br>词性: %{customdata}<br>对照组反应时: %{text}<br>95%置信区间: ±%{error_y.array:.0f}ms<br>标准误: %{se:.0f}ms<br><extra></extra>",
                 customdata=display_stim_types,
             ),
             row=2,
@@ -2015,11 +2053,11 @@ def create_word_level_visualizations_multi_group(
                 textposition="auto",
                 error_y=dict(
                     type="data",
-                    array=display_experimental_std_rts,
+                    array=display_experimental_ci_rts,  # 使用95%置信区间而不是标准差
                     visible=True,
                     color="rgba(0,0,0,0.5)",
                 ),
-                hovertemplate="词: %{x}<br>词性: %{customdata}<br>实验组反应时: %{text}<br>标准差: %{error_y.array:.0f}ms<br><extra></extra>",
+                hovertemplate="词: %{x}<br>词性: %{customdata}<br>实验组反应时: %{text}<br>95%置信区间: ±%{error_y.array:.0f}ms<br>标准误: %{se:.0f}ms<br><extra></extra>",
                 customdata=display_stim_types,
             ),
             row=2,
@@ -2089,13 +2127,14 @@ def create_word_level_visualizations_multi_group(
         for exp, ctl in zip(display_experimental_mean_rts, display_control_mean_rts)
     ]
 
-    # 计算差异的标准误（简化计算）
-    rt_diff_ses = []
+    # 计算差异的95%置信区间（简化计算）
+    rt_diff_cis = []
     for i in range(len(display_words)):
         se_ctl = display_control_se_rts[i]
         se_exp = display_experimental_se_rts[i]
         diff_se = np.sqrt(se_ctl**2 + se_exp**2)
-        rt_diff_ses.append(diff_se)
+        diff_ci = 1.96 * diff_se
+        rt_diff_cis.append(diff_ci)
 
     fig.add_trace(
         go.Bar(
@@ -2107,9 +2146,9 @@ def create_word_level_visualizations_multi_group(
                 for diff in rt_diffs
             ],
             error_y=dict(
-                type="data", array=rt_diff_ses, visible=True, color="rgba(0,0,0,0.5)"
+                type="data", array=rt_diff_cis, visible=True, color="rgba(0,0,0,0.5)"
             ),
-            hovertemplate="词: %{x}<br>词性: %{customdata}<br>反应时差异(实验-对照): %{text:.0f}ms<br>标准误: %{error_y.array:.0f}ms<br><extra></extra>",
+            hovertemplate="词: %{x}<br>词性: %{customdata}<br>反应时差异(实验-对照): %{text:.0f}ms<br>95%置信区间: ±%{error_y.array:.0f}ms<br>标准误: %{se:.0f}ms<br><extra></extra>",
             customdata=display_stim_types,
             text=[f"{diff:.0f}" for diff in rt_diffs],
             textposition="none",
@@ -2261,8 +2300,10 @@ def create_word_level_visualizations_multi_group(
                 "stim_type": stim_types,
                 "control_endorsement_rate": control_endorsement_rates,
                 "control_endorsement_se(%)": control_endorsement_ses,
+                "control_endorsement_ci_95(%)": control_endorsement_cis,
                 "experimental_endorsement_rate": experimental_endorsement_rates,
                 "experimental_endorsement_se(%)": experimental_endorsement_ses,
+                "experimental_endorsement_ci_95(%)": experimental_endorsement_cis,
                 "endorsement_rate_diff(%)": [
                     exp * 100 - ctl * 100
                     for exp, ctl in zip(
@@ -2271,16 +2312,24 @@ def create_word_level_visualizations_multi_group(
                 ],
                 "control_mean_rt": control_mean_rts,
                 "control_std_rt": control_std_rts,
+                "control_se_rt": control_se_rts,
+                "control_ci_95_rt": control_ci_rts,
                 "experimental_mean_rt": experimental_mean_rts,
                 "experimental_std_rt": experimental_std_rts,
+                "experimental_se_rt": experimental_se_rts,
+                "experimental_ci_95_rt": experimental_ci_rts,
                 "rt_diff": [
                     exp - ctl
                     for exp, ctl in zip(experimental_mean_rts, control_mean_rts)
                 ],
                 "control_mean_intensity": control_mean_intensities,
                 "control_std_intensity": control_std_intensities,
+                "control_se_intensity": control_se_intensities,
+                "control_ci_95_intensity": control_ci_intensities,
                 "experimental_mean_intensity": experimental_mean_intensities,
                 "experimental_std_intensity": experimental_std_intensities,
+                "experimental_se_intensity": experimental_se_intensities,
+                "experimental_ci_95_intensity": experimental_ci_intensities,
                 "intensity_diff": [
                     exp - ctl
                     for exp, ctl in zip(
@@ -2414,7 +2463,7 @@ def create_multi_group_visualizations(
         horizontal_spacing=0.1,
     )
 
-    # 辅助函数：添加柱状图对比
+    # 辅助函数：添加柱状图对比（使用95%置信区间）
     def add_bar_comparison(
         fig, metric_name, display_name, row, col, control_metrics, experimental_metrics
     ):
@@ -2428,12 +2477,25 @@ def create_multi_group_visualizations(
             control_std = (
                 np.std(control_values, ddof=1) if len(control_values) > 1 else 0
             )
+            control_se = (
+                control_std / np.sqrt(len(control_values))
+                if len(control_values) > 0
+                else 0
+            )
+            control_ci = 1.96 * control_se  # 95%置信区间
+
             experimental_mean = np.mean(experimental_values)
             experimental_std = (
                 np.std(experimental_values, ddof=1)
                 if len(experimental_values) > 1
                 else 0
             )
+            experimental_se = (
+                experimental_std / np.sqrt(len(experimental_values))
+                if len(experimental_values) > 0
+                else 0
+            )
+            experimental_ci = 1.96 * experimental_se  # 95%置信区间
 
             fig.add_trace(
                 go.Bar(
@@ -2442,11 +2504,12 @@ def create_multi_group_visualizations(
                     name=display_name,
                     marker_color=["green", "red"],
                     error_y=dict(
-                        type="data", array=[control_std, experimental_std], visible=True
+                        type="data", array=[control_ci, experimental_ci], visible=True
                     ),
                     text=[f"{control_mean:.3f}", f"{experimental_mean:.3f}"],
                     textposition="auto",
                     showlegend=True if row == 1 and col == 1 else False,
+                    hovertemplate="%{x}<br>平均值: %{y:.3f}<br>95%%置信区间: ±%{error_y.array:.3f}<br>标准误: %{se:.3f}<br><extra></extra>",
                 ),
                 row=row,
                 col=col,

@@ -1,12 +1,9 @@
 """Run a sampling session using previously saved calibration models."""
 
-import datetime
-import sys
 from pathlib import Path
 
 import pygame
 from gazefollower.calibration import SVRCalibration
-from gazefollower.logger import Log
 from gazefollower.misc import DefaultConfig
 from pygame.locals import K_ESCAPE, K_RETURN, KEYDOWN
 

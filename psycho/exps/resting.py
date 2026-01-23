@@ -1,8 +1,6 @@
-import logging
 
 from omegaconf import DictConfig
 from psychopy import core, event, sound, visual
-from pylsl import StreamOutlet
 
 from psycho.session import PSYCHO_FONT, Experiment
 from psycho.utils import init_lsl, parse_stim_path, send_marker, setup_default_logger

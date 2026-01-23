@@ -6,7 +6,6 @@ import hydra
 import matplotlib.pyplot as plt
 import mne
 import numpy as np
-import pandas as pd
 from mne.preprocessing import ICA
 from omegaconf import DictConfig, OmegaConf
 from pyxdf import load_xdf

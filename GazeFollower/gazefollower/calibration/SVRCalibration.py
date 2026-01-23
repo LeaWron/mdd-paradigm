@@ -3,11 +3,10 @@
 # Email: zhugc2016@gmail.com
 
 import pathlib
-from typing import Any, Tuple
+from typing import Tuple
 
 import cv2 as cv
 import numpy as np
-from numpy import ndarray
 
 from ..logger import Log
 from .Calibration import Calibration

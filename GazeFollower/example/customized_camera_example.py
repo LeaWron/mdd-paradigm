@@ -4,7 +4,6 @@
 
 import ctypes
 import os
-import sys
 import threading
 import time
 from ctypes import wintypes

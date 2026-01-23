@@ -12,7 +12,7 @@ import numpy as np
 import pygame
 
 from .calibration import Calibration, CalibrationController, SVRCalibration
-from .camera import Camera, HikrobotCamera, WebCamCamera
+from .camera import Camera
 from .face_alignment import FaceAlignment, MediaPipeFaceAlignment
 from .filter import HeuristicFilter
 from .filter.Filter import Filter

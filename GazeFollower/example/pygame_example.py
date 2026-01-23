@@ -4,7 +4,6 @@
 import os
 
 import pygame
-from gazefollower.gaze_estimator import MGazeNetGazeEstimator
 from pygame.locals import K_RETURN, KEYDOWN
 
 from gazefollower import GazeFollower

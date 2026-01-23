@@ -229,6 +229,20 @@ def calculate_new_metrics(trials_df: pl.DataFrame) -> dict[str, Any]:
                 pl.col("intensity").count().alias("n_trials"),
             ]
         )
+        .with_columns(
+            (pl.col("std_intensity") / pl.col("n_trials").sqrt()).alias("se_intensity")
+        )
+        .with_columns((1.96 * pl.col("se_intensity")).alias("ci_error_intensity"))
+        .with_columns(
+            (pl.col("mean_intensity") - pl.col("ci_error_intensity")).alias(
+                "ci_lower_intensity"
+            )
+        )
+        .with_columns(
+            (pl.col("mean_intensity") + pl.col("ci_error_intensity")).alias(
+                "ci_upper_intensity"
+            )
+        )
         .sort(["label_intensity_signed", "stim_type"])
     )
     metrics["intensity_by_label_emotion"] = intensity_by_label_emotion
@@ -243,6 +257,10 @@ def calculate_new_metrics(trials_df: pl.DataFrame) -> dict[str, Any]:
                 pl.col("rt_clean").count().alias("n_trials"),
             ]
         )
+        .with_columns((pl.col("std_rt") / pl.col("n_trials").sqrt()).alias("se_rt"))
+        .with_columns((1.96 * pl.col("se_rt")).alias("ci_error_rt"))
+        .with_columns((pl.col("mean_rt") - pl.col("ci_error_rt")).alias("ci_lower_rt"))
+        .with_columns((pl.col("mean_rt") + pl.col("ci_error_rt")).alias("ci_upper_rt"))
         .sort(["label_intensity_signed", "stim_type"])
     )
     metrics["rt_by_label_emotion"] = rt_by_label_emotion
@@ -258,6 +276,20 @@ def calculate_new_metrics(trials_df: pl.DataFrame) -> dict[str, Any]:
                 pl.col("intensity").count().alias("n_trials"),
             ]
         )
+        .with_columns(
+            (pl.col("std_intensity") / pl.col("n_trials").sqrt()).alias("se_intensity")
+        )
+        .with_columns((1.96 * pl.col("se_intensity")).alias("ci_error_intensity"))
+        .with_columns(
+            (pl.col("mean_intensity") - pl.col("ci_error_intensity")).alias(
+                "ci_lower_intensity"
+            )
+        )
+        .with_columns(
+            (pl.col("mean_intensity") + pl.col("ci_error_intensity")).alias(
+                "ci_upper_intensity"
+            )
+        )
         .sort(["intensity_level", "stim_type"])
     )
     metrics["intensity_by_level_emotion"] = intensity_by_level_emotion
@@ -272,6 +304,10 @@ def calculate_new_metrics(trials_df: pl.DataFrame) -> dict[str, Any]:
                 pl.col("rt_clean").count().alias("n_trials"),
             ]
         )
+        .with_columns((pl.col("std_rt") / pl.col("n_trials").sqrt()).alias("se_rt"))
+        .with_columns((1.96 * pl.col("se_rt")).alias("ci_error_rt"))
+        .with_columns((pl.col("mean_rt") - pl.col("ci_error_rt")).alias("ci_lower_rt"))
+        .with_columns((pl.col("mean_rt") + pl.col("ci_error_rt")).alias("ci_upper_rt"))
         .sort(["intensity_level", "stim_type"])
     )
     metrics["rt_by_level_emotion"] = rt_by_level_emotion
@@ -292,6 +328,26 @@ def calculate_new_metrics(trials_df: pl.DataFrame) -> dict[str, Any]:
                     "neutral_proportion"
                 )
             ]
+        )
+        .with_columns(
+            (
+                (
+                    pl.col("neutral_proportion")
+                    * (1 - pl.col("neutral_proportion"))
+                    / pl.col("total_count")
+                ).sqrt()
+            ).alias("se_neutral")
+        )
+        .with_columns((1.96 * pl.col("se_neutral")).alias("ci_error_neutral"))
+        .with_columns(
+            (pl.col("neutral_proportion") - pl.col("ci_error_neutral")).alias(
+                "ci_lower_neutral"
+            )
+        )
+        .with_columns(
+            (pl.col("neutral_proportion") + pl.col("ci_error_neutral")).alias(
+                "ci_upper_neutral"
+            )
         )
         .sort(["label_intensity_signed", "stim_type"])
     )
@@ -509,7 +565,7 @@ def create_single_visualizations(
             "label_intensity_signed"
         ]
         signed_neg_data["mean_intensity"] = -signed_neg_data["mean_intensity"]
-        signed_neg_data["std_intensity"] = -signed_neg_data["std_intensity"]
+        signed_neg_data["ci_error_intensity"] = signed_neg_data["ci_error_intensity"]
 
         # 为每个强度级别创建条形
         all_intensities = sorted(set(intensity_data["label_intensity_signed"].tolist()))
@@ -527,7 +583,7 @@ def create_single_visualizations(
                         y=pos_intensity_data["mean_intensity"].values,
                         error_y=dict(
                             type="data",
-                            array=pos_intensity_data["std_intensity"].values,
+                            array=pos_intensity_data["ci_error_intensity"].values,
                             visible=True,
                         ),
                         name="积极" if intensity == all_intensities[0] else "",
@@ -551,7 +607,7 @@ def create_single_visualizations(
                         y=neg_intensity_data["mean_intensity"].values,
                         error_y=dict(
                             type="data",
-                            array=neg_intensity_data["std_intensity"].values,
+                            array=neg_intensity_data["ci_error_intensity"].values,
                             visible=True,
                         ),
                         name="消极" if intensity == all_intensities[0] else "",
@@ -582,28 +638,33 @@ def create_single_visualizations(
         if neutral_stim_data.height > 0:
             # 计算中性刺激的平均选择强度
             neutral_intensity = neutral_stim_data["intensity"].mean()
-            neutral_std = neutral_stim_data["intensity"].std()
+            # 计算中性刺激的标准误和置信区间
             neutral_n = neutral_stim_data.height
+            if neutral_n > 1:
+                neutral_std = neutral_stim_data["intensity"].std()
+                neutral_se = neutral_std / np.sqrt(neutral_n)
+                neutral_ci_error = 1.96 * neutral_se
+                neutral_ci_lower = neutral_intensity - neutral_ci_error
+                neutral_ci_upper = neutral_intensity + neutral_ci_error
+            else:
+                neutral_ci_error = 0
+                neutral_ci_lower = neutral_intensity
+                neutral_ci_upper = neutral_intensity
 
         # 中性刺激数据（如果存在）
         if (
             not pos_data.empty
             and not signed_neg_data.empty
-            and "neutral_intensity" in locals()
-            and neutral_n > 0
+            and "neutral_ci_error" in locals()
         ):
             pos_data = pos_data.sort_values("label_intensity_signed")
-            pos_upper = pos_data["mean_intensity"] + pos_data["std_intensity"]
-            pos_lower = pos_data["mean_intensity"] - pos_data["std_intensity"]
+            pos_upper = pos_data["ci_upper_intensity"]
+            pos_lower = pos_data["ci_lower_intensity"]
             pos_main = pos_data["mean_intensity"]
 
             signed_neg_data = signed_neg_data.sort_values("label_intensity_signed")
-            signed_neg_upper = (
-                signed_neg_data["mean_intensity"] + signed_neg_data["std_intensity"]
-            )
-            signed_neg_lower = (
-                signed_neg_data["mean_intensity"] - signed_neg_data["std_intensity"]
-            )
+            signed_neg_upper = signed_neg_data["ci_upper_intensity"]
+            signed_neg_lower = signed_neg_data["ci_lower_intensity"]
             signed_neg_main = signed_neg_data["mean_intensity"]
 
             x_raw = (
@@ -613,14 +674,10 @@ def create_single_visualizations(
             )
             y_raw = pos_main.tolist() + signed_neg_main.tolist() + [neutral_intensity]
             y_raw_upper = (
-                pos_upper.tolist()
-                + signed_neg_upper.tolist()
-                + [neutral_intensity + neutral_std]
+                pos_upper.tolist() + signed_neg_upper.tolist() + [neutral_ci_upper]
             )
             y_raw_lower = (
-                pos_lower.tolist()
-                + signed_neg_lower.tolist()
-                + [neutral_intensity - neutral_std]
+                pos_lower.tolist() + signed_neg_lower.tolist() + [neutral_ci_lower]
             )
             indices = list(range(len(x_raw)))
             indices.sort(key=lambda x: x_raw[x])
@@ -701,7 +758,7 @@ def create_single_visualizations(
                         y=pos_intensity_data["mean_rt"].values,
                         error_y=dict(
                             type="data",
-                            array=pos_intensity_data["std_rt"].values,
+                            array=pos_intensity_data["ci_error_rt"].values,
                             visible=True,
                         ),
                         name="积极",
@@ -725,7 +782,7 @@ def create_single_visualizations(
                         y=neg_intensity_data["mean_rt"].values,
                         error_y=dict(
                             type="data",
-                            array=neg_intensity_data["std_rt"].values,
+                            array=neg_intensity_data["ci_error_rt"].values,
                             visible=True,
                         ),
                         name="消极",
@@ -769,7 +826,7 @@ def create_single_visualizations(
                         y=pos_level_data["mean_intensity"].values,
                         error_y=dict(
                             type="data",
-                            array=pos_level_data["std_intensity"].values,
+                            array=pos_level_data["ci_error_intensity"].values,
                             visible=True,
                         ),
                         name="积极",
@@ -791,7 +848,7 @@ def create_single_visualizations(
                         y=neg_level_data["mean_intensity"].values,
                         error_y=dict(
                             type="data",
-                            array=neg_level_data["std_intensity"].values,
+                            array=neg_level_data["ci_error_intensity"].values,
                             visible=True,
                         ),
                         name="消极",
@@ -835,7 +892,7 @@ def create_single_visualizations(
                         y=pos_level_data["mean_rt"].values,
                         error_y=dict(
                             type="data",
-                            array=pos_level_data["std_rt"].values,
+                            array=pos_level_data["ci_error_rt"].values,
                             visible=True,
                         ),
                         name="积极",
@@ -857,7 +914,7 @@ def create_single_visualizations(
                         y=neg_level_data["mean_rt"].values,
                         error_y=dict(
                             type="data",
-                            array=neg_level_data["std_rt"].values,
+                            array=neg_level_data["ci_error_rt"].values,
                             visible=True,
                         ),
                         name="消极",
@@ -894,10 +951,8 @@ def create_single_visualizations(
         signed_neg_data["label_intensity_signed"] = -signed_neg_data[
             "label_intensity_signed"
         ]
-        # signed_neg_data["neutral_proportion"] = -signed_neg_data["neutral_proportion"]
 
         # 添加中性刺激数据（如果存在）
-        # 中性刺激的label_intensity_signed为0
         neutral_stim_data = trials_df.filter(pl.col("stim_type") == "neutral")
         if neutral_stim_data.height > 0:
             # 计算中性刺激被判断为中性的比例
@@ -907,20 +962,6 @@ def create_single_visualizations(
             total_neutral_count = neutral_stim_data.height
             if total_neutral_count > 0:
                 neutral_proportion = neutral_choice_count / total_neutral_count
-                # 在中性位置（x=0）添加点
-                # fig.add_trace(
-                #     go.Scatter(
-                #         x=[0],
-                #         y=[neutral_proportion],
-                #         mode="markers",
-                #         name="中性刺激",
-                #         marker=dict(size=15, color="#9467bd", symbol="diamond"),
-                #         legendgroup="neutral",
-                #         showlegend=True,
-                #     ),
-                #     row=2,
-                #     col=2,
-                # )
 
         # 积极数据（x轴为正数）
         if (
@@ -961,23 +1002,6 @@ def create_single_visualizations(
                 row=2,
                 col=2,
             )
-
-    # # 消极数据（x轴为负数）
-    # if not neg_data.empty:
-    #     fig.add_trace(
-    #         go.Scatter(
-    #             x=-neg_data["label_intensity_signed"],  # x轴为负数
-    #             y=neg_data["neutral_proportion"],
-    #             mode="lines+markers",
-    #             name="消极刺激",
-    #             line=dict(width=3, color="#ef553b"),
-    #             marker=dict(size=10),
-    #             legendgroup="negative",
-    #             showlegend=False,
-    #         ),
-    #         row=2,
-    #         col=2,
-    #     )
 
     fig.update_yaxes(title_text="中性判定比例", range=[0, 1.2], row=2, col=2)
     fig.update_xaxes(title_text="标签强度（积极为正，消极为负，中性为0）", row=2, col=2)
@@ -1220,7 +1244,7 @@ def create_single_group_visualizations(
                         y=pos_intensity_data["mean_intensity"].values,
                         error_y=dict(
                             type="data",
-                            array=pos_intensity_data["std_intensity"].values,
+                            array=pos_intensity_data["ci_error_intensity"].values,
                             visible=True,
                         ),
                         name="积极" if intensity == all_intensities[0] else "",
@@ -1244,7 +1268,7 @@ def create_single_group_visualizations(
                         y=neg_intensity_data["mean_intensity"].values,
                         error_y=dict(
                             type="data",
-                            array=neg_intensity_data["std_intensity"].values,
+                            array=neg_intensity_data["ci_error_intensity"].values,
                             visible=True,
                         ),
                         name="消极" if intensity == all_intensities[0] else "",
@@ -1393,7 +1417,7 @@ def create_single_group_visualizations(
                         y=pos_intensity_data["mean_rt"].values,
                         error_y=dict(
                             type="data",
-                            array=pos_intensity_data["std_rt"].values,
+                            array=pos_intensity_data["ci_error_rt"].values,
                             visible=True,
                         ),
                         name="积极",
@@ -1417,7 +1441,7 @@ def create_single_group_visualizations(
                         y=neg_intensity_data["mean_rt"].values,
                         error_y=dict(
                             type="data",
-                            array=neg_intensity_data["std_rt"].values,
+                            array=neg_intensity_data["ci_error_rt"].values,
                             visible=True,
                         ),
                         name="消极",
@@ -1461,7 +1485,7 @@ def create_single_group_visualizations(
                         y=pos_level_data["mean_intensity"].values,
                         error_y=dict(
                             type="data",
-                            array=pos_level_data["std_intensity"].values,
+                            array=pos_level_data["ci_error_intensity"].values,
                             visible=True,
                         ),
                         name="积极",
@@ -1483,7 +1507,7 @@ def create_single_group_visualizations(
                         y=neg_level_data["mean_intensity"].values,
                         error_y=dict(
                             type="data",
-                            array=neg_level_data["std_intensity"].values,
+                            array=neg_level_data["ci_error_intensity"].values,
                             visible=True,
                         ),
                         name="消极",
@@ -1527,7 +1551,7 @@ def create_single_group_visualizations(
                         y=pos_level_data["mean_rt"].values,
                         error_y=dict(
                             type="data",
-                            array=pos_level_data["std_rt"].values,
+                            array=pos_level_data["ci_error_rt"].values,
                             visible=True,
                         ),
                         name="积极",
@@ -1549,7 +1573,7 @@ def create_single_group_visualizations(
                         y=neg_level_data["mean_rt"].values,
                         error_y=dict(
                             type="data",
-                            array=neg_level_data["std_rt"].values,
+                            array=neg_level_data["ci_error_rt"].values,
                             visible=True,
                         ),
                         name="消极",
@@ -1763,35 +1787,7 @@ def create_multi_group_visualizations(
         print("⚠️ 至少一组数据中没有正确的试次，无法生成多组对比可视化")
         return figs
 
-    # 3. 创建多组对比可视化 - 使用4行3列布局，将积极和消极拆分为不同子图
-    fig = make_subplots(
-        rows=4,  # 增加行数
-        cols=3,
-        subplot_titles=(
-            # 第一行：积极情绪相关
-            "各标签强度对应选择强度（积极）",
-            "各标签强度对应反应时（积极）",
-            "模糊等级对应选择强度（积极）",
-            # 第二行：消极情绪相关
-            "各标签强度对应选择强度（消极）",
-            "各标签强度对应反应时（消极）",
-            "模糊等级对应选择强度（消极）",
-            # 第三行：反应时和中性判定
-            "模糊等级对应反应时（积极）",
-            "模糊等级对应反应时（消极）",
-            # 第四行：强度一致性分析
-            "中性判定强度（组间对比）",
-            "强度一致性分析",
-        ),
-        specs=[
-            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],  # 第一行
-            [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],  # 第二行
-            [{"type": "bar"}, {"type": "bar"}, None],  # 第三行
-            [{"type": "scatter"}, {"type": "scatter"}, None],  # 第四行
-        ],
-        vertical_spacing=0.12,
-        horizontal_spacing=0.1,
-    )
+    # 3. 创建多组对比可视化 - 使用6行3列布局，将积极和消极拆分为不同子图
     fig = make_subplots(
         rows=6,  # 增加行数以容纳总体图
         cols=3,
@@ -1807,15 +1803,19 @@ def create_multi_group_visualizations(
             # 第三行：反应时和中性判定
             "模糊等级对应反应时（积极）",
             "模糊等级对应反应时（消极）",
+            None,
             # 第四行：强度一致性分析
             "中性判定强度（组间对比）",
             "强度一致性分析",
-            # 第五行：新增总体图3-4
-            "各标签强度对应选择强度（总体）",  # 新增总体图1
-            "各标签强度对应反应时（总体）",  # 新增总体图2
-            # 第六行：新增总体图5-6
+            None,
+            # 第五行：新增总体图
+            "各标签强度对应选择强度（总体）",
+            "各标签强度对应反应时（总体）",
+            None,
+            # 第六行：新增总体图
             "模糊等级对应选择强度（总体）",
             "模糊等级对应反应时（总体）",
+            None,
         ),
         specs=[
             [{"type": "bar"}, {"type": "bar"}, {"type": "bar"}],  # 第一行
@@ -1828,6 +1828,7 @@ def create_multi_group_visualizations(
         vertical_spacing=0.08,
         horizontal_spacing=0.1,
     )
+
     # 颜色定义
     control_color = "#1f77b4"  # 蓝色
     experimental_color = "#ff7f0e"  # 橙色
@@ -1883,7 +1884,7 @@ def create_multi_group_visualizations(
                         y=control_pos_intensity["mean_intensity"].values,
                         error_y=dict(
                             type="data",
-                            array=control_pos_intensity["std_intensity"].values,
+                            array=control_pos_intensity["ci_error_intensity"].values,
                             visible=True,
                         ),
                         name=f"{control_name}积极"
@@ -1910,7 +1911,9 @@ def create_multi_group_visualizations(
                         y=experimental_pos_intensity["mean_intensity"].values,
                         error_y=dict(
                             type="data",
-                            array=experimental_pos_intensity["std_intensity"].values,
+                            array=experimental_pos_intensity[
+                                "ci_error_intensity"
+                            ].values,
                             visible=True,
                         ),
                         name=f"{experimental_name}积极"
@@ -1976,7 +1979,7 @@ def create_multi_group_visualizations(
                         y=control_pos_intensity["mean_rt"].values,
                         error_y=dict(
                             type="data",
-                            array=control_pos_intensity["std_rt"].values,
+                            array=control_pos_intensity["ci_error_rt"].values,
                             visible=True,
                         ),
                         name=f"{control_name}积极",
@@ -2001,7 +2004,7 @@ def create_multi_group_visualizations(
                         y=experimental_pos_intensity["mean_rt"].values,
                         error_y=dict(
                             type="data",
-                            array=experimental_pos_intensity["std_rt"].values,
+                            array=experimental_pos_intensity["ci_error_rt"].values,
                             visible=True,
                         ),
                         name=f"{experimental_name}积极",
@@ -2059,7 +2062,7 @@ def create_multi_group_visualizations(
                         y=control_pos_level["mean_intensity"].values,
                         error_y=dict(
                             type="data",
-                            array=control_pos_level["std_intensity"].values,
+                            array=control_pos_level["ci_error_intensity"].values,
                             visible=True,
                         ),
                         name=f"{control_name}积极",
@@ -2084,7 +2087,7 @@ def create_multi_group_visualizations(
                         y=experimental_pos_level["mean_intensity"].values,
                         error_y=dict(
                             type="data",
-                            array=experimental_pos_level["std_intensity"].values,
+                            array=experimental_pos_level["ci_error_intensity"].values,
                             visible=True,
                         ),
                         name=f"{experimental_name}积极",
@@ -2153,7 +2156,7 @@ def create_multi_group_visualizations(
                         y=control_neg_intensity["mean_intensity"].values,
                         error_y=dict(
                             type="data",
-                            array=control_neg_intensity["std_intensity"].values,
+                            array=control_neg_intensity["ci_error_intensity"].values,
                             visible=True,
                         ),
                         name=f"{control_name}消极"
@@ -2180,7 +2183,9 @@ def create_multi_group_visualizations(
                         y=experimental_neg_intensity["mean_intensity"].values,
                         error_y=dict(
                             type="data",
-                            array=experimental_neg_intensity["std_intensity"].values,
+                            array=experimental_neg_intensity[
+                                "ci_error_intensity"
+                            ].values,
                             visible=True,
                         ),
                         name=f"{experimental_name}消极"
@@ -2246,7 +2251,7 @@ def create_multi_group_visualizations(
                         y=control_neg_intensity["mean_rt"].values,
                         error_y=dict(
                             type="data",
-                            array=control_neg_intensity["std_rt"].values,
+                            array=control_neg_intensity["ci_error_rt"].values,
                             visible=True,
                         ),
                         name=f"{control_name}消极",
@@ -2271,7 +2276,7 @@ def create_multi_group_visualizations(
                         y=experimental_neg_intensity["mean_rt"].values,
                         error_y=dict(
                             type="data",
-                            array=experimental_neg_intensity["std_rt"].values,
+                            array=experimental_neg_intensity["ci_error_rt"].values,
                             visible=True,
                         ),
                         name=f"{experimental_name}消极",
@@ -2329,7 +2334,7 @@ def create_multi_group_visualizations(
                         y=control_neg_level["mean_intensity"].values,
                         error_y=dict(
                             type="data",
-                            array=control_neg_level["std_intensity"].values,
+                            array=control_neg_level["ci_error_intensity"].values,
                             visible=True,
                         ),
                         name=f"{control_name}消极",
@@ -2354,7 +2359,7 @@ def create_multi_group_visualizations(
                         y=experimental_neg_level["mean_intensity"].values,
                         error_y=dict(
                             type="data",
-                            array=experimental_neg_level["std_intensity"].values,
+                            array=experimental_neg_level["ci_error_intensity"].values,
                             visible=True,
                         ),
                         name=f"{experimental_name}消极",
@@ -2408,7 +2413,7 @@ def create_multi_group_visualizations(
                         y=control_pos_level["mean_rt"].values,
                         error_y=dict(
                             type="data",
-                            array=control_pos_level["std_rt"].values,
+                            array=control_pos_level["ci_error_rt"].values,
                             visible=True,
                         ),
                         name=f"{control_name}积极",
@@ -2433,7 +2438,7 @@ def create_multi_group_visualizations(
                         y=experimental_pos_level["mean_rt"].values,
                         error_y=dict(
                             type="data",
-                            array=experimental_pos_level["std_rt"].values,
+                            array=experimental_pos_level["ci_error_rt"].values,
                             visible=True,
                         ),
                         name=f"{experimental_name}积极",
@@ -2487,7 +2492,7 @@ def create_multi_group_visualizations(
                         y=control_neg_level["mean_rt"].values,
                         error_y=dict(
                             type="data",
-                            array=control_neg_level["std_rt"].values,
+                            array=control_neg_level["ci_error_rt"].values,
                             visible=True,
                         ),
                         name=f"{control_name}消极",
@@ -2512,7 +2517,7 @@ def create_multi_group_visualizations(
                         y=experimental_neg_level["mean_rt"].values,
                         error_y=dict(
                             type="data",
-                            array=experimental_neg_level["std_rt"].values,
+                            array=experimental_neg_level["ci_error_rt"].values,
                             visible=True,
                         ),
                         name=f"{experimental_name}消极",
@@ -2976,9 +2981,9 @@ def create_multi_group_visualizations(
 
         # 计算每个强度级别的总体平均值
         control_overall_means = []
-        control_overall_stds = []
+        control_overall_ci_errors = []
         experimental_overall_means = []
-        experimental_overall_stds = []
+        experimental_overall_ci_errors = []
 
         for intensity in all_intensities:
             # 对照组总体平均值（积极和消极合并）
@@ -2993,24 +2998,25 @@ def create_multi_group_visualizations(
                         control_intensity_rows["mean_intensity"]
                         * control_intensity_rows["n_trials"]
                     ).sum() / total_trials
-                    # 计算合并标准差
-                    weighted_var = (
-                        (control_intensity_rows["std_intensity"] ** 2)
-                        * (control_intensity_rows["n_trials"] - 1)
-                    ).sum()
-                    weighted_var = weighted_var / (
-                        total_trials - len(control_intensity_rows)
+                    # 计算合并标准误
+                    weighted_se = np.sqrt(
+                        (
+                            control_intensity_rows["se_intensity"] ** 2
+                            * control_intensity_rows["n_trials"]
+                        ).sum()
+                        / total_trials
                     )
-                    weighted_std = np.sqrt(weighted_var)
+                    ci_error = 1.96 * weighted_se
                 else:
                     weighted_mean = control_intensity_rows["mean_intensity"].mean()
-                    weighted_std = control_intensity_rows["std_intensity"].mean()
+                    weighted_se = control_intensity_rows["se_intensity"].mean()
+                    ci_error = 1.96 * weighted_se
             else:
                 weighted_mean = np.nan
-                weighted_std = np.nan
+                ci_error = np.nan
 
             control_overall_means.append(weighted_mean)
-            control_overall_stds.append(weighted_std)
+            control_overall_ci_errors.append(ci_error)
 
             # 实验组总体平均值（积极和消极合并）
             experimental_intensity_rows = experimental_all_data[
@@ -3023,24 +3029,25 @@ def create_multi_group_visualizations(
                         experimental_intensity_rows["mean_intensity"]
                         * experimental_intensity_rows["n_trials"]
                     ).sum() / total_trials
-                    # 计算合并标准差
-                    weighted_var = (
-                        (experimental_intensity_rows["std_intensity"] ** 2)
-                        * (experimental_intensity_rows["n_trials"] - 1)
-                    ).sum()
-                    weighted_var = weighted_var / (
-                        total_trials - len(experimental_intensity_rows)
+                    # 计算合并标准误
+                    weighted_se = np.sqrt(
+                        (
+                            experimental_intensity_rows["se_intensity"] ** 2
+                            * experimental_intensity_rows["n_trials"]
+                        ).sum()
+                        / total_trials
                     )
-                    weighted_std = np.sqrt(weighted_var)
+                    ci_error = 1.96 * weighted_se
                 else:
                     weighted_mean = experimental_intensity_rows["mean_intensity"].mean()
-                    weighted_std = experimental_intensity_rows["std_intensity"].mean()
+                    weighted_se = experimental_intensity_rows["se_intensity"].mean()
+                    ci_error = 1.96 * weighted_se
             else:
                 weighted_mean = np.nan
-                weighted_std = np.nan
+                ci_error = np.nan
 
             experimental_overall_means.append(weighted_mean)
-            experimental_overall_stds.append(weighted_std)
+            experimental_overall_ci_errors.append(ci_error)
 
         # 为每个强度级别创建条形
         for i, intensity in enumerate(all_intensities):
@@ -3052,7 +3059,7 @@ def create_multi_group_visualizations(
                         y=[control_overall_means[i]],
                         error_y=dict(
                             type="data",
-                            array=[control_overall_stds[i]],
+                            array=[control_overall_ci_errors[i]],
                             visible=True,
                         ),
                         name=f"{control_name}总体"
@@ -3076,7 +3083,7 @@ def create_multi_group_visualizations(
                         y=[experimental_overall_means[i]],
                         error_y=dict(
                             type="data",
-                            array=[experimental_overall_stds[i]],
+                            array=[experimental_overall_ci_errors[i]],
                             visible=True,
                         ),
                         name=f"{experimental_name}总体"
@@ -3128,9 +3135,9 @@ def create_multi_group_visualizations(
 
         # 计算每个强度级别的总体平均值
         control_rt_means = []
-        control_rt_stds = []
+        control_rt_ci_errors = []
         experimental_rt_means = []
-        experimental_rt_stds = []
+        experimental_rt_ci_errors = []
 
         for intensity in all_intensities:
             # 对照组总体反应时平均值
@@ -3143,22 +3150,24 @@ def create_multi_group_visualizations(
                     weighted_mean = (
                         control_rt_rows["mean_rt"] * control_rt_rows["n_trials"]
                     ).sum() / total_trials
-                    # 计算合并标准差
-                    weighted_var = (
-                        (control_rt_rows["std_rt"] ** 2)
-                        * (control_rt_rows["n_trials"] - 1)
-                    ).sum()
-                    weighted_var = weighted_var / (total_trials - len(control_rt_rows))
-                    weighted_std = np.sqrt(weighted_var)
+                    # 计算合并标准误
+                    weighted_se = np.sqrt(
+                        (
+                            control_rt_rows["se_rt"] ** 2 * control_rt_rows["n_trials"]
+                        ).sum()
+                        / total_trials
+                    )
+                    ci_error = 1.96 * weighted_se
                 else:
                     weighted_mean = control_rt_rows["mean_rt"].mean()
-                    weighted_std = control_rt_rows["std_rt"].mean()
+                    weighted_se = control_rt_rows["se_rt"].mean()
+                    ci_error = 1.96 * weighted_se
             else:
                 weighted_mean = np.nan
-                weighted_std = np.nan
+                ci_error = np.nan
 
             control_rt_means.append(weighted_mean)
-            control_rt_stds.append(weighted_std)
+            control_rt_ci_errors.append(ci_error)
 
             # 实验组总体反应时平均值
             experimental_rt_rows = experimental_all_rt[
@@ -3171,24 +3180,25 @@ def create_multi_group_visualizations(
                         experimental_rt_rows["mean_rt"]
                         * experimental_rt_rows["n_trials"]
                     ).sum() / total_trials
-                    # 计算合并标准差
-                    weighted_var = (
-                        (experimental_rt_rows["std_rt"] ** 2)
-                        * (experimental_rt_rows["n_trials"] - 1)
-                    ).sum()
-                    weighted_var = weighted_var / (
-                        total_trials - len(experimental_rt_rows)
+                    # 计算合并标准误
+                    weighted_se = np.sqrt(
+                        (
+                            experimental_rt_rows["se_rt"] ** 2
+                            * experimental_rt_rows["n_trials"]
+                        ).sum()
+                        / total_trials
                     )
-                    weighted_std = np.sqrt(weighted_var)
+                    ci_error = 1.96 * weighted_se
                 else:
                     weighted_mean = experimental_rt_rows["mean_rt"].mean()
-                    weighted_std = experimental_rt_rows["std_rt"].mean()
+                    weighted_se = experimental_rt_rows["se_rt"].mean()
+                    ci_error = 1.96 * weighted_se
             else:
                 weighted_mean = np.nan
-                weighted_std = np.nan
+                ci_error = np.nan
 
             experimental_rt_means.append(weighted_mean)
-            experimental_rt_stds.append(weighted_std)
+            experimental_rt_ci_errors.append(ci_error)
 
         # 为每个强度级别创建条形
         for i, intensity in enumerate(all_intensities):
@@ -3200,7 +3210,7 @@ def create_multi_group_visualizations(
                         y=[control_rt_means[i]],
                         error_y=dict(
                             type="data",
-                            array=[control_rt_stds[i]],
+                            array=[control_rt_ci_errors[i]],
                             visible=True,
                         ),
                         name=f"{control_name}总体",
@@ -3222,7 +3232,7 @@ def create_multi_group_visualizations(
                         y=[experimental_rt_means[i]],
                         error_y=dict(
                             type="data",
-                            array=[experimental_rt_stds[i]],
+                            array=[experimental_rt_ci_errors[i]],
                             visible=True,
                         ),
                         name=f"{experimental_name}总体",
@@ -3279,21 +3289,22 @@ def create_multi_group_visualizations(
                         control_level_rows["mean_intensity"]
                         * control_level_rows["n_trials"]
                     ).sum() / total_trials
-                    # 计算合并标准差
-                    weighted_var = (
-                        (control_level_rows["std_intensity"] ** 2)
-                        * (control_level_rows["n_trials"] - 1)
-                    ).sum()
-                    weighted_var = weighted_var / (
-                        total_trials - len(control_level_rows)
+                    # 计算合并标准误
+                    weighted_se = np.sqrt(
+                        (
+                            control_level_rows["se_intensity"] ** 2
+                            * control_level_rows["n_trials"]
+                        ).sum()
+                        / total_trials
                     )
-                    weighted_std = np.sqrt(weighted_var)
+                    ci_error = 1.96 * weighted_se
                 else:
                     weighted_mean = control_level_rows["mean_intensity"].mean()
-                    weighted_std = control_level_rows["std_intensity"].mean()
+                    weighted_se = control_level_rows["se_intensity"].mean()
+                    ci_error = 1.96 * weighted_se
             else:
                 weighted_mean = np.nan
-                weighted_std = np.nan
+                ci_error = np.nan
 
             # 实验组该等级的数据
             experimental_level_rows = experimental_all_data[
@@ -3306,21 +3317,22 @@ def create_multi_group_visualizations(
                         experimental_level_rows["mean_intensity"]
                         * experimental_level_rows["n_trials"]
                     ).sum() / total_trials
-                    # 计算合并标准差
-                    weighted_var_exp = (
-                        (experimental_level_rows["std_intensity"] ** 2)
-                        * (experimental_level_rows["n_trials"] - 1)
-                    ).sum()
-                    weighted_var_exp = weighted_var_exp / (
-                        total_trials - len(experimental_level_rows)
+                    # 计算合并标准误
+                    weighted_se_exp = np.sqrt(
+                        (
+                            experimental_level_rows["se_intensity"] ** 2
+                            * experimental_level_rows["n_trials"]
+                        ).sum()
+                        / total_trials
                     )
-                    weighted_std_exp = np.sqrt(weighted_var_exp)
+                    ci_error_exp = 1.96 * weighted_se_exp
                 else:
                     weighted_mean_exp = experimental_level_rows["mean_intensity"].mean()
-                    weighted_std_exp = experimental_level_rows["std_intensity"].mean()
+                    weighted_se_exp = experimental_level_rows["se_intensity"].mean()
+                    ci_error_exp = 1.96 * weighted_se_exp
             else:
                 weighted_mean_exp = np.nan
-                weighted_std_exp = np.nan
+                ci_error_exp = np.nan
 
             # 绘制对照组条形
             if not np.isnan(weighted_mean):
@@ -3330,7 +3342,7 @@ def create_multi_group_visualizations(
                         y=[weighted_mean],
                         error_y=dict(
                             type="data",
-                            array=[weighted_std],
+                            array=[ci_error],
                             visible=True,
                         ),
                         name=f"{control_name}总体",
@@ -3352,7 +3364,7 @@ def create_multi_group_visualizations(
                         y=[weighted_mean_exp],
                         error_y=dict(
                             type="data",
-                            array=[weighted_std_exp],
+                            array=[ci_error_exp],
                             visible=True,
                         ),
                         name=f"{experimental_name}总体",
@@ -3406,21 +3418,22 @@ def create_multi_group_visualizations(
                     weighted_mean = (
                         control_level_rows["mean_rt"] * control_level_rows["n_trials"]
                     ).sum() / total_trials
-                    # 计算合并标准差
-                    weighted_var = (
-                        (control_level_rows["std_rt"] ** 2)
-                        * (control_level_rows["n_trials"] - 1)
-                    ).sum()
-                    weighted_var = weighted_var / (
-                        total_trials - len(control_level_rows)
+                    # 计算合并标准误
+                    weighted_se = np.sqrt(
+                        (
+                            control_level_rows["se_rt"] ** 2
+                            * control_level_rows["n_trials"]
+                        ).sum()
+                        / total_trials
                     )
-                    weighted_std = np.sqrt(weighted_var)
+                    ci_error = 1.96 * weighted_se
                 else:
                     weighted_mean = control_level_rows["mean_rt"].mean()
-                    weighted_std = control_level_rows["std_rt"].mean()
+                    weighted_se = control_level_rows["se_rt"].mean()
+                    ci_error = 1.96 * weighted_se
             else:
                 weighted_mean = np.nan
-                weighted_std = np.nan
+                ci_error = np.nan
 
             # 实验组该等级的反应时数据
             experimental_level_rows = experimental_all_rt[
@@ -3433,21 +3446,22 @@ def create_multi_group_visualizations(
                         experimental_level_rows["mean_rt"]
                         * experimental_level_rows["n_trials"]
                     ).sum() / total_trials
-                    # 计算合并标准差
-                    weighted_var_exp = (
-                        (experimental_level_rows["std_rt"] ** 2)
-                        * (experimental_level_rows["n_trials"] - 1)
-                    ).sum()
-                    weighted_var_exp = weighted_var_exp / (
-                        total_trials - len(experimental_level_rows)
+                    # 计算合并标准误
+                    weighted_se_exp = np.sqrt(
+                        (
+                            experimental_level_rows["se_rt"] ** 2
+                            * experimental_level_rows["n_trials"]
+                        ).sum()
+                        / total_trials
                     )
-                    weighted_std_exp = np.sqrt(weighted_var_exp)
+                    ci_error_exp = 1.96 * weighted_se_exp
                 else:
                     weighted_mean_exp = experimental_level_rows["mean_rt"].mean()
-                    weighted_std_exp = experimental_level_rows["std_rt"].mean()
+                    weighted_se_exp = experimental_level_rows["se_rt"].mean()
+                    ci_error_exp = 1.96 * weighted_se_exp
             else:
                 weighted_mean_exp = np.nan
-                weighted_std_exp = np.nan
+                ci_error_exp = np.nan
 
             # 绘制对照组条形
             if not np.isnan(weighted_mean):
@@ -3457,7 +3471,7 @@ def create_multi_group_visualizations(
                         y=[weighted_mean],
                         error_y=dict(
                             type="data",
-                            array=[weighted_std],
+                            array=[ci_error],
                             visible=True,
                         ),
                         name=f"{control_name}总体",
@@ -3479,7 +3493,7 @@ def create_multi_group_visualizations(
                         y=[weighted_mean_exp],
                         error_y=dict(
                             type="data",
-                            array=[weighted_std_exp],
+                            array=[ci_error_exp],
                             visible=True,
                         ),
                         name=f"{experimental_name}总体",

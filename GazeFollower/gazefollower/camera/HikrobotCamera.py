@@ -12,7 +12,6 @@ from typing import Optional
 import cv2  # 必须加，用于颜色转换 + resize（与 WebCamCamera 完全一致）
 import numpy as np
 
-from ..logger import Log
 from .Camera import Camera  # Adjust import according to your package structure
 
 # 海康 SDK 动态导入

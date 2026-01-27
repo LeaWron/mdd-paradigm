@@ -17,6 +17,11 @@ sys.path.append(
 import cv2  # 必须加，用于颜色转换 + resize（与 WebCamCamera 完全一致）
 from gazefollower.camera import Camera
 
+try:
+    from psycho.camera import try_get_from_image_queue
+except Exception:
+    try_get_from_image_queue = None
+
 # 海康 SDK 动态导入
 HAS_MV_CAMERA = os.getenv("MVCAM_COMMON_RUNENV") is not None
 if HAS_MV_CAMERA:
@@ -57,6 +62,7 @@ class HikvisionCamera(Camera):
         packet_size: int = 1500,  # GigE 相机优化用
         auto_select: bool = True,  # 是否自动选第一台
         camera_handler: Optional[MvCamera] = None,
+        use_shared_queue: bool = True,
         formal: bool = False,
     ):
         super().__init__()
@@ -75,6 +81,7 @@ class HikvisionCamera(Camera):
         # 海康对象
         self.cam: Optional[MvCamera] = camera_handler
         self.formal = formal
+        self.use_shared_queue = use_shared_queue
         # 线程控制（与 WebCamCamera 完全一致）
         self._camera_thread_running = False
         self._camera_thread = None
@@ -182,8 +189,43 @@ class HikvisionCamera(Camera):
         self._camera_thread.start()
 
     def capture(self):
-        
         while self._camera_thread_running:
+            if self.use_shared_queue:
+                item = try_get_from_image_queue()
+                if item is None:
+                    time.sleep(0.001)
+                    continue
+
+                try:
+                    img = np.frombuffer(item["buffer"], dtype=np.uint8)
+                    frame = self._convert_to_rgb_from_raw(
+                        img,
+                        item.get("width"),
+                        item.get("height"),
+                        item.get("pixel_type"),
+                    )
+                    frame = cv2.resize(frame, (self.target_width, self.target_height))
+
+                    host_ts = item.get("host_timestamp")
+                    timestamp = (
+                        int(host_ts) * 1_000_000
+                        if host_ts is not None
+                        else time.time_ns()
+                    )
+
+                    with self.callback_and_param_lock:
+                        if self.callback_func is not None:
+                            self.callback_func(
+                                self.camera_running_state,
+                                timestamp,
+                                frame,
+                                *self.callback_args,
+                                **self.callback_kwargs,
+                            )
+                except Exception as e:
+                    print(f"ERROR: {e}")
+
+                continue
             stOutFrame = MV_FRAME_OUT()
             memset(byref(stOutFrame), 0, sizeof(stOutFrame))
 
@@ -191,7 +233,6 @@ class HikvisionCamera(Camera):
             # print(f"captured photo : {ret}")
             if ret == 0:
                 try:
-                    
                     # 直接 cast 成指针数组，不走 int() 地址转换
                     pData = cast(
                         stOutFrame.pBufAddr,
@@ -222,7 +263,6 @@ class HikvisionCamera(Camera):
                                 *self.callback_args,
                                 **self.callback_kwargs,
                             )
-
 
                 except Exception as e:
                     print(f"这帧丢弃了: {e}")
@@ -321,12 +361,50 @@ class HikvisionCamera(Camera):
 
         return frame.astype(np.uint8)
 
+    def _convert_to_rgb_from_raw(
+        self, img: np.ndarray, width: int, height: int, pixel_type: int
+    ) -> np.ndarray:
+        if width is None or height is None:
+            raise ValueError("共享队列未提供图像尺寸")
+
+        if pixel_type == PixelType_Gvsp_Mono8:
+            frame = img.reshape(height, width)
+            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2RGB)
+
+        elif pixel_type in [
+            PixelType_Gvsp_BayerRG8,
+            PixelType_Gvsp_BayerGR8,
+            PixelType_Gvsp_BayerGB8,
+            PixelType_Gvsp_BayerBG8,
+        ]:
+            frame = img.reshape(height, width)
+            code_map = {
+                PixelType_Gvsp_BayerRG8: cv2.COLOR_BayerRG2RGB,
+                PixelType_Gvsp_BayerGR8: cv2.COLOR_BayerGR2RGB,
+                PixelType_Gvsp_BayerGB8: cv2.COLOR_BayerGB2RGB,
+                PixelType_Gvsp_BayerBG8: cv2.COLOR_BayerBG2RGB,
+            }
+            frame = cv2.cvtColor(frame, code_map.get(pixel_type, cv2.COLOR_BayerRG2RGB))
+
+        elif pixel_type == PixelType_Gvsp_RGB8_Packed:
+            frame = img.reshape(height, width, 3)
+
+        else:
+            frame = img.reshape(height, width, -1)[..., :3]
+            if frame.shape[2] == 1:
+                frame = cv2.cvtColor(frame[..., 0], cv2.COLOR_GRAY2RGB)
+
+        return frame.astype(np.uint8)
+
     def close(self):
         """与 WebCamCamera.close() 行为完全一致"""
-        if self.cam is None:
-            return
-
         print("Preview 线程正在关闭...")
+        if self.cam is None:
+            if self.use_shared_queue:
+                self._camera_thread_running = False
+                if self._camera_thread and self._camera_thread.is_alive():
+                    self._camera_thread.join(timeout=2.0)
+            return
         self._camera_thread_running = False
 
         if self._camera_thread and self._camera_thread.is_alive():

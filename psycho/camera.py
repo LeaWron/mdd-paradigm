@@ -2,6 +2,7 @@ import os
 import sys
 import threading
 import time
+from collections import deque
 from pathlib import Path
 
 import serial
@@ -27,6 +28,40 @@ ser: serial.Serial = None
 lsl_outlet: StreamOutlet = None
 logger = setup_default_logger()
 
+image_queue = deque()
+image_queue_lock = threading.Lock()
+MAX_IMAGE_QUEUE_LEN = 256
+
+
+def try_get_from_image_queue():
+    with image_queue_lock:
+        if len(image_queue) > 0:
+            return image_queue.popleft()
+    return None
+
+
+def push_to_image_queue(
+    frame_id: int,
+    host_timestamp: int,
+    width: int,
+    height: int,
+    pixel_type: int,
+    buf: bytes,
+):
+    with image_queue_lock:
+        if len(image_queue) >= MAX_IMAGE_QUEUE_LEN:
+            image_queue.popleft()
+        image_queue.append(
+            {
+                "frame_id": frame_id,
+                "host_timestamp": host_timestamp,
+                "width": width,
+                "height": height,
+                "pixel_type": pixel_type,
+                "buffer": buf,
+            }
+        )
+
 
 # 为线程定义一个函数
 def work_thread(cam, pData, nDataSize):
@@ -44,6 +79,16 @@ def work_thread(cam, pData, nDataSize):
             )
             stInputFrameInfo.pData = cast(stOutFrame.pBufAddr, POINTER(c_ubyte))
             stInputFrameInfo.nDataLen = stOutFrame.stFrameInfo.nFrameLen
+            # 复制一份buffer到队列，供其他模块使用，避免与SDK缓冲区冲突
+            buf_copy = string_at(stOutFrame.pBufAddr, stOutFrame.stFrameInfo.nFrameLen)
+            push_to_image_queue(
+                stOutFrame.stFrameInfo.nFrameNum,
+                cur_time_stamp,
+                stOutFrame.stFrameInfo.nWidth,
+                stOutFrame.stFrameInfo.nHeight,
+                int(stOutFrame.stFrameInfo.enPixelType),
+                buf_copy,
+            )
             # ch:输入一帧数据到录像接口|en:Input a frame of data to the video interface
             ret = cam.MV_CC_InputOneFrame(stInputFrameInfo)
             send_marker(

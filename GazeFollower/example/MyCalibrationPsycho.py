@@ -90,7 +90,9 @@ def eyetracking_calibration(
     if mycamera is None:
         mycamera = HikvisionCamera()
     else:
-        mycamera = HikvisionCamera(camera_handler=mycamera, formal=True, use_shared_queue=True)
+        mycamera = HikvisionCamera(
+            camera_handler=mycamera, formal=True, use_shared_queue=True
+        )
     gf = GazeFollower(camera=mycamera, calibration=calibration, config=config)
 
     # 初始化 PsychoPy 用于显示校准界面（全屏）

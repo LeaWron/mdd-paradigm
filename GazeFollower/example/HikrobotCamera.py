@@ -18,7 +18,7 @@ import cv2  # 必须加，用于颜色转换 + resize（与 WebCamCamera 完全�
 from gazefollower.camera import Camera
 
 try:
-    from psycho.camera import try_get_from_image_queue
+    from psycho.camera import try_get_from_image_queue, init_image_queue
 except Exception:
     try_get_from_image_queue = None
 
@@ -88,7 +88,10 @@ class HikvisionCamera(Camera):
 
     def open(self):
         """完全对标 WebCamCamera.open() 行为"""
-        if (
+        if self.use_shared_queue and try_get_from_image_queue is not None:
+            init_image_queue()
+            print("Using shared image queue for Hikvision camera")
+        elif (
             self.cam is None or self.formal is False
         ):  # formal represents formal experiment, where camera has already opened
             # 1. 初始化 SDK

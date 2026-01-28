@@ -33,6 +33,11 @@ image_queue_lock = threading.Lock()
 MAX_IMAGE_QUEUE_LEN = 256
 
 
+def init_image_queue():
+    with image_queue_lock:
+        image_queue.clear()
+
+
 def try_get_from_image_queue():
     with image_queue_lock:
         if len(image_queue) > 0:

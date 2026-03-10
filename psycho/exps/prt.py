@@ -160,7 +160,7 @@ def pre_block():
     send_marker(lsl_outlet, f"{marker_prefix}_BLOCK_{block_index}_START", is_pre=pre)
 
 
-def block():
+def block() -> bool:
     global trial_index
     for local_trial_index in range(n_trials_per_block):
         trial_index = local_trial_index
@@ -172,12 +172,12 @@ def block():
         if pre > 1:
             key = event.getKeys(["escape"])
             if key:
-                return
+                return False
         pre_trial()
         if pre > 1:
             key = event.getKeys(["escape"])
             if key:
-                return
+                return False
         trial()
         post_trial()
 
@@ -186,6 +186,8 @@ def block():
         one_trial_data["trial_end_time"] = trial_end_time
 
         update_trial(one_trial_data, one_block_data)
+
+    return True
 
 
 def post_block():
@@ -292,10 +294,6 @@ def trial():
     if keys:
         choice = keys[0][0]
         rt = keys[0][1] - on_set
-        # 记录反应时
-        one_trial_data["choice"] = choice
-        one_trial_data["rt"] = rt
-
         send_marker(lsl_outlet, f"{marker_prefix}_RESPONSE_{choice}", is_pre=pre)
         logger.info(
             f"Block {block_index + 1}, trial {trial_index + 1}: Correct face: {long_or_short}, Response: {choice}, rt: {rt:.4f}"
@@ -303,6 +301,9 @@ def trial():
     else:
         send_marker(lsl_outlet, f"{marker_prefix}_NORESPONSE", is_pre=pre)
         logger.info("No response")
+
+    one_trial_data["choice"] = choice
+    one_trial_data["rt"] = rt
 
     reward = give_reward(choice, long_or_short)
     # 记录奖励
@@ -455,7 +456,6 @@ def init_exp(config: DictConfig | None):
         empty_face, \
         short_mouth, \
         long_mouth, \
-        high_reward_prob, \
         monitor_distance, \
         fov, \
         reward_high, \
@@ -465,6 +465,8 @@ def init_exp(config: DictConfig | None):
         high_low_ratio, \
         stim_sequence, \
         reward_indice, \
+        high_cache, \
+        low_cache, \
         data_to_save, \
         total_point, \
         correct_count
@@ -488,6 +490,9 @@ def init_exp(config: DictConfig | None):
     max_reward_count = config.max_reward_count
     high_low_ratio = config.high_low_ratio
 
+    stim_sequence = None
+    reward_indice = None
+
     if "stim_sequence" in config:
         stim_sequence = config.stim_sequence
 
@@ -496,11 +501,16 @@ def init_exp(config: DictConfig | None):
 
     for key in data_to_save.keys():
         data_to_save[key].clear()
+        one_block_data[key].clear()
+        one_trial_data[key] = None
+
+    high_cache = 0
+    low_cache = 0
     total_point = 0
     correct_count = 0
 
 
-def run_exp(cfg: DictConfig | None):
+def run_exp(cfg: DictConfig | None) -> bool:
     global block_index
 
     if cfg is not None:
@@ -541,10 +551,14 @@ def run_exp(cfg: DictConfig | None):
         one_trial_data["block_index"] = block_index
 
         pre_block()
-        block()
+        completed = block()
+        if not completed:
+            return False
         post_block()
 
         update_block(one_block_data, data_to_save)
+
+    return True
 
 
 def entry(exp: Experiment | None = None):
@@ -563,10 +577,14 @@ def entry(exp: Experiment | None = None):
     if exp.config is not None and "pre" in exp.config:
         pre = 1
         while True:
-            run_exp(exp.config.pre)
+            completed = run_exp(exp.config.pre)
+            if not completed:
+                logger.info("预实验被手动退出")
+                break
 
             correct_rate = data_to_save["correct_rate"][-1]
-            if pre == 1 and correct_rate < 0.75:
+            if pre >= 1 and correct_rate < 0.75:
+                logger.info(f"第{pre}次预实验结束")
                 if pre > 3:
                     ask_text = "请稍作休息, 等待主试反馈"
                     ask = visual.TextBox2(
@@ -582,6 +600,10 @@ def entry(exp: Experiment | None = None):
                     ask.draw()
                     win.flip()
                     # "j" 代表继续, "k" 代表跳过, "l" 表示减小难度
+                    print('"j" 代表直接继续, "k" 代表跳过, "l" 表示减小难度')
+                    print(
+                        '"j" for continue, "k" for skip pre-experiment, "l" for easier mode'
+                    )
                     resp_key = event.waitKeys(keyList=["j", "k", "l"])
                     if resp_key:
                         match resp_key[0][0]:

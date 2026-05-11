@@ -627,6 +627,7 @@ def entry(exp: Experiment | None = None):
                 remind.draw()
                 win.flip()
                 event.waitKeys(keyList=continue_keys)
+                pre += 1
                 continue
 
             commit_text = "预实验已完成\n你是否需要再次进行预实验以更熟悉任务?\n按 <c=#51d237>Y</c> 键再次进行预实验, 按 <c=#eb5555>N</c> 键进入正式实验\n"

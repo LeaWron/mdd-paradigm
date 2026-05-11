@@ -295,15 +295,15 @@ def run_encoding_phase():
         if keys:
             key, timestamp = keys[0]
             resp = encoding_map[key]
+            send_marker(
+                lsl_outlet, f"{marker_prefix}_response_{resp.upper()}", is_pre=pre
+            )
             rt = timestamp - onset_time
             one_trial_data["rt"] = rt
             if resp == "yes":
                 endorse_count += 1
             logger.info(f"Encoding Trial {idx + 1}: {trial} -> {resp}, rt: {rt:.4f}")
             rating_slider(resp)
-            send_marker(
-                lsl_outlet, f"{marker_prefix}_RESPONSE_{resp.upper()}", is_pre=pre
-            )
         else:
             send_marker(lsl_outlet, f"{marker_prefix}_NORESPONSE", is_pre=pre)
         one_trial_data["response"] = resp

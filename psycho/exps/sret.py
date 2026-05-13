@@ -260,6 +260,9 @@ def run_encoding_phase():
         )
         text_stim.draw()
         win.flip()
+        send_marker(
+            lsl_outlet, f"{marker_prefix}_ENCODING_STIM_ONSET_{trial}", is_pre=pre
+        )
         core.wait(timing["encoding"]["stim"])
 
         draw_fixation(timing["encoding"]["fixation"])
@@ -278,9 +281,6 @@ def run_encoding_phase():
         prompt_stim.draw()
         win.flip()
 
-        send_marker(
-            lsl_outlet, f"{marker_prefix}_ENCODING_STIM_ONSET_{trial}", is_pre=pre
-        )
         onset_time = clock.getTime()
 
         keys = event.waitKeys(

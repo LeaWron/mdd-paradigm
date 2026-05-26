@@ -137,7 +137,7 @@ def draw_fixation(time: float):
 
 def rating_slider(resp: Literal["yes", "no"]):
     win.setMouseVisible(visibility=True)
-    verb = "<c=#51d237>符合</c>" if resp == "yes" else "<c=#eb5555>不符合</c>"
+    verb = "<c=#51d237>符合</c>" if resp == "yes" else "<c=#f58b7a>不符合</c>"
     prompt = visual.TextBox2(
         win,
         text=f"{intensity_prompt}{verb}程度",
@@ -269,7 +269,7 @@ def run_encoding_phase():
 
         prompt_stim = visual.TextBox2(
             win,
-            text=f"符合我( <c=#51d237>{list(encoding_map.keys())[0].upper()}</c> )   不符合我( <c=#eb5555>{list(encoding_map.keys())[1].upper()}</c> )",
+            text=f"符合我( <c=#51d237>{list(encoding_map.keys())[0].upper()}</c> )   不符合我( <c=#f58b7a>{list(encoding_map.keys())[1].upper()}</c> )",
             pos=(0, 0),
             letterHeight=0.08,
             size=(1.2, None),
@@ -415,7 +415,7 @@ def entry(exp: Experiment | None = None):
         while True:
             run_exp(exp.config.pre)
 
-            commit_text = "预实验已完成\n你是否需要再次进行预实验以更熟悉任务?\n按 <c=#51d237>Y</c> 键再次进行预实验, 按 <c=#eb5555>N</c> 键进入正式实验\n"
+            commit_text = "预实验已完成\n你是否需要再次进行预实验以更熟悉任务?\n按 <c=#51d237>Y</c> 键再次进行预实验, 按 <c=#f58b7a>N</c> 键进入正式实验\n"
             prompt = visual.TextBox2(
                 win,
                 text=commit_text,

@@ -38,7 +38,7 @@ stim_items = list(stim_folder.glob("*.BMP"))
 response_map = {"a": "positive", "s": "neutral", "d": "negative"}
 
 
-intensity_prompt = "情绪的强度（1-9）, 1为<c=#eb5555>最弱</c>, 9为<c=#51d237>最强</c>"
+intensity_prompt = "情绪的强度（1-9）, 1为<c=#f58b7a>最弱</c>, 9为<c=#51d237>最强</c>"
 intensity_ticks = list(range(1, 10))
 # === 全局变量 ===
 win = None
@@ -356,7 +356,7 @@ def post_trial():
 
 def rating_slider(positive: bool):
     win.setMouseVisible(visibility=True)
-    placeholder = "<c=#51d237>积极</c>" if positive else "<c=#eb5555>消极</c>"
+    placeholder = "<c=#51d237>积极</c>" if positive else "<c=#f58b7a>消极</c>"
     prompt = visual.TextBox2(
         win,
         text=f"请选择该{placeholder}{intensity_prompt}",
@@ -511,7 +511,7 @@ def entry(exp: Experiment | None = None):
         pre = 1
         while True:
             run_exp(exp.config.pre)
-            commit_text = "预实验已完成\n你是否需要再次进行预实验以更熟悉任务?\n按 <c=#51d237>Y</c> 键再次进行预实验, 按 <c=#eb5555>N</c> 键进入正式实验\n"
+            commit_text = "预实验已完成\n你是否需要再次进行预实验以更熟悉任务?\n按 <c=#51d237>Y</c> 键再次进行预实验, 按 <c=#f58b7a>N</c> 键进入正式实验\n"
             prompt = visual.TextBox2(
                 win,
                 text=commit_text,

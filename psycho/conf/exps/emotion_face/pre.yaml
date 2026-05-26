@@ -11,10 +11,10 @@ timing:
 phase_prompt:
   title: 人脸情绪识别任务
   prompt: |
-    请保持你到屏幕的距离<c=#eb5555>不变</c>
+    请保持你到屏幕的距离<c=#f58b7a>不变</c>
 
     每次你将看到一张黑白的人脸图片, 短暂延迟后图片消失
-    随后会出现"<c=#eb5555>请判断</c>"的提示
+    随后会出现"<c=#f58b7a>请判断</c>"的提示
     此时你需要判断这张图片中的人脸的情绪是积极的、中性的还是消极的
 
     按 <c=#51d237>A</c> 代表<c=yellow>积极</c>, <c=#51d237>S</c> 代表中性, <c=#51d237>D</c> 代表<c=purple>消极</c>
@@ -34,7 +34,7 @@ response_map:
   s: neutral
   d: negative
 
-intensity_prompt: "情绪的强度（1-9）, 1为<c=#eb5555>最弱</c>, 9为<c=#51d237>最强</c>"
+intensity_prompt: "情绪的强度（1-9）, 1为<c=#f58b7a>最弱</c>, 9为<c=#51d237>最强</c>"
 intensity_ticks:
   start: 1
   end: 9

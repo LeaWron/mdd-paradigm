@@ -349,7 +349,7 @@ def trial():
     #         win,
     #         text="错误!" if rt is not None else "超时!",
     #         height=0.1,
-    #         color="#eb5555",
+    #         color="#f58b7a",
     #         colorSpace="rgb",
     #         font=PSYCHO_FONT,
     #     )
@@ -359,7 +359,7 @@ def trial():
             win,
             text="超时!请尽快作出反应!",
             height=0.1,
-            color="#eb5555",
+            color="#f58b7a",
             colorSpace="rgb",
             font=PSYCHO_FONT,
         )
@@ -613,7 +613,7 @@ def entry(exp: Experiment | None = None):
                                 global timing
                                 timing["stim"] += timing["offset"]
 
-                remind_text = f"预实验正确率为 <c=yellow>{correct_rate * 100:.2f}%</c>, 未超过 <c=#eb5555>75%</c> \n你需要重新进行预实验\n\n如果对实验有任何问题, 现在可以联系实验员\n\n若没有问题, 请按 <c=#51d237>空格键</c> 继续"
+                remind_text = f"预实验正确率为 <c=yellow>{correct_rate * 100:.2f}%</c>, 未超过 <c=#f58b7a>75%</c> \n你需要重新进行预实验\n\n如果对实验有任何问题, 现在可以联系实验员\n\n若没有问题, 请按 <c=#51d237>空格键</c> 继续"
                 remind = visual.TextBox2(
                     win,
                     text=remind_text,
@@ -630,7 +630,7 @@ def entry(exp: Experiment | None = None):
                 pre += 1
                 continue
 
-            commit_text = "预实验已完成\n你是否需要再次进行预实验以更熟悉任务?\n按 <c=#51d237>Y</c> 键再次进行预实验, 按 <c=#eb5555>N</c> 键进入正式实验\n"
+            commit_text = "预实验已完成\n你是否需要再次进行预实验以更熟悉任务?\n按 <c=#51d237>Y</c> 键再次进行预实验, 按 <c=#f58b7a>N</c> 键进入正式实验\n"
             prompt = visual.TextBox2(
                 win,
                 text=commit_text,
